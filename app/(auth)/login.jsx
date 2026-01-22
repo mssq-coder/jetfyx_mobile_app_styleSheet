@@ -2,12 +2,13 @@ import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import { useState } from "react";
 import {
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  Text,
-  TextInput,
-  View,
+    KeyboardAvoidingView,
+    Platform,
+    Pressable,
+    StyleSheet,
+    Text,
+    TextInput,
+    View,
 } from "react-native";
 import { useAuthStore } from "../../store/authStore";
 
@@ -33,76 +34,50 @@ export default function Login() {
   };
 
   return (
-    <View className="flex-1 bg-white">
+    <View style={styles.container}>
       {/* Top red curved gradient */}
       <LinearGradient
         colors={["#DC2626", "#E00055"]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
-        style={{
-          position: "absolute",
-          top: 0,
-          left: 0,
-          right: 0,
-          height: "40%",
-          borderBottomLeftRadius: 120,
-          borderBottomRightRadius: 120,
-        }}
+        style={styles.topGradient}
       />
       {/* Bottom red curved gradient */}
       <LinearGradient
         colors={["#E00055", "#DC2626"]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
-        style={{
-          position: "absolute",
-          bottom: 0,
-          left: 0,
-          right: 0,
-          height: "38%",
-          borderTopLeftRadius: 140,
-          borderTopRightRadius: 140,
-        }}
+        style={styles.bottomGradient}
       />
 
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : undefined}
-        className="flex-1"
+        style={styles.keyboardAvoid}
       >
-        <View className="flex-1 justify-center px-8">
-          <View
-            className="bg-white rounded-[28px] px-7 pt-10 pb-8"
-            style={{
-              shadowColor: "#000",
-              shadowOpacity: 0.08,
-              shadowRadius: 12,
-              elevation: 6,
-            }}
-          >
-            <View className="items-center mb-6">
-              <View className="items-center mb-6">
+        <View style={styles.centerContent}>
+          <View style={styles.card}>
+            <View style={styles.logoContainer}>
+              <View style={styles.logoInner}>
                 <LogoComp size={88} />
               </View>
             </View>
 
             {/* Account type segmented */}
-            <View className="flex-row bg-[#f2f2f6] p-1 rounded-full mb-4">
+            <View style={styles.segmentedControl}>
               {["live", "demo"].map((t) => (
                 <Pressable
                   key={t}
                   onPress={() => setAccountType(t)}
-                  className="flex-1 py-2 rounded-full items-center justify-center"
-                  style={
-                    accountType === t ? { backgroundColor: "#C40042" } : null
-                  }
+                  style={[
+                    styles.segmentButton,
+                    accountType === t && styles.segmentButtonActive,
+                  ]}
                 >
                   <Text
-                    className="text-[13px] font-semibold"
-                    style={
-                      accountType === t
-                        ? { color: "#fff" }
-                        : { color: "#9CA3AF" }
-                    }
+                    style={[
+                      styles.segmentText,
+                      accountType === t && styles.segmentTextActive,
+                    ]}
                   >
                     {t === "live" ? "Live" : "Demo"}
                   </Text>
@@ -111,7 +86,7 @@ export default function Login() {
             </View>
 
             {/* Username */}
-            <View className="mb-3">
+            <View style={styles.inputContainer}>
               <TextInput
                 value={username}
                 onChangeText={setUsername}
@@ -119,13 +94,13 @@ export default function Login() {
                   accountType === "live" ? "Username / Email" : "Demo Account"
                 }
                 placeholderTextColor="#9AA0A6"
-                className="bg-[#E9EAEE] py-3.5 px-4 rounded-full text-sm text-[#222]"
+                style={styles.textInput}
                 autoCapitalize="none"
               />
             </View>
 
             {/* Password */}
-            <View className="mb-2">
+            <View style={styles.passwordContainer}>
               <View>
                 <TextInput
                   value={password}
@@ -133,15 +108,15 @@ export default function Login() {
                   placeholder="Password"
                   placeholderTextColor="#9AA0A6"
                   secureTextEntry={!showPassword}
-                  className="bg-[#E9EAEE] py-3.5 px-4 rounded-full text-sm text-[#222]"
+                  style={styles.textInput}
                   autoCapitalize="none"
                 />
                 <Pressable
                   onPress={() => setShowPassword((s) => !s)}
                   accessibilityRole="button"
-                  className="absolute right-4 top-1/2 -translate-y-2.5"
+                  style={styles.showPasswordButton}
                 >
-                  <Text className="text-[#6B7280] text-[13px]">
+                  <Text style={styles.showPasswordText}>
                     {showPassword ? "Hide" : "Show"}
                   </Text>
                 </Pressable>
@@ -149,43 +124,42 @@ export default function Login() {
             </View>
 
             {/* Remember me & forgot */}
-            <View className="flex-row justify-between items-center mb-4">
+            <View style={styles.rememberForgotRow}>
               <Pressable
                 onPress={() => setRemember(!remember)}
-                className="flex-row items-center"
+                style={styles.rememberContainer}
               >
                 <View
-                  className="w-4 h-4 rounded-[3px] mr-2 border"
-                  style={{
-                    backgroundColor: remember ? "#C40042" : "transparent",
-                    borderColor: remember ? "#C40042" : "#bbb",
-                  }}
+                  style={[
+                    styles.checkbox,
+                    {
+                      backgroundColor: remember ? "#C40042" : "transparent",
+                      borderColor: remember ? "#C40042" : "#bbb",
+                    },
+                  ]}
                 />
-                <Text className="text-xs text-[#666]">REMEMBER ME</Text>
+                <Text style={styles.rememberText}>REMEMBER ME</Text>
               </Pressable>
               <Pressable>
-                <Text className="text-xs text-[#C40042] font-semibold">
-                  Forgot password?
-                </Text>
+                <Text style={styles.forgotText}>Forgot password?</Text>
               </Pressable>
             </View>
 
             {/* Login button */}
-            <View className="mb-4">
+            <View style={styles.buttonContainer}>
               <LinearGradient
                 colors={["#C40042", "#E00055"]}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
-                className="rounded-full"
+                style={styles.gradient}
               >
                 <Pressable
                   onPress={onSubmit}
                   disabled={loading}
-                  className="bg-[#DC2626] py-2.5 rounded-full"
-                  style={{ opacity: loading ? 0.7 : 1 }}
+                  style={[styles.loginButton, { opacity: loading ? 0.7 : 1 }]}
                   android_ripple={{ color: "#99002f" }}
                 >
-                  <Text className="text-white text-center text-base font-semibold">
+                  <Text style={styles.loginButtonText}>
                     {loading ? "Logging in..." : "Log In"}
                   </Text>
                 </Pressable>
@@ -194,17 +168,17 @@ export default function Login() {
 
             {/* Error message */}
             {error ? (
-              <View className="items-center mb-2">
-                <Text className="text-xs text-red-600">{String(error)}</Text>
+              <View style={styles.errorContainer}>
+                <Text style={styles.errorText}>{String(error)}</Text>
               </View>
             ) : null}
 
             {/* Sign up link */}
-            <View className="items-center mb-4">
-              <Text className="text-xs text-[#666]">
+            <View style={styles.signupContainer}>
+              <Text style={styles.signupText}>
                 Don&apos;t Have An Account?{" "}
                 <Text
-                  className="text-[#C40042] font-semibold"
+                  style={styles.signupLink}
                   onPress={() => router.push("/(auth)/register")}
                 >
                   Sign Up
@@ -217,3 +191,167 @@ export default function Login() {
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: "#fff",
+  },
+  topGradient: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    height: "40%",
+    borderBottomLeftRadius: 120,
+    borderBottomRightRadius: 120,
+  },
+  bottomGradient: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: "38%",
+    borderTopLeftRadius: 140,
+    borderTopRightRadius: 140,
+  },
+  keyboardAvoid: {
+    flex: 1,
+  },
+  centerContent: {
+    flex: 1,
+    justifyContent: "center",
+    paddingHorizontal: 32,
+  },
+  card: {
+    backgroundColor: "#fff",
+    borderRadius: 28,
+    paddingHorizontal: 28,
+    paddingTop: 40,
+    paddingBottom: 32,
+    shadowColor: "#000",
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 6,
+  },
+  logoContainer: {
+    alignItems: "center",
+    marginBottom: 24,
+  },
+  logoInner: {
+    alignItems: "center",
+    marginBottom: 24,
+  },
+  segmentedControl: {
+    flexDirection: "row",
+    backgroundColor: "#f2f2f6",
+    padding: 4,
+    borderRadius: 999,
+    marginBottom: 16,
+  },
+  segmentButton: {
+    flex: 1,
+    paddingVertical: 8,
+    borderRadius: 999,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  segmentButtonActive: {
+    backgroundColor: "#C40042",
+  },
+  segmentText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#9CA3AF",
+  },
+  segmentTextActive: {
+    color: "#fff",
+  },
+  inputContainer: {
+    marginBottom: 12,
+  },
+  textInput: {
+    backgroundColor: "#E9EAEE",
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 999,
+    fontSize: 14,
+    color: "#222",
+  },
+  passwordContainer: {
+    marginBottom: 8,
+  },
+  showPasswordButton: {
+    position: "absolute",
+    right: 16,
+    top: "50%",
+    marginTop: -10,
+  },
+  showPasswordText: {
+    color: "#6B7280",
+    fontSize: 13,
+  },
+  rememberForgotRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  rememberContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  checkbox: {
+    width: 16,
+    height: 16,
+    borderRadius: 3,
+    marginRight: 8,
+    borderWidth: 1,
+  },
+  rememberText: {
+    fontSize: 12,
+    color: "#666",
+  },
+  forgotText: {
+    fontSize: 12,
+    color: "#C40042",
+    fontWeight: "600",
+  },
+  buttonContainer: {
+    marginBottom: 16,
+  },
+  gradient: {
+    borderRadius: 999,
+  },
+  loginButton: {
+    backgroundColor: "#DC2626",
+    paddingVertical: 10,
+    borderRadius: 999,
+  },
+  loginButtonText: {
+    color: "#fff",
+    textAlign: "center",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  errorContainer: {
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  errorText: {
+    fontSize: 12,
+    color: "#dc2626",
+  },
+  signupContainer: {
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  signupText: {
+    fontSize: 12,
+    color: "#666",
+  },
+  signupLink: {
+    color: "#C40042",
+    fontWeight: "600",
+  },
+});

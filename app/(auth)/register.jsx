@@ -1,23 +1,21 @@
-import React, { useState, useRef, useEffect } from 'react';
+import { LinearGradient } from "expo-linear-gradient";
+import { router } from "expo-router";
+import React, { useEffect, useRef, useState } from "react";
 import {
-  View,
-  Text,
-  TextInput,
-  Pressable,
   Image,
   KeyboardAvoidingView,
-  Platform,
-  ScrollView,
   Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
   TouchableWithoutFeedback,
-} from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import AppButton from '../../components/Button';
-import Logo from '../../assets/images/icon.png';
-import { router } from 'expo-router';
-import { getAccountType , getCountries } from '../../api/auth';
-import { registerUser, verifyOtp } from '../../api/auth';
-
+  View,
+} from "react-native";
+import { getAccountType, getCountries, registerUser, verifyOtp } from "../../api/auth";
+import Logo from "../../assets/images/icon.png";
 
 export default function SignUpScreen({ navigation }) {
   const [accountTypes, setAccountTypes] = useState([]);
@@ -40,14 +38,27 @@ export default function SignUpScreen({ navigation }) {
       setCountriesLoading(true);
       setCountriesError(null);
       try {
-        const [types, countriesResp] = await Promise.all([getAccountType(), getCountries()]);
+        const [types, countriesResp] = await Promise.all([
+          getAccountType(),
+          getCountries(),
+        ]);
 
         // Countries
-        const countriesPayload = countriesResp && countriesResp.data ? countriesResp.data : countriesResp;
-        const countriesList = Array.isArray(countriesPayload) ? countriesPayload : [];
+        const countriesPayload =
+          countriesResp && countriesResp.data
+            ? countriesResp.data
+            : countriesResp;
+        const countriesList = Array.isArray(countriesPayload)
+          ? countriesPayload
+          : [];
         const normalizedCountries = countriesList
           .filter((c) => c && c.phoneCode)
-          .map((c) => ({ id: c.id, name: c.name, code: c.code, phoneCode: c.phoneCode }));
+          .map((c) => ({
+            id: c.id,
+            name: c.name,
+            code: c.code,
+            phoneCode: c.phoneCode,
+          }));
         setCountries(normalizedCountries);
 
         // Account types
@@ -56,16 +67,22 @@ export default function SignUpScreen({ navigation }) {
         const payload = types && types.data ? types.data : types;
         const list = Array.isArray(payload) ? payload : [];
         // Only include visible types
-        const visible = list.filter((t) => t.visibility === true || t.visibility === 'true');
-        const demos = visible.filter((t) => t.isDemo === true || t.isDemo === 'true').map((t) => ({ id: t.id, name: t.accountName || t.name }));
-        const lives = visible.filter((t) => !(t.isDemo === true || t.isDemo === 'true')).map((t) => ({ id: t.id, name: t.accountName || t.name }));
+        const visible = list.filter(
+          (t) => t.visibility === true || t.visibility === "true",
+        );
+        const demos = visible
+          .filter((t) => t.isDemo === true || t.isDemo === "true")
+          .map((t) => ({ id: t.id, name: t.accountName || t.name }));
+        const lives = visible
+          .filter((t) => !(t.isDemo === true || t.isDemo === "true"))
+          .map((t) => ({ id: t.id, name: t.accountName || t.name }));
         setDemoAccountTypes(demos);
         setAccountTypes(lives);
 
         // If current form selection is invalid, set sensible defaults
         setForm((s) => {
           const next = { ...s };
-          if (s.accountCreationType === 'demo') {
+          if (s.accountCreationType === "demo") {
             if (demos.length > 0) {
               next.accountType = demos[0].name;
               next.accountTypeId = demos[0].id;
@@ -79,9 +96,9 @@ export default function SignUpScreen({ navigation }) {
           return next;
         });
       } catch (err) {
-        console.warn('Failed to load bootstrap data', err);
-        setAccountTypesError(err?.message || 'Failed to load account types');
-        setCountriesError(err?.message || 'Failed to load countries');
+        console.warn("Failed to load bootstrap data", err);
+        setAccountTypesError(err?.message || "Failed to load account types");
+        setCountriesError(err?.message || "Failed to load countries");
       } finally {
         setAccountTypesLoading(false);
         setCountriesLoading(false);
@@ -92,35 +109,36 @@ export default function SignUpScreen({ navigation }) {
   }, []);
   // Use a simple palette similar to LoginScreen
   const palette = {
-    heading: '#111827',
-    subtleText: '#6B7280',
-    input: '#E9EAEE',
-    border: '#E0E3E8',
-    surface: '#ffffff',
-    primary: '#C40042',
+    heading: "#111827",
+    subtleText: "#6B7280",
+    input: "#E9EAEE",
+    border: "#E0E3E8",
+    surface: "#ffffff",
+    primary: "#C40042",
   };
   const [step, setStep] = useState(1);
 
   const [form, setForm] = useState({
-    firstName: '',
-    lastName: '',
-    email: '',
-    countryCode: '+91',
-    phoneNumber: '',
-    accountType: 'CLASSIC',
+    firstName: "",
+    lastName: "",
+    email: "",
+    countryCode: "+91",
+    phoneNumber: "",
+    accountType: "CLASSIC",
     accountTypeId: null,
-    accountCreationType: 'live',
-    referralCode: '',
+    accountCreationType: "live",
+    referralCode: "",
     terms: false,
   });
   const [errors, setErrors] = useState({});
 
-  const [verification, setVerification] = useState(['', '', '', '', '', '']);
-  const verificationRefs = useRef(Array.from({ length: 6 }, () => React.createRef()));
+  const [verification, setVerification] = useState(["", "", "", "", "", ""]);
+  const verificationRefs = useRef(
+    Array.from({ length: 6 }, () => React.createRef()),
+  );
 
   const [countryOpen, setCountryOpen] = useState(false);
 
-  
   // accountTypes and demoAccountTypes are loaded from backend
 
   const handleChange = (key, value) => {
@@ -147,18 +165,22 @@ export default function SignUpScreen({ navigation }) {
 
   const validateDetails = () => {
     const next = {};
-    if (!form.firstName || form.firstName.trim().length === 0) next.firstName = 'First name is required';
-    if (!form.lastName || form.lastName.trim().length === 0) next.lastName = 'Last name is required';
-    if (!form.email || !validateEmail(form.email)) next.email = 'Valid email is required';
-    if (!form.phoneNumber || form.phoneNumber.trim().length < 6) next.phoneNumber = 'Valid phone is required';
+    if (!form.firstName || form.firstName.trim().length === 0)
+      next.firstName = "First name is required";
+    if (!form.lastName || form.lastName.trim().length === 0)
+      next.lastName = "Last name is required";
+    if (!form.email || !validateEmail(form.email))
+      next.email = "Valid email is required";
+    if (!form.phoneNumber || form.phoneNumber.trim().length < 6)
+      next.phoneNumber = "Valid phone is required";
     setErrors(next);
     return Object.keys(next).length === 0;
   };
 
   const validateAccount = () => {
     const next = {};
-    if (!form.accountTypeId) next.accountType = 'Please select an account type';
-    if (!form.terms) next.terms = 'You must accept the terms';
+    if (!form.accountTypeId) next.accountType = "Please select an account type";
+    if (!form.terms) next.terms = "You must accept the terms";
     setErrors(next);
     return Object.keys(next).length === 0;
   };
@@ -181,30 +203,36 @@ export default function SignUpScreen({ navigation }) {
         lastName: form.lastName,
         phone,
       });
-      console.log('Registration successful', response);
+      console.log("Registration successful", response);
 
       // Many endpoints return { message, statusCode, data: {...} }
       const regPayload = response && response.data ? response.data : response;
-      const userId = regPayload?.userId ?? regPayload?.id ?? regPayload?.user?.id ?? regPayload?.user?.userId;
+      const userId =
+        regPayload?.userId ??
+        regPayload?.id ??
+        regPayload?.user?.id ??
+        regPayload?.user?.userId;
       if (userId) setRegisteredUserId(userId);
 
       setStep(3);
     } catch (err) {
-      console.warn('Register failed', err);
-      setRegisterError(err?.response?.data?.message || err?.message || 'Registration failed');
+      console.warn("Register failed", err);
+      setRegisterError(
+        err?.response?.data?.message || err?.message || "Registration failed",
+      );
     } finally {
       setRegisterLoading(false);
     }
   };
 
   const handleVerify = async () => {
-    const otp = verification.join('');
+    const otp = verification.join("");
     if (!registeredUserId) {
-      setVerifyError('Missing userId. Please register again.');
+      setVerifyError("Missing userId. Please register again.");
       return;
     }
     if (!/^[0-9]{6}$/.test(otp)) {
-      setVerifyError('Please enter a valid 6-digit OTP');
+      setVerifyError("Please enter a valid 6-digit OTP");
       return;
     }
 
@@ -213,141 +241,170 @@ export default function SignUpScreen({ navigation }) {
     try {
       const response = await verifyOtp({
         userId: registeredUserId,
-        accountTypeId: String(form.accountTypeId ?? ''),
+        accountTypeId: String(form.accountTypeId ?? ""),
         otp,
       });
-      console.log('OTP verification success', response);
-      alert('OTP verified successfully');
-      router.push('/(auth)/login');
+      console.log("OTP verification success", response);
+      alert("OTP verified successfully");
+      router.push("/(auth)/login");
     } catch (err) {
-      console.warn('Verify OTP failed', err);
-      setVerifyError(err?.response?.data?.message || err?.message || 'OTP verification failed');
+      console.warn("Verify OTP failed", err);
+      setVerifyError(
+        err?.response?.data?.message ||
+          err?.message ||
+          "OTP verification failed",
+      );
     } finally {
       setVerifyLoading(false);
     }
   };
 
   useEffect(() => {
-    if (form.accountCreationType === 'demo') {
-      if (demoAccountTypes.length > 0 && form.accountType !== demoAccountTypes[0].name) {
-        setForm((s) => ({ ...s, accountType: demoAccountTypes[0].name, accountTypeId: demoAccountTypes[0].id }));
+    if (form.accountCreationType === "demo") {
+      if (
+        demoAccountTypes.length > 0 &&
+        form.accountType !== demoAccountTypes[0].name
+      ) {
+        setForm((s) => ({
+          ...s,
+          accountType: demoAccountTypes[0].name,
+          accountTypeId: demoAccountTypes[0].id,
+        }));
       }
     } else {
-      if (accountTypes.length > 0 && !accountTypes.some((a) => a.name === form.accountType)) {
-        setForm((s) => ({ ...s, accountType: accountTypes[0].name, accountTypeId: accountTypes[0].id }));
+      if (
+        accountTypes.length > 0 &&
+        !accountTypes.some((a) => a.name === form.accountType)
+      ) {
+        setForm((s) => ({
+          ...s,
+          accountType: accountTypes[0].name,
+          accountTypeId: accountTypes[0].id,
+        }));
       }
     }
-  }, [form.accountCreationType, form.accountType, accountTypes, demoAccountTypes]);
+  }, [
+    form.accountCreationType,
+    form.accountType,
+    accountTypes,
+    demoAccountTypes,
+  ]);
 
   return (
-    <View className="flex-1 bg-white">
+    <View style={styles.container}>
       <LinearGradient
-        colors={['#DC2626', '#E00055']}
+        colors={["#DC2626", "#E00055"]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
-        style={{
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          right: 0,
-          height: '40%',
-          borderBottomLeftRadius: 120,
-          borderBottomRightRadius: 120,
-        }}
+        style={styles.topGradient}
       />
       <LinearGradient
-        colors={['#DC2626', '#DC2626']}
+        colors={["#DC2626", "#DC2626"]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
-        style={{
-          position: 'absolute',
-          bottom: 0,
-          left: 0,
-          right: 0,
-          height: '38%',
-          borderTopLeftRadius: 140,
-          borderTopRightRadius: 140,
-        }}
+        style={styles.bottomGradient}
       />
 
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} className="flex-1">
-        <View className="flex-1 justify-center px-5">
-          <View className="items-center mb-4">
-            <Image source={Logo} className="w-[140px] h-[58px]" style={{ resizeMode: 'contain' }} />
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        style={styles.keyboardAvoid}
+      >
+        <View style={styles.centerContent}>
+          <View style={styles.logoContainer}>
+            <Image source={Logo} style={styles.logo} />
           </View>
 
-          <View className="bg-white px-4 pt-4 pb-4 rounded-[16px] self-center w-[92%] max-w-[420px] shadow-lg">
-            <View className="items-center mb-3">
-              <Text className="text-[22px] mb-4 text-center text-heading">
-                {step === 1 ? 'Create Account' : step === 2 ? 'Account Setup' : 'Verify Email'}
+          <View style={styles.card}>
+            <View style={styles.headerContainer}>
+              <Text style={styles.title}>
+                {step === 1
+                  ? "Create Account"
+                  : step === 2
+                    ? "Account Setup"
+                    : "Verify Email"}
               </Text>
             </View>
 
             {step === 1 && (
               <>
-                <View className="flex-row mb-2">
-                  <View className="flex-1 pr-2">
-                    <Text className="text-subtle mb-1.5">First Name</Text>
+                <View style={styles.nameRow}>
+                  <View style={[styles.nameField, styles.nameFieldLeft]}>
+                    <Text style={styles.label}>First Name</Text>
                     <TextInput
                       placeholder="First Name"
                       placeholderTextColor={palette.subtleText}
-                      className="py-2 px-3 rounded-[10px] border bg-input border-border"
+                      style={styles.textInput}
                       value={form.firstName}
-                      onChangeText={(t) => handleChange('firstName', t)}
+                      onChangeText={(t) => handleChange("firstName", t)}
                       autoCapitalize="words"
                     />
-                    {errors.firstName ? <Text className="text-red-600 mt-1">{errors.firstName}</Text> : null}
+                    {errors.firstName ? (
+                      <Text style={styles.errorText}>{errors.firstName}</Text>
+                    ) : null}
                   </View>
-                  <View className="flex-1 pl-2">
-                    <Text className="text-subtle mb-1.5">Last Name</Text>
+                  <View style={[styles.nameField, styles.nameFieldRight]}>
+                    <Text style={styles.label}>Last Name</Text>
                     <TextInput
                       placeholder="Last Name"
                       placeholderTextColor={palette.subtleText}
-                      className="py-2 px-3 rounded-[10px] border bg-input border-border"
+                      style={styles.textInput}
                       value={form.lastName}
-                      onChangeText={(t) => handleChange('lastName', t)}
+                      onChangeText={(t) => handleChange("lastName", t)}
                       autoCapitalize="words"
                     />
-                    {errors.lastName ? <Text className="text-red-600 mt-1">{errors.lastName}</Text> : null}
+                    {errors.lastName ? (
+                      <Text style={styles.errorText}>{errors.lastName}</Text>
+                    ) : null}
                   </View>
                 </View>
 
-                <View className="mb-3">
-                  <Text className="text-subtle mb-1.5">Email</Text>
+                <View style={styles.formField}>
+                  <Text style={styles.label}>Email</Text>
                   <TextInput
                     placeholder="Email"
                     placeholderTextColor={palette.subtleText}
                     keyboardType="email-address"
                     autoCapitalize="none"
-                    className="p-3 rounded-xl border bg-input border-border text-heading"
+                    style={styles.textInput}
                     value={form.email}
-                    onChangeText={(t) => handleChange('email', t)}
+                    onChangeText={(t) => handleChange("email", t)}
                   />
-                  {errors.email ? <Text className="text-red-600 mt-1">{errors.email}</Text> : null}
+                  {errors.email ? (
+                    <Text style={styles.errorText}>{errors.email}</Text>
+                  ) : null}
                 </View>
 
-                <View className="flex-row mb-3">
-                  <View className="w-[120px] pr-3">
-                    <Text className="text-subtle mb-1.5">Country Code</Text>
+                <View style={styles.countryPhoneRow}>
+                  <View style={styles.countryCodeField}>
+                    <Text style={styles.label}>Country Code</Text>
                     <View>
-                      <Pressable onPress={() => setCountryOpen(true)} className="rounded-md p-2 flex-row justify-between items-center bg-input">
-                        <Text className="text-subtle">{form.countryCode}</Text>
-                        <Text className="text-subtle">▾</Text>
+                      <Pressable
+                        onPress={() => setCountryOpen(true)}
+                        style={styles.countryCodeButton}
+                      >
+                        <Text style={styles.subtleText}>
+                          {form.countryCode}
+                        </Text>
+                        <Text style={styles.subtleText}>▾</Text>
                       </Pressable>
                     </View>
                   </View>
 
-                  <View className="flex-1 pl-3">
-                    <Text className="text-subtle mb-1.5">Phone</Text>
+                  <View style={styles.phoneField}>
+                    <Text style={styles.label}>Phone</Text>
                     <TextInput
                       placeholder="Phone Number"
                       placeholderTextColor={palette.subtleText}
                       keyboardType="number-pad"
-                      className="p-3 rounded-xl border bg-input border-border text-heading"
+                      style={styles.textInput}
                       value={form.phoneNumber}
-                      onChangeText={(t) => handleChange('phoneNumber', t.replace(/[^0-9]/g, ''))}
+                      onChangeText={(t) =>
+                        handleChange("phoneNumber", t.replace(/[^0-9]/g, ""))
+                      }
                     />
-                    {errors.phoneNumber ? <Text className="text-red-600 mt-1">{errors.phoneNumber}</Text> : null}
+                    {errors.phoneNumber ? (
+                      <Text style={styles.errorText}>{errors.phoneNumber}</Text>
+                    ) : null}
                   </View>
                 </View>
 
@@ -358,58 +415,93 @@ export default function SignUpScreen({ navigation }) {
                   animationType="fade"
                   onRequestClose={() => setCountryOpen(false)}
                 >
-                  <TouchableWithoutFeedback onPress={() => setCountryOpen(false)}>
-                    <View className="flex-1 bg-black/40 justify-end">
-                      <View className="bg-white rounded-t-xl p-4">
-                        <Text className="text-base font-semibold mb-3">Select Country Code</Text>
+                  <TouchableWithoutFeedback
+                    onPress={() => setCountryOpen(false)}
+                  >
+                    <View style={styles.modalOverlay}>
+                      <View style={styles.modalContent}>
+                        <Text style={styles.modalTitle}>
+                          Select Country Code
+                        </Text>
                         {countriesLoading ? (
-                          <Text className="text-subtle">Loading countries...</Text>
+                          <Text style={styles.subtleText}>
+                            Loading countries...
+                          </Text>
                         ) : countriesError ? (
-                          <Text className="text-subtle text-red-600">Failed to load countries</Text>
+                          <Text style={styles.modalError}>
+                            Failed to load countries
+                          </Text>
                         ) : (
-                          <ScrollView style={{ maxHeight: 260 }}>
+                          <ScrollView style={styles.countriesList}>
                             {countries.map((item) => (
                               <Pressable
                                 key={item.id}
                                 onPress={() => {
-                                  handleChange('countryCode', item.phoneCode);
+                                  handleChange("countryCode", item.phoneCode);
                                   setCountryOpen(false);
                                 }}
-                                className={`py-3 px-2 rounded-md ${form.countryCode === item.phoneCode ? 'bg-red-50' : ''}`}
+                                style={[
+                                  styles.countryItem,
+                                  form.countryCode === item.phoneCode &&
+                                    styles.countryItemActive,
+                                ]}
                               >
-                                <Text className={`${form.countryCode === item.phoneCode ? 'text-red-600' : 'text-heading'}`}>{item.phoneCode} - {item.name}</Text>
+                                <Text
+                                  style={[
+                                    styles.countryItemText,
+                                    form.countryCode === item.phoneCode &&
+                                      styles.countryItemTextActive,
+                                  ]}
+                                >
+                                  {item.phoneCode} - {item.name}
+                                </Text>
                               </Pressable>
                             ))}
                           </ScrollView>
                         )}
-                        <Pressable onPress={() => setCountryOpen(false)} className="mt-3 py-3 items-center rounded-md bg-gray-100">
+                        <Pressable
+                          onPress={() => setCountryOpen(false)}
+                          style={styles.modalCloseButton}
+                        >
                           <Text>Close</Text>
                         </Pressable>
                       </View>
                     </View>
                   </TouchableWithoutFeedback>
                 </Modal>
-                <View className="mb-2">
-                  <Text className="text-subtle mb-1.5">Referral Code (optional)</Text>
-                  <TextInput placeholder="Referral Code" placeholderTextColor={palette.subtleText} className="p-3 rounded-xl border bg-input border-border text-heading" value={form.referralCode} onChangeText={(t) => handleChange('referralCode', t)} autoCapitalize="characters" />
+
+                <View style={styles.formField}>
+                  <Text style={styles.label}>Referral Code (optional)</Text>
+                  <TextInput
+                    placeholder="Referral Code"
+                    placeholderTextColor={palette.subtleText}
+                    style={styles.textInput}
+                    value={form.referralCode}
+                    onChangeText={(t) => handleChange("referralCode", t)}
+                    autoCapitalize="characters"
+                  />
                 </View>
 
-                <View className="mt-1">
-                  <LinearGradient colors={['#DC2626', '#DC2626']} style={{ borderRadius: 30 }}>
-                    <AppButton
-                      title="Continue"
+                <View style={styles.continueButtonContainer}>
+                  <LinearGradient
+                    colors={["#DC2626", "#DC2626"]}
+                    style={styles.gradient}
+                  >
+                    <Pressable
+                      style={styles.continueButton}
                       onPress={handleContinueDetails}
-                      size="lg"
-                      color="#ffffff"
-                      style={{ backgroundColor: '#DC2626' }}
-                    />
+                    >
+                      <Text style={styles.continueButtonText}>Continue</Text>
+                    </Pressable>
                   </LinearGradient>
                 </View>
 
-                <View className="mt-3 items-center">
-                  <Text className="text-subtle">Already have an account?</Text>
-                  <Pressable onPress={() => router.push('/(auth)/login')}>
-                    <Text className="text-red-600 mt-1.5">Sign In</Text>
+                <View style={styles.signInContainer}>
+                  <Text style={styles.subtleText}>
+                    Already have an account?
+                  </Text>
+                  <Pressable onPress={() => router.push("/(auth)/login")}>
+                    <Text style={styles.signInLink}>Sign In</Text>
                   </Pressable>
                 </View>
               </>
@@ -417,13 +509,14 @@ export default function SignUpScreen({ navigation }) {
 
             {step === 2 && (
               <>
-                <Text className="text-subtle mb-2">Account Creation</Text>
-                <View className="flex-row bg-[#f2f2f6] p-1 rounded-full mb-3">
-                  {['live', 'demo'].map((t) => (
+                <Text style={styles.subtleText}>Account Creation</Text>
+                <View style={styles.segmentedControl}>
+                  {["live", "demo"].map((t) => (
                     <Pressable
                       key={t}
                       onPress={() => {
-                        const list = t === 'live' ? accountTypes : demoAccountTypes;
+                        const list =
+                          t === "live" ? accountTypes : demoAccountTypes;
                         const first = list[0];
                         setForm((s) => ({
                           ...s,
@@ -432,104 +525,205 @@ export default function SignUpScreen({ navigation }) {
                           accountTypeId: first?.id ?? s.accountTypeId,
                         }));
                       }}
-                      className={`flex-1 py-2 rounded-full items-center ${form.accountCreationType === t ? 'bg-red-600' : 'bg-transparent'}`}
+                      style={[
+                        styles.segmentButton,
+                        form.accountCreationType === t &&
+                          styles.segmentButtonActive,
+                      ]}
                     >
-                      <Text className={`${form.accountCreationType === t ? 'text-white' : 'text-gray-500'} text-[13px] font-semibold`}>{t === 'live' ? 'Live Account' : 'Demo Account'}</Text>
+                      <Text
+                        style={[
+                          styles.segmentText,
+                          form.accountCreationType === t &&
+                            styles.segmentTextActive,
+                        ]}
+                      >
+                        {t === "live" ? "Live Account" : "Demo Account"}
+                      </Text>
                     </Pressable>
                   ))}
                 </View>
 
-                <Text className="text-subtle mb-2">Account Type</Text>
+                <Text style={styles.subtleText}>Account Type</Text>
                 <ScrollView
                   horizontal
                   showsHorizontalScrollIndicator={false}
-                  className="mb-3 px-1"
+                  style={styles.accountTypeScroll}
                 >
-                  {(form.accountCreationType === 'live' ? accountTypes : demoAccountTypes).map((t) => (
+                  {(form.accountCreationType === "live"
+                    ? accountTypes
+                    : demoAccountTypes
+                  ).map((t) => (
                     <Pressable
                       key={t.id}
                       onPress={() => {
-                        handleChange('accountType', t.name);
-                        handleChange('accountTypeId', t.id);
+                        handleChange("accountType", t.name);
+                        handleChange("accountTypeId", t.id);
                       }}
-                      className={`min-w-[120px] px-3 py-3 rounded-xl border border-gray-200 items-center justify-center mr-2 ${form.accountType === t.name ? 'bg-red-600' : 'bg-transparent'}`}
+                      style={[
+                        styles.accountTypeButton,
+                        form.accountType === t.name &&
+                          styles.accountTypeButtonActive,
+                      ]}
                     >
-                      <Text className={`${form.accountType === t.name ? 'text-white' : 'text-gray-500'} font-semibold`}>{t.name}</Text>
+                      <Text
+                        style={[
+                          styles.accountTypeText,
+                          form.accountType === t.name &&
+                            styles.accountTypeTextActive,
+                        ]}
+                      >
+                        {t.name}
+                      </Text>
                     </Pressable>
                   ))}
                 </ScrollView>
-                {errors.accountType ? <Text className="text-red-600 mb-2">{errors.accountType}</Text> : null}
+                {errors.accountType ? (
+                  <Text style={styles.errorText}>{errors.accountType}</Text>
+                ) : null}
 
                 {accountTypesLoading ? (
-                  <Text className="text-subtle">Loading account types...</Text>
+                  <Text style={styles.subtleText}>
+                    Loading account types...
+                  </Text>
                 ) : accountTypesError ? (
-                  <Text className="text-subtle text-red-600">Failed to load account types</Text>
-                ) : (form.accountCreationType === 'live' ? accountTypes.length === 0 && <Text className="text-subtle">No live account types available</Text> : demoAccountTypes.length === 0 && <Text className="text-subtle">No demo account types available</Text>)}
+                  <Text style={styles.errorText}>
+                    Failed to load account types
+                  </Text>
+                ) : form.accountCreationType === "live" ? (
+                  accountTypes.length === 0 && (
+                    <Text style={styles.subtleText}>
+                      No live account types available
+                    </Text>
+                  )
+                ) : (
+                  demoAccountTypes.length === 0 && (
+                    <Text style={styles.subtleText}>
+                      No demo account types available
+                    </Text>
+                  )
+                )}
 
-                <Pressable onPress={() => { handleChange('terms', !form.terms); setErrors((s) => ({ ...s, terms: undefined })); }} className="flex-row items-center my-2" hitSlop={8}>
+                <Pressable
+                  onPress={() => {
+                    handleChange("terms", !form.terms);
+                    setErrors((s) => ({ ...s, terms: undefined }));
+                  }}
+                  style={styles.termsCheckbox}
+                  hitSlop={8}
+                >
                   <View
-                    className={`w-4 h-4 rounded-sm mr-2 flex items-center justify-center ${form.terms ? '' : 'bg-transparent'}`}
-                    style={{ borderWidth: 1, borderColor: form.terms ? palette.primary : '#bbb', backgroundColor: form.terms ? palette.primary : 'transparent' }}
+                    style={[
+                      styles.checkbox,
+                      {
+                        borderColor: form.terms ? palette.primary : "#bbb",
+                        backgroundColor: form.terms
+                          ? palette.primary
+                          : "transparent",
+                      },
+                    ]}
                     accessibilityRole="checkbox"
                     accessibilityState={{ checked: form.terms }}
                   >
-                    {form.terms ? <Text style={{ color: '#fff', fontSize: 8 }}>✓</Text> : null}
+                    {form.terms ? (
+                      <Text style={styles.checkmark}>✓</Text>
+                    ) : null}
                   </View>
-                  <Text className="text-subtle">I agree to Terms & Privacy Policy</Text>
+                  <Text style={styles.subtleText}>
+                    I agree to Terms & Privacy Policy
+                  </Text>
                 </Pressable>
 
-                <View className="mt-1">
-                  <LinearGradient colors={['#DC2626', '#DC2626']} style={{ borderRadius: 30 }}>
-                    <AppButton
-                      title="Continue"
+                <View style={styles.continueButtonContainer}>
+                  <LinearGradient
+                    colors={["#DC2626", "#DC2626"]}
+                    style={styles.gradient}
+                  >
+                    <Pressable
+                      style={[
+                        styles.continueButton,
+                        { opacity: !form.terms ? 0.5 : 1 },
+                      ]}
                       onPress={handleContinueAccount}
-                      variant={form.terms ? 'primary' : 'ghost'}
-                      size="lg"
-                      color="#ffffff"
                       disabled={!form.terms || registerLoading}
-                      style={!form.terms ? { opacity: 0.5 } : {}}
-                    />
+                    >
+                      <Text style={styles.continueButtonText}>
+                        {registerLoading ? "Processing..." : "Continue"}
+                      </Text>
+                    </Pressable>
                   </LinearGradient>
                 </View>
 
-                {registerError ? <Text className="text-red-600 mt-2">{registerError}</Text> : null}
+                {registerError ? (
+                  <Text style={styles.errorText}>{registerError}</Text>
+                ) : null}
 
-                {errors.terms ? <Text className="text-red-600 mt-2">{errors.terms}</Text> : null}
+                {errors.terms ? (
+                  <Text style={styles.errorText}>{errors.terms}</Text>
+                ) : null}
 
-                <Pressable onPress={() => setStep(1)} style={{ marginTop: 12 }}>
-                  <Text style={{ color: palette.primary, textAlign: 'center' }}>Back</Text>
+                <Pressable onPress={() => setStep(1)} style={styles.backButton}>
+                  <Text style={styles.backButtonText}>Back</Text>
                 </Pressable>
               </>
             )}
 
             {step === 3 && (
               <>
-                <Text className="text-subtle mb-2.5">Enter 6-digit code sent to:</Text>
-                <Text className="text-heading font-bold mb-5">{form.email}</Text>
+                <Text style={styles.subtleText}>
+                  Enter 6-digit code sent to:
+                </Text>
+                <Text style={styles.emailDisplay}>{form.email}</Text>
 
-                <View className="flex-row justify-center mb-4">
+                <View style={styles.otpContainer}>
                   {verification.map((digit, i) => (
-                    <TextInput key={i} ref={verificationRefs.current[i]} className="w-10 h-12 text-center text-[18px] rounded-[10px] border mx-1 bg-input border-border" maxLength={1} keyboardType="number-pad" value={digit} onChangeText={(t) => handleCodeInput(i, t)} />
+                    <TextInput
+                      key={i}
+                      ref={verificationRefs.current[i]}
+                      style={styles.otpInput}
+                      maxLength={1}
+                      keyboardType="number-pad"
+                      value={digit}
+                      onChangeText={(t) => handleCodeInput(i, t)}
+                    />
                   ))}
                 </View>
 
-                <View className="mt-2">
-                  <LinearGradient colors={['#DC2626', '#DC2626']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ borderRadius: 30 }}>
-                    <AppButton
-                      title={verifyLoading ? 'Verifying...' : 'Verify'}
+                <View style={styles.continueButtonContainer}>
+                  <LinearGradient
+                    colors={["#DC2626", "#DC2626"]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.gradient}
+                  >
+                    <Pressable
+                      style={[
+                        styles.continueButton,
+                        {
+                          opacity:
+                            verifyLoading || verification.join("").length !== 6
+                              ? 0.7
+                              : 1,
+                        },
+                      ]}
                       onPress={handleVerify}
-                      size="lg"
-                      color="#ffffff"
-                      disabled={verifyLoading || verification.join('').length !== 6}
-                      style={{ backgroundColor: '#DC2626', opacity: verifyLoading || verification.join('').length !== 6 ? 0.7 : 1 }}
-                    />
+                      disabled={
+                        verifyLoading || verification.join("").length !== 6
+                      }
+                    >
+                      <Text style={styles.continueButtonText}>
+                        {verifyLoading ? "Verifying..." : "Verify"}
+                      </Text>
+                    </Pressable>
                   </LinearGradient>
                 </View>
 
-                {verifyError ? <Text className="text-red-600 mt-2">{verifyError}</Text> : null}
+                {verifyError ? (
+                  <Text style={styles.errorText}>{verifyError}</Text>
+                ) : null}
 
-                <Pressable onPress={() => setStep(1)} style={{ marginTop: 12 }}>
-                  <Text style={{ color: palette.primary, textAlign: 'center' }}>Back</Text>
+                <Pressable onPress={() => setStep(1)} style={styles.backButton}>
+                  <Text style={styles.backButtonText}>Back</Text>
                 </Pressable>
               </>
             )}
@@ -539,3 +733,297 @@ export default function SignUpScreen({ navigation }) {
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: "#fff",
+  },
+  topGradient: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    height: "40%",
+    borderBottomLeftRadius: 120,
+    borderBottomRightRadius: 120,
+  },
+  bottomGradient: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: "38%",
+    borderTopLeftRadius: 140,
+    borderTopRightRadius: 140,
+  },
+  keyboardAvoid: {
+    flex: 1,
+  },
+  centerContent: {
+    flex: 1,
+    justifyContent: "center",
+    paddingHorizontal: 20,
+  },
+  logoContainer: {
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  logo: {
+    width: 140,
+    height: 58,
+    resizeMode: "contain",
+  },
+  card: {
+    backgroundColor: "#fff",
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 16,
+    borderRadius: 16,
+    alignSelf: "center",
+    width: "92%",
+    maxWidth: 420,
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  headerContainer: {
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  title: {
+    fontSize: 22,
+    marginBottom: 16,
+    textAlign: "center",
+    color: "#111827",
+    fontWeight: "600",
+  },
+  nameRow: {
+    flexDirection: "row",
+    marginBottom: 8,
+  },
+  nameField: {
+    flex: 1,
+  },
+  nameFieldLeft: {
+    paddingRight: 6,
+  },
+  nameFieldRight: {
+    paddingLeft: 6,
+  },
+  formField: {
+    marginBottom: 12,
+  },
+  label: {
+    color: "#6B7280",
+    marginBottom: 6,
+    fontSize: 14,
+  },
+  textInput: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    backgroundColor: "#E9EAEE",
+    borderColor: "#E0E3E8",
+    color: "#111827",
+  },
+  errorText: {
+    color: "#dc2626",
+    marginTop: 4,
+    fontSize: 12,
+  },
+  subtleText: {
+    color: "#6B7280",
+    fontSize: 14,
+  },
+  countryPhoneRow: {
+    flexDirection: "row",
+    marginBottom: 12,
+  },
+  countryCodeField: {
+    width: 120,
+    paddingRight: 12,
+  },
+  countryCodeButton: {
+    borderRadius: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    backgroundColor: "#E9EAEE",
+  },
+  phoneField: {
+    flex: 1,
+    paddingLeft: 12,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.4)",
+    justifyContent: "flex-end",
+  },
+  modalContent: {
+    backgroundColor: "#fff",
+    borderTopLeftRadius: 12,
+    borderTopRightRadius: 12,
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+  },
+  modalTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    marginBottom: 12,
+  },
+  countriesList: {
+    maxHeight: 260,
+  },
+  countryItem: {
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+  },
+  countryItemActive: {
+    backgroundColor: "#fee2e2",
+  },
+  countryItemText: {
+    color: "#111827",
+  },
+  countryItemTextActive: {
+    color: "#dc2626",
+  },
+  modalError: {
+    color: "#dc2626",
+    fontSize: 14,
+  },
+  modalCloseButton: {
+    marginTop: 12,
+    paddingVertical: 12,
+    alignItems: "center",
+    borderRadius: 6,
+    backgroundColor: "#f3f4f6",
+  },
+  segmentedControl: {
+    flexDirection: "row",
+    backgroundColor: "#f2f2f6",
+    paddingVertical: 4,
+    paddingHorizontal: 4,
+    borderRadius: 999,
+    marginBottom: 12,
+  },
+  segmentButton: {
+    flex: 1,
+    paddingVertical: 8,
+    borderRadius: 999,
+    alignItems: "center",
+  },
+  segmentButtonActive: {
+    backgroundColor: "#dc2626",
+  },
+  segmentText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#9CA3AF",
+  },
+  segmentTextActive: {
+    color: "#fff",
+  },
+  accountTypeScroll: {
+    marginBottom: 12,
+    paddingHorizontal: 4,
+  },
+  accountTypeButton: {
+    minWidth: 120,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 8,
+  },
+  accountTypeButtonActive: {
+    backgroundColor: "#dc2626",
+    borderColor: "#dc2626",
+  },
+  accountTypeText: {
+    color: "#9CA3AF",
+    fontWeight: "600",
+  },
+  accountTypeTextActive: {
+    color: "#fff",
+  },
+  termsCheckbox: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginVertical: 8,
+  },
+  checkbox: {
+    width: 16,
+    height: 16,
+    borderRadius: 4,
+    marginRight: 8,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  checkmark: {
+    color: "#fff",
+    fontSize: 10,
+  },
+  continueButtonContainer: {
+    marginTop: 8,
+  },
+  gradient: {
+    borderRadius: 30,
+  },
+  continueButton: {
+    backgroundColor: "#DC2626",
+    paddingVertical: 10,
+    borderRadius: 30,
+  },
+  continueButtonText: {
+    color: "#fff",
+    textAlign: "center",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  signInContainer: {
+    marginTop: 12,
+    alignItems: "center",
+  },
+  signInLink: {
+    color: "#dc2626",
+    marginTop: 6,
+  },
+  backButton: {
+    marginTop: 12,
+  },
+  backButtonText: {
+    color: "#C40042",
+    textAlign: "center",
+  },
+  otpContainer: {
+    flexDirection: "row",
+    justifyContent: "center",
+    marginBottom: 16,
+  },
+  otpInput: {
+    width: 40,
+    height: 48,
+    textAlign: "center",
+    fontSize: 18,
+    borderRadius: 10,
+    borderWidth: 1,
+    marginHorizontal: 4,
+    backgroundColor: "#E9EAEE",
+    borderColor: "#E0E3E8",
+  },
+  emailDisplay: {
+    color: "#111827",
+    fontWeight: "600",
+    marginBottom: 20,
+  },
+});
