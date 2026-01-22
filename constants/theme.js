@@ -1,0 +1,85 @@
+export const themes = {
+  light: {
+    name: "light",
+    background: "white",
+    text: "black",
+    primary: "#ef4444", // red
+    card: "#f2f2f2",
+    icon: "#1c9fa5",
+    // Trading specific colors
+    positive: "#004bff",
+    negative: "#FF4444",
+    border: "#E0E0E0",
+    secondary: "#6C757D",
+    headerBlue: "#4285F4",
+    tabActive: "#4285F4",
+    tabInactive: "#9E9E9E",
+  },
+
+  dark: {
+    name: "dark",
+    background: "#0d0d0d",
+    text: "#ffffff",
+    primary: "#ef4444",
+    card: "#3e1a1a",
+    icon: "#9BA1A6",
+    // Trading specific colors
+    positive: "#00C851",
+    negative: "#FF4444",
+    border: "#333333",
+    secondary: "#AAAAAA",
+    headerBlue: "#4285F4",
+    tabActive: "#4285F4",
+    tabInactive: "#666666",
+  },
+
+  green: {
+    name: "green",
+    background: "#062B1A",
+    text: "#EAFBF3",
+    primary: "#16A34A",
+    card: "#0B3A25",
+    icon: "#86EFAC",
+    // Trading specific colors
+    positive: "#22C55E",
+    negative: "#FF4444",
+    border: "#14532D",
+    secondary: "#BBF7D0",
+    headerBlue: "#16A34A",
+    tabActive: "#22C55E",
+    tabInactive: "#4ADE80",
+  },
+
+  red: {
+    name: "red",
+    background: "#2d0000",
+    text: "#ffffff",
+    primary: "#ff3b3b",
+    card: "#400000",
+    icon: "#ff9999",
+    // Trading specific colors
+    positive: "#00FF7F",
+    negative: "#FF6B6B",
+    border: "#660000",
+    secondary: "#FFAAAA",
+    headerBlue: "#FF6B6B",
+    tabActive: "#FF6B6B",
+    tabInactive: "#AA6666",
+  },
+  purple: {
+    name: "purple",
+    background: "#1a001a",
+    text: "#ffffff",
+    primary: "#cc33ff",
+    card: "#330033",
+    icon: "#e699ff",
+    // Trading specific colors
+    positive: "#00FF7F",
+    negative: "#FF6B6B",
+    border: "#660066",
+    secondary: "#CCAACC",
+    headerBlue: "#9966FF",
+    tabActive: "#9966FF",
+    tabInactive: "#7744AA",
+  },
+};
