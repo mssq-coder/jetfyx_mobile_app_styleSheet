@@ -25,6 +25,7 @@ const Header = ({
   console.log("Header fullName:", fullName);
   const selectedAccountId = useAuthStore((state) => state.selectedAccountId);
   const setSelectedAccount = useAuthStore((state) => state.setSelectedAccount);
+  const refreshProfile = useAuthStore((state) => state.refreshProfile);
 
   // Include both own and shared accounts when resolving the selected account
   const sharedList = (sharedAccounts || []).flatMap((s) => s?.accounts || []);
@@ -139,7 +140,15 @@ const Header = ({
             onSelect(a);
             setOpen(false);
           }}
-          onRefresh={onRefresh}
+          onRefresh={async () => {
+            // Refresh store-backed accounts/sharedAccounts so new profiles appear.
+            try {
+              await refreshProfile?.();
+            } catch {}
+            try {
+              await onRefresh?.();
+            } catch {}
+          }}
         />
       </View>
     </SafeAreaView>

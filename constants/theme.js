@@ -3,7 +3,7 @@ export const themes = {
     name: "light",
     background: "white",
     text: "black",
-    primary: "#ef4444", // red
+    primary: "#DC2626", // red
     card: "#f2f2f2",
     icon: "#1c9fa5",
     // Trading specific colors
@@ -20,7 +20,7 @@ export const themes = {
     name: "dark",
     background: "#0d0d0d",
     text: "#ffffff",
-    primary: "#ef4444",
+    primary: "#dc2626",
     card: "#3e1a1a",
     icon: "#9BA1A6",
     // Trading specific colors
@@ -74,8 +74,8 @@ export const themes = {
     card: "#330033",
     icon: "#e699ff",
     // Trading specific colors
-    positive: "#00FF7F",
-    negative: "#FF6B6B",
+    positive: "#f4bc45",
+    negative: "#f40785",
     border: "#660066",
     secondary: "#CCAACC",
     headerBlue: "#9966FF",

@@ -60,9 +60,20 @@ export async function getFavouriteWatchlistSymbols(accountId) {
   return response.data;
 }
 
+export async function addUserToProfile(primaryUserId, secondaryUserEmail, secondaryUserPassword) {
+  const payload = {
+    primaryUserId,
+    secondaryUserEmail,
+    secondaryUserPassword,
+  };
+  const response = await api.post(`/Auth/add-user-to-profile`, payload);
+  return response.data;
+}
+
 export default {
   login,
   registerUser,
   verifyOtp,
   getFavouriteWatchlistSymbols,
+  addUserToProfile,
 };

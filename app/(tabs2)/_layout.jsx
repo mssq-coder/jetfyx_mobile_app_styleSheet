@@ -7,6 +7,10 @@ export default function Layout() {
       <Stack.Screen name="orderScreen" options={{ headerShown: false }} />
       <Stack.Screen name="themeChange" options={{ headerShown: false }} />
       <Stack.Screen name="more" options={{ headerShown: false }} />
+      <Stack.Screen name="accountSettings" options={{ headerShown: false }} />
+      <Stack.Screen name="deposit" options={{ headerShown: false }} />
+      <Stack.Screen name="withdrawal" options={{ headerShown: false }} />
+      <Stack.Screen name="internalTransfer" options={{ headerShown: false }} />
     </Stack>
   )
 }

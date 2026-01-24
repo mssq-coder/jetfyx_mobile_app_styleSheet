@@ -9,6 +9,7 @@ import {
   Text,
   TouchableOpacity,
   View,
+
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import AppIcon from "../../components/AppIcon";
@@ -19,16 +20,11 @@ export default function Dashboard() {
   const { theme, themeName, setAppTheme } = useAppTheme();
   const [selectorOpen, setSelectorOpen] = useState(false);
   const [themePickerOpen, setThemePickerOpen] = useState(false);
-  const [selectedAccount, setSelectedAccount] = useState({
-    id: "125269143",
-    type: "REAL",
-    currency: "USD",
-    balance: 0,
-  });
+  const [selectedAccount, setSelectedAccount] = useState({  });
 
   // Keep this list small and intentional for now.
   // To add a new theme in the future: add it to constants/theme.js + ThemeContext buildTw + include it here.
-  const dashboardThemes = ["light", "dark", "green"];
+  const dashboardThemes = ["light", "dark", "green","purple"];
 
   const themeLabel = (name) => {
     switch (name) {
@@ -38,6 +34,8 @@ export default function Dashboard() {
         return "Dark";
       case "green":
         return "Green";
+      case "purple":
+        return "Purple";  
       default:
         return String(name);
     }
@@ -80,22 +78,40 @@ export default function Dashboard() {
 
           {/* Action Buttons */}
           <View style={styles.actionRow}>
-            <ActionButton
+            <TouchableOpacity
+              onPress={() => {
+                router.push("/deposit");
+              }}
+            >
+              <ActionButton
               icon="account-balance"
               label="Deposit"
               active
               headerBlue={theme.headerBlue}
             />
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => {
+                router.push("/orderScreen");
+              }}
+            >
             <ActionButton
               icon="trending-up"
               label="Trade"
               headerBlue={theme.headerBlue}
             />
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => {
+                router.push("/withdrawal");
+              }}
+            >
             <ActionButton
               icon="account-balance-wallet"
               label="Withdraw"
               headerBlue={theme.headerBlue}
             />
+            </TouchableOpacity>
             <TouchableOpacity
               onPress={() => {
                 router.push("/more");

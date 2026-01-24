@@ -1,16 +1,23 @@
 import { LinearGradient } from "expo-linear-gradient";
+import * as LocalAuthentication from "expo-local-authentication";
 import { router } from "expo-router";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
-    KeyboardAvoidingView,
-    Platform,
-    Pressable,
-    StyleSheet,
-    Text,
-    TextInput,
-    View,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from "react-native";
 import { useAuthStore } from "../../store/authStore";
+import { useSettingsStore } from "../../store/settingsStore";
+import {
+  getBiometricCredentials,
+  saveBiometricCredentials,
+} from "../../utils/secureAuth";
 
 import LogoComp from "../../components/LogoComp";
 
@@ -20,18 +27,137 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [remember, setRemember] = useState(false);
+  const [biometricBusy, setBiometricBusy] = useState(false);
+
+  const biometricEnabled = useSettingsStore((s) => s.biometricEnabled);
+  const token = useAuthStore((s) => s.token);
+  const hasHydrated = useAuthStore((s) => s.hasHydrated);
+
+  const [hasBiometricCreds, setHasBiometricCreds] = useState(false);
+
   const login = useAuthStore((state) => state.login);
   const loading = useAuthStore((state) => state.loading);
   const error = useAuthStore((state) => state.error);
+
+  const promptedRef = useRef(false);
 
   const onSubmit = async () => {
     const result = await login({ email: username, password });
     console.log("Login result:", result);
     if (result.success) {
+      // If user enabled biometrics OR opted to remember, store creds securely
+      // so biometric login can re-auth even after logout/fresh install.
+      if (biometricEnabled || remember) {
+        try {
+          await saveBiometricCredentials({ email: username, password });
+          setHasBiometricCreds(true);
+        } catch (_e) {}
+      }
       // Replace to prevent navigating back to login
       router.replace("/(tabs)");
     }
   };
+
+  const loginWithBiometrics = async () => {
+    if (biometricBusy) return;
+    if (!biometricEnabled) {
+      Alert.alert(
+        "Biometric login is off",
+        "Enable it in Account settings first.",
+      );
+      return;
+    }
+    // Prefer existing session if present.
+    // If logged out (no token), we'll re-login using credentials stored in SecureStore.
+
+    try {
+      setBiometricBusy(true);
+
+      const hasHardware = await LocalAuthentication.hasHardwareAsync();
+      if (!hasHardware) {
+        Alert.alert(
+          "Biometrics not available",
+          "This device does not support biometric authentication.",
+        );
+        return;
+      }
+
+      const isEnrolled = await LocalAuthentication.isEnrolledAsync();
+      if (!isEnrolled) {
+        Alert.alert(
+          "No biometrics enrolled",
+          "Please enroll Face ID / Touch ID / Fingerprint in device settings first.",
+        );
+        return;
+      }
+
+      const result = await LocalAuthentication.authenticateAsync({
+        promptMessage: "Login",
+        cancelLabel: "Cancel",
+        disableDeviceFallback: false,
+      });
+
+      if (!result?.success) return;
+
+      if (token) {
+        router.replace("/(tabs)");
+        return;
+      }
+
+      const creds = await getBiometricCredentials();
+      if (!creds?.email || !creds?.password) {
+        Alert.alert(
+          "Biometric login not set up",
+          "Login once with username/password and enable biometrics (or Remember me) to use biometric login.",
+        );
+        return;
+      }
+
+      const relogin = await login({
+        email: creds.email,
+        password: creds.password,
+      });
+      if (relogin?.success) {
+        router.replace("/(tabs)");
+      } else {
+        Alert.alert(
+          "Login failed",
+          relogin?.error || "Unable to login with saved credentials.",
+        );
+      }
+    } catch (e) {
+      Alert.alert("Biometric error", e?.message || "Biometric login failed.");
+    } finally {
+      setBiometricBusy(false);
+    }
+  };
+
+  useEffect(() => {
+    let mounted = true;
+    const check = async () => {
+      try {
+        const creds = await getBiometricCredentials();
+        if (mounted)
+          setHasBiometricCreds(Boolean(creds?.email && creds?.password));
+      } catch (_e) {
+        if (mounted) setHasBiometricCreds(false);
+      }
+    };
+    check();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  // Optional: auto-prompt biometric on app open if enabled + token exists
+  useEffect(() => {
+    if (!hasHydrated) return;
+    if (promptedRef.current) return;
+    if (!biometricEnabled) return;
+    if (!token) return;
+    promptedRef.current = true;
+    loginWithBiometrics();
+  }, [hasHydrated, biometricEnabled, token]);
 
   return (
     <View style={styles.container}>
@@ -165,6 +291,24 @@ export default function Login() {
                 </Pressable>
               </LinearGradient>
             </View>
+
+            {/* Biometric login */}
+            {biometricEnabled && (token || hasBiometricCreds) ? (
+              <Pressable
+                onPress={loginWithBiometrics}
+                disabled={biometricBusy || loading}
+                style={[
+                  styles.biometricButton,
+                  { opacity: biometricBusy || loading ? 0.7 : 1 },
+                ]}
+              >
+                <Text style={styles.biometricButtonText}>
+                  {biometricBusy
+                    ? "Authenticating..."
+                    : "Login with Biometrics"}
+                </Text>
+              </Pressable>
+            ) : null}
 
             {/* Error message */}
             {error ? (
@@ -333,6 +477,19 @@ const styles = StyleSheet.create({
     textAlign: "center",
     fontSize: 16,
     fontWeight: "600",
+  },
+  biometricButton: {
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "#C40042",
+    paddingVertical: 10,
+    marginBottom: 10,
+  },
+  biometricButtonText: {
+    textAlign: "center",
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#C40042",
   },
   errorContainer: {
     alignItems: "center",
