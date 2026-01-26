@@ -1,6 +1,12 @@
 import { useNavigation } from "expo-router";
-import { useState } from "react";
-import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { useRef, useState } from "react";
+import {
+  Animated,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useTheme } from "../hooks/useTheme";
 import { useAuthStore } from "../store/authStore";
@@ -18,6 +24,9 @@ const Header = ({
   const { themeName, theme } = useTheme();
   const isDark = themeName === "dark";
   const navigation = useNavigation();
+  
+  // Animation values
+  const scaleAnim = useRef(new Animated.Value(1)).current;
 
   const accounts = useAuthStore((state) => state.accounts);
   const sharedAccounts = useAuthStore((state) => state.sharedAccounts);
@@ -33,13 +42,21 @@ const Header = ({
     allAccounts.find((a) => (a.accountId ?? a.id) === selectedAccountId) ||
     null;
   const displayAccount = currentAccount || selectedAccount;
-  // console.log("Header selectedAccountId:", selectedAccountId);
-  // console.log("Header displayAccount:", displayAccount);
-
-  // Owners and shared accounts handled by modal via fullName/sharedAccounts
 
   const openDrawer = () => {
-    // Header is rendered inside Tabs, so the drawer actions live on a parent navigator.
+    Animated.sequence([
+      Animated.timing(scaleAnim, {
+        toValue: 0.9,
+        duration: 80,
+        useNativeDriver: true,
+      }),
+      Animated.timing(scaleAnim, {
+        toValue: 1,
+        duration: 80,
+        useNativeDriver: true,
+      }),
+    ]).start();
+
     let nav = navigation;
     for (let i = 0; i < 6; i++) {
       if (
@@ -58,70 +75,124 @@ const Header = ({
     } catch {}
   };
 
+  const handleAccountPress = () => {
+    setOpen(true);
+  };
+
+  const getAccountTypeColor = (type) => {
+    if (!type) return theme?.primary;
+    const typeLower = type.toLowerCase();
+    if (typeLower.includes('saving') || typeLower.includes('deposit')) return theme?.success || '#10b981';
+    if (typeLower.includes('checking') || typeLower.includes('current')) return theme?.info || '#3b82f6';
+    if (typeLower.includes('credit') || typeLower.includes('loan')) return theme?.warning || '#f59e0b';
+    return theme?.primary;
+  };
+
+  const accountTypeColor = displayAccount ? getAccountTypeColor(displayAccount.accountTypeName) : theme?.primary;
+
   return (
     <SafeAreaView
       style={[
         styles.container,
         {
-          backgroundColor:
-            theme?.background ?? (isDark ? "#0f172a" : "#ffffff"),
+          backgroundColor: theme?.background ?? (isDark ? "#0f172a" : "#ffffff"),
         },
       ]}
+      edges={['top']}
     >
-      <View style={styles.leftRow}>
-        <TouchableOpacity
-          onPress={() => {
-            openDrawer();
-          }}
-          style={[
-            styles.menuButton,
-            { backgroundColor: theme?.card ?? "#ffffff" },
-          ]}
-        >
-          <AppIcon
-            name="menu"
-            size={18}
-            color={theme?.icon ?? (isDark ? "white" : "black")}
-          />
-        </TouchableOpacity>
+      <View style={styles.content}>
+        {/* Left Section - Logo */}
+        <View style={styles.leftSection}>
+          <LogoComp size={36} imageIndex={imageIndex} />
+        </View>
 
-        <LogoComp size={36} imageIndex={1} />
-      </View>
+        {/* Right Section */}
+        <View style={styles.rightSection}>
+          {/* Menu Button */}
+          <Animated.View 
+            style={{ 
+              transform: [{ scale: scaleAnim }] 
+            }}
+          >
+            <TouchableOpacity
+              onPress={openDrawer}
+              style={[
+                styles.menuButton,
+                { 
+                  backgroundColor: theme?.card ?? "#ffffff",
+                  borderColor: theme?.border + '30' ?? "#e2e8f0",
+                },
+              ]}
+              activeOpacity={0.7}
+            >
+              <AppIcon
+                name="menu"
+                size={20}
+                color={theme?.icon ?? (isDark ? "#cbd5e1" : "#475569")}
+              />
+            </TouchableOpacity>
+          </Animated.View>
 
-      <View>
-        <TouchableOpacity
-          onPress={() => setOpen(true)}
-          style={[
-            styles.accountButton,
-            { backgroundColor: theme?.card ?? "#ffffff" },
-          ]}
-        >
-          <Text
+          {/* Account Selector */}
+          <TouchableOpacity
+            onPress={handleAccountPress}
             style={[
-              styles.accountName,
-              { color: theme?.text ?? (isDark ? "#fff" : "#0f172a") },
+              styles.accountButton,
+              { 
+                backgroundColor: theme?.card ?? "#ffffff",
+                borderColor: theme?.border + '30' ?? "#e2e8f0",
+              },
             ]}
+            activeOpacity={0.8}
           >
-            {fullName ? fullName || "ACC" : "Select"}
-          </Text>
-          <Text
-            style={[
-              styles.accountNumber,
-              { color: theme?.text ?? (isDark ? "#fff" : "#0f172a") },
-            ]}
-          >
-            (
-            {displayAccount
-              ? displayAccount.accountNumber || "N/A"
-              : "No Account"}
-            )
-          </Text>
-          <AppIcon
-            name="expand-more"
-            color={theme?.icon ?? (isDark ? "white" : "black")}
-            size={16}
-          />
-        </TouchableOpacity>
+            <View style={[
+              styles.accountIcon,
+              { backgroundColor: accountTypeColor + '15' }
+            ]}>
+              <AppIcon
+                name="account-balance"
+                size={16}
+                color={accountTypeColor}
+              />
+            </View>
+            
+            <View style={styles.accountInfo}>
+              <Text
+                style={[
+                  styles.accountText,
+                  { 
+                    color: theme?.text ?? (isDark ? "#fff" : "#0f172a"),
+                  },
+                ]}
+                numberOfLines={1}
+              >
+                {displayAccount
+                  ? displayAccount.accountNumber || "Account"
+                  : "Select Account"}
+              </Text>
+              {displayAccount?.accountTypeName && (
+                <Text
+                  style={[
+                    styles.accountType,
+                    { 
+                      color: accountTypeColor,
+                    },
+                  ]}
+                  numberOfLines={1}
+                >
+                  {displayAccount.accountTypeName}
+                </Text>
+              )}
+            </View>
+            
+            <AppIcon
+              name="expand-more"
+              color={theme?.secondary ?? (isDark ? "#94a3b8" : "#64748b")}
+              size={18}
+              style={styles.dropdownIcon}
+            />
+          </TouchableOpacity>
+        </View>
 
         <AccountSelectorModal
           visible={open}
@@ -140,7 +211,6 @@ const Header = ({
             setOpen(false);
           }}
           onRefresh={async () => {
-            // Refresh store-backed accounts/sharedAccounts so new profiles appear.
             try {
               await refreshProfile?.();
             } catch {}
@@ -156,35 +226,68 @@ const Header = ({
 
 const styles = StyleSheet.create({
   container: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0,0,0,0.05)',
+  },
+  content: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    width: '100%',
   },
-  leftRow: {
+  leftSection: {
+    flex: 1,
+  },
+  rightSection: {
     flexDirection: "row",
     alignItems: "center",
+    gap: 12,
   },
   menuButton: {
-    padding: 8,
-    marginRight: 8,
-    borderRadius: 9999,
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
   },
   accountButton: {
     flexDirection: "row",
     alignItems: "center",
-    borderRadius: 9999,
+    borderRadius: 12,
     paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingVertical: 8,
+    borderWidth: 1,
+    minWidth: 140,
+    maxWidth: 180,
   },
-  accountName: {
+  accountIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 8,
+  },
+  accountInfo: {
+    flex: 1,
+    minWidth: 0,
+  },
+  accountText: {
+    fontSize: 13,
     fontWeight: "600",
-    marginRight: 8,
+    marginBottom: 2,
   },
-  accountNumber: {
-    fontSize: 12,
-    marginRight: 8,
+  accountType: {
+    fontSize: 11,
+    fontWeight: "500",
+    opacity: 0.8,
+  },
+  dropdownIcon: {
+    marginLeft: 4,
+    opacity: 0.6,
   },
 });
 
