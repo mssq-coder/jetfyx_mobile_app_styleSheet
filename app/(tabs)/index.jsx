@@ -11,15 +11,13 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
-  View
+  View,
 } from "react-native";
 import DraggableFlatList, {
   ScaleDecorator,
 } from "react-native-draggable-flatlist";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
-import {
-  useSafeAreaInsets
-} from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { getFavouriteWatchlistSymbols } from "../../api/auth";
 import { getAllCurrencyListFromDB } from "../../api/getServices";
 import { createOrder } from "../../api/orders";
@@ -65,6 +63,8 @@ export default function Trade() {
   // ============================
   const [instruments, setInstruments] = useState([]);
   const [allSymbols, setAllSymbols] = useState([]); // For "All Symbols" tab
+  const [favouritesCount, setFavouritesCount] = useState(0);
+  const [allSymbolsCount, setAllSymbolsCount] = useState(0);
   const connectionRef = useRef(null);
 
   // ⚠️ Replace with your backend API domain
@@ -81,10 +81,10 @@ export default function Trade() {
     const loadWatchlist = async () => {
       try {
         if (activeTab === "Favourites") {
-          console.log(
-            "📊 Market - Loading favourites for account:",
-            selectedAccountId,
-          );
+          // console.log(
+          //   "📊 Market - Loading favourites for account:",
+          //   selectedAccountId,
+          // );
           const data = await getFavouriteWatchlistSymbols(selectedAccountId);
 
           // Try to fetch currency list once so we can enrich favourites with metadata
@@ -109,16 +109,18 @@ export default function Trade() {
 
           const mapped = mapWatchlistToInstruments(data, lookup);
           setInstruments(mapped);
+          setFavouritesCount(Array.isArray(mapped) ? mapped.length : 0);
         } else if (activeTab === "All Symbols") {
-          console.log(
-            "📊 Market - Loading all symbols for account:",
-            selectedAccountId,
-          );
+          // console.log(
+          //   "📊 Market - Loading all symbols for account:",
+          //   selectedAccountId,
+          // );
           const data = await getAllCurrencyListFromDB(selectedAccountId);
           const mapped = mapCurrencyListToInstruments(data);
-          console.log(`📈 Loaded ${mapped.length} symbols from CurrencyPair`);
+          // console.log(`📈 Loaded ${mapped.length} symbols from CurrencyPair`);
           setAllSymbols(mapped);
           setInstruments(mapped);
+          setAllSymbolsCount(Array.isArray(mapped) ? mapped.length : 0);
         }
       } catch (error) {
         console.error("API error:", error);
@@ -169,6 +171,7 @@ export default function Trade() {
 
       // 🔥 Receive live price updates
       connection.on("ReceiveMarketUpdate", (payload) => {
+        // console.log("SignalR ReceiveMarketUpdate:", payload);
         /**
          * Example payload:
          * {
@@ -233,9 +236,9 @@ export default function Trade() {
               // ============================
               // ✅ LIVE TIME UPDATE
               // ============================
-              time: payload.ts
-                ? new Date(payload.ts).toLocaleTimeString()
-                : item.time,
+              time: payload.timestamp
+                ? new Date(payload.timestamp).toUTCString().split(" ")[4]
+                : item.timestamp,
 
               // ============================
               // ✅ HIGH / LOW UPDATE
@@ -247,10 +250,7 @@ export default function Trade() {
               // ============================
               // ✅ CHANGE CALCULATION
               // ============================
-              change:
-                prevRawPrice != null && rawMidPrice != null
-                  ? (rawMidPrice - prevRawPrice).toFixed(parsedDigits)
-                  : item.change,
+              change: payload.changePercent.toFixed(2),
 
               // ============================
               // ✅ POSITIVE / NEGATIVE FLAG
@@ -276,7 +276,7 @@ export default function Trade() {
       connection
         .start()
         .then(() => {
-          console.log("✅ SignalR connected");
+          // console.log("✅ SignalR connected");
           connection.invoke("SubscribeAccountSymbols", selectedAccountId);
         })
         .catch((err) => {
@@ -342,7 +342,7 @@ export default function Trade() {
       };
 
       const response = await createOrder(payload);
-      console.log("✅ Order created:", response);
+      // console.log("✅ Order created:", response);
       Alert.alert("Order placed", `${side} ${symbol} ${payload.lotSize}`);
       setExpandedId(null);
     } catch (error) {
@@ -467,6 +467,22 @@ export default function Trade() {
         isPositive: true,
         spread: null,
       }));
+  };
+
+  // ============================
+  // ✅ SPREAD HELPER
+  // ============================
+  const getSpreadText = (symbol) => {
+    const p = instruments.find((it) => it?.symbol === symbol);
+    if (p?.ask !== undefined && p?.bid !== undefined) {
+      const digits = Number.isFinite(Number(p.digits))
+        ? parseInt(p.digits, 10)
+        : 5;
+      return ((Number(p.ask) - Number(p.bid)) * Math.pow(10, digits)).toFixed(
+        0,
+      );
+    }
+    return "-";
   };
 
   return (
@@ -703,16 +719,28 @@ export default function Trade() {
                 justifyContent: "center",
               }}
             >
-              <Text
-                style={{
-                  color: activeTab === tab ? "#fff" : theme.text,
-                  fontSize: 15,
-                  fontWeight: activeTab === tab ? "600" : "500",
-                  textAlign: "center",
-                }}
-              >
-                {tab}
-              </Text>
+              <View style={{ flexDirection: "row", alignItems: "center" }}>
+                <Text
+                  style={{
+                    color: activeTab === tab ? "#fff" : theme.text,
+                    fontSize: 15,
+                    fontWeight: activeTab === tab ? "600" : "500",
+                    textAlign: "center",
+                  }}
+                >
+                  {tab}
+                </Text>
+                <Text
+                  style={{
+                    marginLeft: 8,
+                    color: activeTab === tab ? "#fff" : theme.secondary,
+                    fontSize: 13,
+                    fontWeight: "700",
+                  }}
+                >
+                  {tab === "Favourites" ? favouritesCount : allSymbolsCount}
+                </Text>
+              </View>
             </TouchableOpacity>
           ))}
         </View>
@@ -852,7 +880,8 @@ export default function Trade() {
                             fontWeight: "500",
                           }}
                         >
-                          {item.time || "--"}
+                          {item.time || "--"} {"\u00B7"} Spread:{" "}
+                          {getSpreadText(item.symbol)}
                         </Text>
                         <Text
                           style={{
@@ -878,7 +907,8 @@ export default function Trade() {
                               marginRight: 4,
                             }}
                           >
-                            {item.isPositive ? "↑" : "↓"} {item.change || "--"}
+                            {item.isPositive ? "↑" : "↓"} {item.change || "--"}{" "}
+                            %
                           </Text>
                         </View>
                       </View>
@@ -992,7 +1022,7 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
   },
   priceBox: {
-    minWidth: 60,
+    minWidth: 90,
     paddingVertical: 6,
     paddingHorizontal: 10,
     borderRadius: 10,

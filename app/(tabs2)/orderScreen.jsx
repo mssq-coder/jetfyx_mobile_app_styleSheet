@@ -1,25 +1,21 @@
 import * as signalR from "@microsoft/signalr";
 import { useRouter } from "expo-router";
 import * as SecureStore from "expo-secure-store";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-    useCallback,
-    useEffect,
-    useMemo,
-    useRef,
-    useState,
-} from "react";
-import {
-    Modal,
-    ScrollView,
-    StatusBar,
-    Switch,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  Alert,
+  Modal,
+  ScrollView,
+  StatusBar,
+  Switch,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { getAllCurrencyListFromDB } from "../../api/getServices";
+import { createOrder } from "../../api/orders";
 import AccountSelectorModal from "../../components/Accounts/AccountSelectorModal";
 import AppIcon from "../../components/AppIcon";
 import TradingViewChart from "../../components/TradingViewChart";
@@ -272,7 +268,7 @@ export default function Orders() {
       try {
         await connection.start();
         await connection.invoke("SubscribeAccountSymbols", selectedAccountId);
-        console.log("✅ OrderScreen SignalR connected");
+        // console.log("✅ OrderScreen SignalR connected");
       } catch (err) {
         console.error("❌ OrderScreen SignalR error:", err);
       }
@@ -337,15 +333,45 @@ export default function Orders() {
     return formatPrice(n, digits);
   };
 
-  const executeOrder = (side) => {
-    console.log(`Execute ${side} order`, {
-      symbol,
-      lot,
-      bid: bidStr,
-      ask: askStr,
-      tp,
-      sl,
-    });
+  const executeOrder = async (side) => {
+    try {
+      console.log(`Execute ${side} order`, {
+        symbol,
+        lot,
+        bid: bidStr,
+        ask: askStr,
+        tp,
+        sl,
+      });
+
+      if (!selectedAccountId) {
+        Alert.alert("Account missing", "Please select an account first.");
+        return;
+      }
+
+      const orderTypeNum = side === "BUY" ? 0 : 1;
+
+      const payload = {
+        accountId: Number(selectedAccountId),
+        lotSize: String(lot ?? "0.01"),
+        orderTime: new Date().toISOString(),
+        orderType: orderTypeNum,
+        remark: "",
+        status: 0,
+        stopLoss: Number(sl) || 0,
+        symbol: String(symbol),
+        takeProfit: Number(tp) || 0,
+      };
+
+      const resp = await createOrder(payload);
+      console.log("Order created", resp);
+      Alert.alert("Order placed", `${side} ${symbol} ${payload.lotSize}`);
+    } catch (err) {
+      console.error("Create order failed:", err?.response?.data ?? err);
+      const message =
+        err?.response?.data?.message || err?.message || String(err);
+      Alert.alert("Order failed", message);
+    }
   };
 
   return (

@@ -81,7 +81,7 @@ export function createOrderHubConnection(
 
   connection.onclose((err) => {
     if (isDisposed) return;
-    console.log("[SignalR] OrderHub closed", err?.message);
+    // console.log("[SignalR] OrderHub closed", err?.message);
     connection._subscribedAccounts.clear();
     startPromise = null;
   });

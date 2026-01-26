@@ -1,20 +1,20 @@
 import { useEffect, useMemo, useState } from "react";
 import {
+  ActivityIndicator,
+  Alert,
   FlatList,
   Modal,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
-  ActivityIndicator,
   TouchableOpacity,
   View,
 } from "react-native";
-import { useAppTheme } from "../../contexts/ThemeContext";
-import AppIcon from "../AppIcon";
 import { addUserToProfile } from "../../api/auth";
+import { useAppTheme } from "../../contexts/ThemeContext";
 import { useAuthStore } from "../../store/authStore";
-import { Alert } from "react-native";
+import AppIcon from "../AppIcon";
 
 // Modal lists accounts grouped by owner: main user fullName + shared owners
 export default function AccountSelectorModal({
@@ -33,7 +33,6 @@ export default function AccountSelectorModal({
     const shared = (sharedAccounts || []).map((sharedAccount) => ({
       id: String(sharedAccount?.accountOwner?.userId ?? "shared"),
       name: sharedAccount?.accountOwner?.fullName ?? "Shared Account",
-      email: sharedAccount?.accountOwner?.email ?? "",
     }));
     return [currentUser, ...shared];
   }, [fullName, sharedAccounts]);
@@ -42,14 +41,7 @@ export default function AccountSelectorModal({
     owners.length ? owners[0].id : "currentUser",
   );
   const [ownersOpen, setOwnersOpen] = useState(false);
-  const { userId, login, refreshProfile } = useAuthStore();
-
-  // Switch-profile login modal state
-  const [switchModalVisible, setSwitchModalVisible] = useState(false);
-  const [switchEmail, setSwitchEmail] = useState("");
-  const [switchPassword, setSwitchPassword] = useState("");
-  const [switching, setSwitching] = useState(false);
-  const [pendingOwner, setPendingOwner] = useState(null);
+  const { userId } = useAuthStore();
 
   // Add user modal state
   const [addUserModalVisible, setAddUserModalVisible] = useState(false);
@@ -96,12 +88,26 @@ export default function AccountSelectorModal({
 
         {/* Add User Modal */}
         <Modal visible={addUserModalVisible} transparent animationType="fade">
-          <TouchableOpacity style={styles.backdrop} onPress={() => setAddUserModalVisible(false)}>
+          <TouchableOpacity
+            style={styles.backdrop}
+            onPress={() => setAddUserModalVisible(false)}
+          >
             <View style={styles.backdropInner} />
           </TouchableOpacity>
-          <View style={[styles.addModalBox, { backgroundColor: theme.background, shadowColor: "#000" }]}>
-            <Text style={[styles.title, { color: theme.text, marginBottom: 8 }]}>Add User To Profile</Text>
-            <Text style={[styles.label, { color: theme.secondary }]}>Email</Text>
+          <View
+            style={[
+              styles.addModalBox,
+              { backgroundColor: theme.background, shadowColor: "#000" },
+            ]}
+          >
+            <Text
+              style={[styles.title, { color: theme.text, marginBottom: 8 }]}
+            >
+              Add User To Profile
+            </Text>
+            <Text style={[styles.label, { color: theme.secondary }]}>
+              Email
+            </Text>
             <TextInput
               value={addEmail}
               onChangeText={setAddEmail}
@@ -109,73 +115,135 @@ export default function AccountSelectorModal({
               placeholderTextColor={theme.secondary}
               keyboardType="email-address"
               autoCapitalize="none"
-              style={[styles.modalInput, { color: theme.text, borderColor: theme.border, backgroundColor: theme.card }]}
+              style={[
+                styles.modalInput,
+                {
+                  color: theme.text,
+                  borderColor: theme.border,
+                  backgroundColor: theme.card,
+                },
+              ]}
             />
-            <Text style={[styles.label, { color: theme.secondary, marginTop: 10 }]}>Password</Text>
+            <Text
+              style={[styles.label, { color: theme.secondary, marginTop: 10 }]}
+            >
+              Password
+            </Text>
             <TextInput
               value={addPassword}
               onChangeText={setAddPassword}
               placeholder="password"
               placeholderTextColor={theme.secondary}
               secureTextEntry
-              style={[styles.modalInput, { color: theme.text, borderColor: theme.border, backgroundColor: theme.card }]}
+              style={[
+                styles.modalInput,
+                {
+                  color: theme.text,
+                  borderColor: theme.border,
+                  backgroundColor: theme.card,
+                },
+              ]}
             />
 
-            <View style={{ flexDirection: "row", justifyContent: "flex-end", gap: 10, marginTop: 14 }}>
-              <TouchableOpacity onPress={() => setAddUserModalVisible(false)} style={[styles.iconButton, { paddingHorizontal: 14, backgroundColor: theme.card }]}> 
+            <View
+              style={{
+                flexDirection: "row",
+                justifyContent: "flex-end",
+                gap: 10,
+                marginTop: 14,
+              }}
+            >
+              <TouchableOpacity
+                onPress={() => setAddUserModalVisible(false)}
+                style={[
+                  styles.iconButton,
+                  { paddingHorizontal: 14, backgroundColor: theme.card },
+                ]}
+              >
                 <Text style={{ color: theme.text }}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={async () => {
                   if (!userId) {
-                    Alert.alert("Not signed in", "Unable to determine current user. Please login again.");
+                    Alert.alert(
+                      "Not signed in",
+                      "Unable to determine current user. Please login again.",
+                    );
                     return;
                   }
 
                   if (!addEmail || !addPassword) {
-                    Alert.alert("Missing fields", "Please enter email and password.");
+                    Alert.alert(
+                      "Missing fields",
+                      "Please enter email and password.",
+                    );
                     return;
                   }
 
                   // Basic validation
-                  const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(addEmail);
+                  const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(
+                    addEmail,
+                  );
                   if (!emailValid) {
-                    Alert.alert("Invalid Email", "Please enter a valid email address.");
+                    Alert.alert(
+                      "Invalid Email",
+                      "Please enter a valid email address.",
+                    );
                     return;
                   }
                   if (addPassword.length < 6) {
-                    Alert.alert("Weak Password", "Password must be at least 6 characters.");
+                    Alert.alert(
+                      "Weak Password",
+                      "Password must be at least 6 characters.",
+                    );
                     return;
                   }
 
                   setAddingUser(true);
-                  console.log("User added to profile", { userId, addEmail, addPassword });
                   try {
-                    const result = await addUserToProfile(userId, addEmail, addPassword);
-                    console.log("Add user to profile result", result);
+                    const result = await addUserToProfile(
+                      userId,
+                      addEmail,
+                      addPassword,
+                    );
+                    console.log("User added to profile", {
+                      userId,
+                      addEmail,
+                      result,
+                    });
                     setAddUserModalVisible(false);
                     setAddEmail("");
                     setAddPassword("");
-                    try {
-                      await refreshProfile?.();
-                    } catch {}
-                    try {
-                      await onRefresh?.();
-                    } catch {}
+                    onRefresh && onRefresh();
                     Alert.alert("Success", "User added to profile.");
                   } catch (err) {
                     console.error("Error adding user to profile", err);
                     const resp = err?.response?.data;
                     // Prefer explicit message, fall back to full response JSON when available
-                    const message = resp?.message || (resp ? JSON.stringify(resp) : err?.message) || "Failed to add user.";
+                    const message =
+                      resp?.message ||
+                      (resp ? JSON.stringify(resp) : err?.message) ||
+                      "Failed to add user.";
                     Alert.alert("Error", message);
                   } finally {
                     setAddingUser(false);
                   }
                 }}
-                style={[styles.iconButton, { paddingHorizontal: 14, backgroundColor: theme.primary, alignItems: "center", justifyContent: "center" }]}
+                style={[
+                  styles.iconButton,
+                  {
+                    paddingHorizontal: 14,
+                    backgroundColor: theme.primary,
+                    alignItems: "center",
+                    justifyContent: "center",
+                  },
+                ]}
               >
-                {addingUser ? <ActivityIndicator color="#fff" /> : <Text style={{ color: "#fff" }}>Add</Text>}
+                {addingUser ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={{ color: "#fff" }}>Add</Text>
+                )}
               </TouchableOpacity>
             </View>
           </View>
@@ -183,12 +251,17 @@ export default function AccountSelectorModal({
 
         <View style={{ flexShrink: 0 }}>
           <View style={styles.headerRow}>
-            <Text style={[styles.title, { color: theme.text }]}>Select Account</Text>
+            <Text style={[styles.title, { color: theme.text }]}>
+              Select Account
+            </Text>
 
             <View style={{ flexDirection: "row", gap: 8 }}>
               <TouchableOpacity
                 onPress={() => setAddUserModalVisible(true)}
-                style={[styles.iconButton, { backgroundColor: theme.card, marginRight: 8 }]}
+                style={[
+                  styles.iconButton,
+                  { backgroundColor: theme.card, marginRight: 8 },
+                ]}
               >
                 <AppIcon name="person-add" size={18} color={theme.text} />
               </TouchableOpacity>
@@ -245,17 +318,7 @@ export default function AccountSelectorModal({
                     <TouchableOpacity
                       key={p.id}
                       onPress={() => {
-                        // Only require login when switching to another profile owner
-                        if (p.id === "currentUser") {
-                          setActiveOwner(p.id);
-                          setOwnersOpen(false);
-                          return;
-                        }
-
-                        setPendingOwner(p);
-                        setSwitchEmail(p.email || "");
-                        setSwitchPassword("");
-                        setSwitchModalVisible(true);
+                        setActiveOwner(p.id);
                         setOwnersOpen(false);
                       }}
                       style={[
@@ -291,147 +354,6 @@ export default function AccountSelectorModal({
           </View>
         </View>
 
-        {/* Switch Profile Login Modal */}
-        <Modal visible={switchModalVisible} transparent animationType="fade">
-          <TouchableOpacity
-            style={styles.backdrop}
-            onPress={() => {
-              setSwitchModalVisible(false);
-              setPendingOwner(null);
-            }}
-          >
-            <View style={styles.backdropInner} />
-          </TouchableOpacity>
-
-          <View
-            style={[
-              styles.addModalBox,
-              { backgroundColor: theme.background, shadowColor: "#000" },
-            ]}
-          >
-            <Text style={[styles.title, { color: theme.text, marginBottom: 8 }]}
-            >
-              Switch Profile
-            </Text>
-
-            <Text style={[styles.label, { color: theme.secondary }]}>Email</Text>
-            <TextInput
-              value={switchEmail}
-              onChangeText={setSwitchEmail}
-              placeholder="user@example.com"
-              placeholderTextColor={theme.secondary}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              style={[
-                styles.modalInput,
-                {
-                  color: theme.text,
-                  borderColor: theme.border,
-                  backgroundColor: theme.card,
-                },
-              ]}
-            />
-
-            <Text style={[styles.label, { color: theme.secondary, marginTop: 10 }]}
-            >
-              Password
-            </Text>
-            <TextInput
-              value={switchPassword}
-              onChangeText={setSwitchPassword}
-              placeholder="password"
-              placeholderTextColor={theme.secondary}
-              secureTextEntry
-              style={[
-                styles.modalInput,
-                {
-                  color: theme.text,
-                  borderColor: theme.border,
-                  backgroundColor: theme.card,
-                },
-              ]}
-            />
-
-            <View
-              style={{
-                flexDirection: "row",
-                justifyContent: "flex-end",
-                gap: 10,
-                marginTop: 14,
-              }}
-            >
-              <TouchableOpacity
-                onPress={() => {
-                  setSwitchModalVisible(false);
-                  setPendingOwner(null);
-                }}
-                style={[
-                  styles.iconButton,
-                  { paddingHorizontal: 14, backgroundColor: theme.card },
-                ]}
-              >
-                <Text style={{ color: theme.text }}>Cancel</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                onPress={async () => {
-                  if (!switchEmail || !switchPassword) {
-                    Alert.alert("Missing fields", "Please enter email and password.");
-                    return;
-                  }
-
-                  setSwitching(true);
-                  try {
-                    const res = await login({ email: switchEmail, password: switchPassword });
-                    if (!res?.success) {
-                      Alert.alert("Login failed", res?.error || "Unable to switch profile.");
-                      return;
-                    }
-
-                    // After switching user, we're now in that profile; show its accounts.
-                    setActiveOwner("currentUser");
-                    setSwitchModalVisible(false);
-                    setPendingOwner(null);
-                    try {
-                      await refreshProfile?.();
-                    } catch {}
-                    try {
-                      await onRefresh?.();
-                    } catch {}
-                    Alert.alert(
-                      "Switched",
-                      pendingOwner?.name
-                        ? `Switched to ${pendingOwner.name}.`
-                        : "Profile switched.",
-                    );
-                  } catch (e) {
-                    const message =
-                      e?.response?.data?.message || e?.message || "Unable to switch profile.";
-                    Alert.alert("Login failed", message);
-                  } finally {
-                    setSwitching(false);
-                  }
-                }}
-                style={[
-                  styles.iconButton,
-                  {
-                    paddingHorizontal: 14,
-                    backgroundColor: theme.primary,
-                    alignItems: "center",
-                    justifyContent: "center",
-                  },
-                ]}
-              >
-                {switching ? (
-                  <ActivityIndicator color="#fff" />
-                ) : (
-                  <Text style={{ color: "#fff" }}>Login</Text>
-                )}
-              </TouchableOpacity>
-            </View>
-          </View>
-        </Modal>
-
         {/* Accounts List (scrollable) */}
         <View style={styles.listContainer}>
           <Text style={[styles.label, { color: theme.secondary }]}>
@@ -445,16 +367,6 @@ export default function AccountSelectorModal({
             renderItem={({ item }) => (
               <TouchableOpacity
                 onPress={() => {
-                  // If user is viewing a shared owner's accounts without switching auth,
-                  // force a profile switch first.
-                  if (activeOwner !== "currentUser") {
-                    const owner = owners.find((o) => String(o.id) === String(activeOwner));
-                    setPendingOwner(owner || null);
-                    setSwitchEmail(owner?.email || "");
-                    setSwitchPassword("");
-                    setSwitchModalVisible(true);
-                    return;
-                  }
                   onSelectAccount && onSelectAccount(item);
                   // Trigger refresh after account selection
                   setTimeout(() => {

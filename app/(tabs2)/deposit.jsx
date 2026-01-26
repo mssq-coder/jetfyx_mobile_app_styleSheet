@@ -143,6 +143,7 @@ export default function DepositScreen() {
   const [categories, setCategories] = useState([]);
   const [selectedCategoryId, setSelectedCategoryId] = useState(null);
   const [selectedMethodName, setSelectedMethodName] = useState(null);
+  const [selectedCurrency, setSelectedCurrency] = useState(null);
 
   const [amount, setAmount] = useState("");
 
@@ -186,6 +187,29 @@ export default function DepositScreen() {
       list.find((m) => String(m.name) === String(selectedMethodName)) || null
     );
   }, [selectedCategory, selectedMethodName]);
+
+  const currencyList = useMemo(() => {
+    const methods = selectedCategory?.methods || [];
+    const all = methods.flatMap((m) => {
+      const csv = m?.currenciesCsv || "";
+      return csv.split(",").map((s) => s.trim()).filter(Boolean);
+    });
+    return Array.from(new Set(all));
+  }, [selectedCategory]);
+
+  const currencyLimits = useMemo(() => {
+    if (!selectedCurrency || !selectedCategory) return { min: null, max: null, method: null };
+    const methods = (selectedCategory?.methods || []).filter((m) => {
+      const csv = m?.currenciesCsv || "";
+      return csv.split(",").map((s) => s.trim()).includes(selectedCurrency);
+    });
+    if (!methods.length) return { min: null, max: null, method: null };
+    const mins = methods.map((m) => Number(m.amountMin || 0)).filter((v) => !Number.isNaN(v));
+    const maxs = methods.map((m) => Number(m.amountMax || 0)).filter((v) => !Number.isNaN(v));
+    const min = mins.length ? Math.min(...mins) : null;
+    const max = maxs.length ? Math.max(...maxs) : null;
+    return { min, max, method: methods[0] };
+  }, [selectedCategory, selectedCurrency]);
 
   useEffect(() => {
     let mounted = true;
@@ -357,30 +381,6 @@ export default function DepositScreen() {
             </View>
           </TouchableOpacity>
 
-          {/* Amount */}
-          <Text
-            style={[styles.sectionTitle, { color: theme.text, marginTop: 16 }]}
-          >
-            Amount
-          </Text>
-          <View
-            style={[
-              styles.inputWrap,
-              { backgroundColor: theme.card, borderColor: theme.border },
-            ]}
-          >
-            <Text style={[styles.currencyPrefix, { color: theme.secondary }]}>
-              ₹
-            </Text>
-            <TextInput
-              value={amount}
-              onChangeText={(t) => setAmount(normalizeAmount(t))}
-              placeholder="0.00"
-              placeholderTextColor={theme.secondary}
-              keyboardType="decimal-pad"
-              style={[styles.amountInput, { color: theme.text }]}
-            />
-          </View>
 
           {/* Payment Options */}
           <Text
@@ -447,6 +447,10 @@ export default function DepositScreen() {
                       onPress={() => {
                         setSelectedCategoryId(cat.id);
                         setSelectedMethodName(cat?.methods?.[0]?.name ?? null);
+                        // set first available currency for the category
+                        const firstCsv = cat?.methods?.[0]?.currenciesCsv || "";
+                        const firstCurrency = (firstCsv.split(",").map((s) => s.trim()).filter(Boolean) || [null])[0];
+                        setSelectedCurrency(firstCurrency ?? null);
                       }}
                       style={[
                         styles.optionCard,
@@ -479,64 +483,7 @@ export default function DepositScreen() {
                 })}
               </ScrollView>
 
-              <View style={{ marginTop: 12 }}>
-                <Text style={[styles.sectionTitle, { color: theme.text }]}>
-                  Methods
-                </Text>
-                {(selectedCategory?.methods || []).map((m) => {
-                  const active = String(m.name) === String(selectedMethodName);
-                  return (
-                    <TouchableOpacity
-                      key={m.name}
-                      onPress={() => setSelectedMethodName(m.name)}
-                      style={[
-                        styles.methodLine,
-                        {
-                          backgroundColor: theme.card,
-                          borderColor: active ? theme.primary : theme.border,
-                        },
-                      ]}
-                    >
-                      <View style={{ flex: 1 }}>
-                        <Text
-                          style={[styles.methodName, { color: theme.text }]}
-                          numberOfLines={1}
-                        >
-                          {m.name}
-                        </Text>
-                        <Text
-                          style={[
-                            styles.methodMeta,
-                            { color: theme.secondary },
-                          ]}
-                          numberOfLines={2}
-                        >
-                          {m.kind || ""}
-                          {m.currenciesCsv ? ` • ${m.currenciesCsv}` : ""}
-                          {m.countriesCsv ? ` • ${m.countriesCsv}` : ""}
-                        </Text>
-                        <Text
-                          style={[
-                            styles.methodMeta,
-                            { color: theme.secondary },
-                          ]}
-                        >
-                          Min {m.amountMin ?? "—"} • Max {m.amountMax ?? "—"}
-                        </Text>
-                      </View>
-                      <AppIcon
-                        name={
-                          active
-                            ? "radio-button-checked"
-                            : "radio-button-unchecked"
-                        }
-                        color={active ? theme.primary : theme.secondary}
-                        size={20}
-                      />
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
+              
 
               {/* {selectedMethod ? (
                 <View style={{ marginTop: 12 }}>
@@ -668,6 +615,75 @@ export default function DepositScreen() {
             </View>
           )}
 
+         
+
+          <View style={{ marginTop: 12 }}>
+                <Text style={[styles.sectionTitle, { color: theme.text }]}>Currency</Text>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={{ gap: 12, paddingVertical: 4 }}
+                >
+                  {currencyList.length ? (
+                    currencyList.map((c) => {
+                      const active = String(c) === String(selectedCurrency);
+                      return (
+                        <TouchableOpacity
+                          key={c}
+                          onPress={() => setSelectedCurrency(c)}
+                          style={[
+                            styles.optionCard,
+                            {
+                              backgroundColor: theme.card,
+                              borderColor: active ? theme.primary : theme.border,
+                              minWidth: 100,
+                            },
+                          ]}
+                        >
+                          <Text style={[styles.optionTitle, { color: theme.text }]}>
+                            {c}
+                          </Text>
+                          <Text style={[styles.optionSub, { color: theme.secondary }]}> 
+                            Min {currencyLimits.min ?? "—"} • Max {currencyLimits.max ?? "—"}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })
+                  ) : (
+                    <View style={[styles.methodLine, { backgroundColor: theme.card }]}> 
+                      <Text style={{ color: theme.secondary }}>No currencies available</Text>
+                    </View>
+                  )}
+                </ScrollView>
+              </View>
+
+          {/* Amount */}
+          <Text
+            style={[styles.sectionTitle, { color: theme.text, marginTop: 16 }]}
+          >
+            Amount
+          </Text>
+          <View
+            style={[
+              styles.inputWrap,
+              { backgroundColor: theme.card, borderColor: theme.border },
+            ]}
+          >
+            <Text style={[styles.currencyPrefix, { color: theme.secondary }]}>
+              $
+            </Text>
+            <TextInput
+              value={amount}
+              onChangeText={(t) => setAmount(normalizeAmount(t))}
+              placeholder="0.00"
+              placeholderTextColor={theme.secondary}
+              keyboardType="decimal-pad"
+              style={[styles.amountInput, { color: theme.text }]}
+            />
+          </View>
+
+
+
           <TouchableOpacity
             onPress={validateAndProceed}
             style={[styles.primaryButton, { backgroundColor: theme.primary }]}
@@ -675,9 +691,6 @@ export default function DepositScreen() {
             <Text style={styles.primaryButtonText}>Proceed</Text>
           </TouchableOpacity>
 
-          <Text style={[styles.helper, { color: theme.secondary }]}>
-            Options loaded from `/FinanceOptions?mode=deposit`.
-          </Text>
         </ScrollView>
       </KeyboardAvoidingView>
 

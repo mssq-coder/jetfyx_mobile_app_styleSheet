@@ -22,7 +22,6 @@ const Header = ({
   const accounts = useAuthStore((state) => state.accounts);
   const sharedAccounts = useAuthStore((state) => state.sharedAccounts);
   const fullName = useAuthStore((state) => state.fullName);
-  console.log("Header fullName:", fullName);
   const selectedAccountId = useAuthStore((state) => state.selectedAccountId);
   const setSelectedAccount = useAuthStore((state) => state.setSelectedAccount);
   const refreshProfile = useAuthStore((state) => state.refreshProfile);
@@ -34,8 +33,8 @@ const Header = ({
     allAccounts.find((a) => (a.accountId ?? a.id) === selectedAccountId) ||
     null;
   const displayAccount = currentAccount || selectedAccount;
-  console.log("Header selectedAccountId:", selectedAccountId);
-  console.log("Header displayAccount:", displayAccount);
+  // console.log("Header selectedAccountId:", selectedAccountId);
+  // console.log("Header displayAccount:", displayAccount);
 
   // Owners and shared accounts handled by modal via fullName/sharedAccounts
 

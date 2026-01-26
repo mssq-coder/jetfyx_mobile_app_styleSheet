@@ -203,7 +203,7 @@ export default function SignUpScreen({ navigation }) {
         lastName: form.lastName,
         phone,
       });
-      console.log("Registration successful", response);
+      // console.log("Registration successful", response);
 
       // Many endpoints return { message, statusCode, data: {...} }
       const regPayload = response && response.data ? response.data : response;
@@ -244,7 +244,7 @@ export default function SignUpScreen({ navigation }) {
         accountTypeId: String(form.accountTypeId ?? ""),
         otp,
       });
-      console.log("OTP verification success", response);
+      // console.log("OTP verification success", response);
       alert("OTP verified successfully");
       router.push("/(auth)/login");
     } catch (err) {

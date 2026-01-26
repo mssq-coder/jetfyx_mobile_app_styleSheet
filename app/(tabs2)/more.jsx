@@ -91,7 +91,7 @@ export default function RealAccountsScreen() {
       try {
         const data = await getUserDetails(userId);
         // persist user details in zustand user store
-        console.log("Fetched user details:", data);
+        // console.log("Fetched user details:", data);
         setUserData(data);
       } catch (error) {
         console.error("Error fetching user details:", error);

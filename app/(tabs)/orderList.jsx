@@ -10,6 +10,7 @@ import {
   InteractionManager,
   Modal,
   Pressable,
+  StyleSheet,
   Text,
   TouchableOpacity,
   View,
@@ -20,7 +21,7 @@ import {
 } from "react-native-gesture-handler";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { getAllCurrencyListFromDB } from "../../api/getServices";
-import { updateOrder } from "../../api/orders";
+import { bulkClose, updateOrder } from "../../api/orders";
 import {
   createOrderTarget,
   deleteOrderTarget,
@@ -52,6 +53,10 @@ const OrderListScreen = () => {
   const [summaryContentReady, setSummaryContentReady] = useState(false);
   const [expandedOrderId, setExpandedOrderId] = useState(null);
 
+  const [bulkMode, setBulkMode] = useState(false);
+  const [selectedOrderIds, setSelectedOrderIds] = useState({});
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+
   const [editOpen, setEditOpen] = useState(false);
   const [editOrder, setEditOrder] = useState(null);
   const [slInput, setSlInput] = useState("");
@@ -79,6 +84,21 @@ const OrderListScreen = () => {
 
   const swipeRefs = useRef(new Map());
   const openSwipeRef = useRef(null);
+
+  const selectedCount = useMemo(
+    () =>
+      Object.values(selectedOrderIds || {}).reduce(
+        (acc, v) => acc + (v ? 1 : 0),
+        0,
+      ),
+    [selectedOrderIds],
+  );
+
+  useEffect(() => {
+    if (!bulkMode) {
+      setSelectedOrderIds({});
+    }
+  }, [bulkMode]);
 
   const arrowRotate = useRef(new Animated.Value(0)).current;
 
@@ -646,6 +666,78 @@ const OrderListScreen = () => {
       (prev || []).filter((o) => String(getOrderId(o)) !== key),
     );
   };
+
+  const toggleSelectedOrder = useCallback(
+    (order) => {
+      const oid = getOrderId(order);
+      if (oid == null) return;
+      const key = String(oid);
+      setSelectedOrderIds((prev) => {
+        const next = { ...(prev || {}) };
+        next[key] = !Boolean(next[key]);
+        if (!next[key]) delete next[key];
+        return next;
+      });
+    },
+    [getOrderId],
+  );
+
+  const cancelBulkMode = useCallback(() => {
+    setBulkMode(false);
+    setSelectedOrderIds({});
+  }, []);
+
+  const submitBulkDelete = useCallback(() => {
+    const keys = Object.keys(selectedOrderIds || {}).filter(
+      (k) => selectedOrderIds?.[k],
+    );
+    if (!keys.length) {
+      Alert.alert("Select orders", "Please select at least one order.");
+      return;
+    }
+
+    Alert.alert(
+      "Close selected orders?",
+      `This will close ${keys.length} order(s).`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: bulkDeleting ? "Closing…" : "Close",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              setBulkDeleting(true);
+
+              // Backend typically expects numeric IDs, but we keep fallbacks.
+              const ids = keys.map((k) => {
+                const n = Number(k);
+                return Number.isFinite(n) ? n : k;
+              });
+
+
+              await bulkClose(ids);
+
+              for (const k of keys) {
+                removeOrderFromLists(k);
+              }
+
+              setSelectedOrderIds({});
+              setBulkMode(false);
+            } catch (error) {
+              const message =
+                error?.response?.data?.message ||
+                error?.response?.data?.error ||
+                error?.message ||
+                "Failed to delete orders.";
+              Alert.alert("Error", String(message));
+            } finally {
+              setBulkDeleting(false);
+            }
+          },
+        },
+      ],
+    );
+  }, [selectedOrderIds, bulkDeleting, removeOrderFromLists]);
 
   const buildUpdatePayload = (
     order,
@@ -1379,24 +1471,90 @@ const OrderListScreen = () => {
                     </Text>
                   </View>
 
-                  <TouchableOpacity
-                    style={{
-                      paddingHorizontal: 16,
-                      paddingVertical: 8,
-                      borderRadius: 12,
-                      backgroundColor: theme.background,
-                    }}
-                  >
-                    <Text
-                      style={{
-                        fontSize: 12,
-                        fontWeight: "600",
-                        color: theme.text,
+                  {!bulkMode ? (
+                    <TouchableOpacity
+                      onPress={() => {
+                        setBulkMode(true);
+                        setSelectedOrderIds({});
+                        setExpandedOrderId(null);
+                        openSwipeRef.current?.close?.();
                       }}
+                      style={{
+                        paddingHorizontal: 16,
+                        paddingVertical: 8,
+                        borderRadius: 12,
+                        backgroundColor: theme.background,
+                      }}
+                      accessibilityRole="button"
+                      accessibilityLabel="Enable multi-select close"
                     >
-                      Close All
-                    </Text>
-                  </TouchableOpacity>
+                      <Text
+                        style={{
+                          fontSize: 12,
+                          fontWeight: "600",
+                          color: theme.text,
+                        }}
+                      >
+                        Close All
+                      </Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <View style={{ flexDirection: "row", gap: 10 }}>
+                      <TouchableOpacity
+                        onPress={cancelBulkMode}
+                        disabled={bulkDeleting}
+                        style={{
+                          paddingHorizontal: 12,
+                          paddingVertical: 8,
+                          borderRadius: 12,
+                          backgroundColor: theme.background,
+                          opacity: bulkDeleting ? 0.6 : 1,
+                        }}
+                        accessibilityRole="button"
+                        accessibilityLabel="Cancel multi-select"
+                      >
+                        <Text
+                          style={{
+                            fontSize: 12,
+                            fontWeight: "600",
+                            color: theme.text,
+                          }}
+                        >
+                          Cancel
+                        </Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        onPress={submitBulkDelete}
+                        disabled={bulkDeleting}
+                        style={{
+                          paddingHorizontal: 14,
+                          paddingVertical: 8,
+                          borderRadius: 12,
+                          backgroundColor: theme.negative,
+                          flexDirection: "row",
+                          alignItems: "center",
+                          gap: 8,
+                          opacity: bulkDeleting ? 0.6 : 1,
+                        }}
+                        accessibilityRole="button"
+                        accessibilityLabel="Delete selected orders"
+                      >
+                        {bulkDeleting ? (
+                          <ActivityIndicator color="#fff" />
+                        ) : null}
+                        <Text
+                          style={{
+                            fontSize: 12,
+                            fontWeight: "700",
+                            color: "#fff",
+                          }}
+                        >
+                          Close ({selectedCount})
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
                 </View>
               </View>
 
@@ -1451,6 +1609,7 @@ const OrderListScreen = () => {
             const isPositive = pnl >= 0;
             const isBuy = String(orderType).toLowerCase().includes("buy");
             const isExpanded = expandedOrderId === orderId;
+            const isSelected = Boolean(selectedOrderIds?.[String(orderId)]);
 
             const orderLot = getOrderLotSize(item);
             const minLot = getMinLotSizeForOrder(item);
@@ -1530,12 +1689,14 @@ const OrderListScreen = () => {
             return (
               <Swipeable
                 ref={setSwipeRef}
-                renderRightActions={renderRightActions}
+                enabled={!bulkMode}
+                renderRightActions={bulkMode ? undefined : renderRightActions}
                 rightThreshold={30}
                 friction={1.8}
                 overshootRight={false}
                 useNativeAnimations
                 onSwipeableWillOpen={() => {
+                  if (bulkMode) return;
                   const current = swipeRefs.current.get(String(orderId));
                   if (
                     openSwipeRef.current &&
@@ -1547,9 +1708,13 @@ const OrderListScreen = () => {
                 }}
               >
                 <TouchableOpacity
-                  onPress={() =>
-                    setExpandedOrderId(isExpanded ? null : orderId)
-                  }
+                  onPress={() => {
+                    if (bulkMode) {
+                      toggleSelectedOrder(item);
+                      return;
+                    }
+                    setExpandedOrderId(isExpanded ? null : orderId);
+                  }}
                   style={{
                     marginHorizontal: 12,
                     marginVertical: 6,
@@ -1576,6 +1741,38 @@ const OrderListScreen = () => {
                         gap: 8,
                       }}
                     >
+                      {bulkMode ? (
+                        <View
+                          style={{
+                            width: 22,
+                            height: 22,
+                            borderRadius: 6,
+                            borderWidth: 1.5,
+                            borderColor: isSelected
+                              ? theme.primary
+                              : theme.border,
+                            backgroundColor: isSelected
+                              ? theme.primary
+                              : "transparent",
+                            alignItems: "center",
+                            justifyContent: "center",
+                          }}
+                        >
+                          {isSelected ? (
+                            <Text
+                              style={{
+                                color: "#fff",
+                                fontSize: 14,
+                                fontWeight: "800",
+                                lineHeight: 16,
+                              }}
+                            >
+                              ✓
+                            </Text>
+                          ) : null}
+                        </View>
+                      ) : null}
+
                       {/* Left: Symbol & Type */}
                       <View
                         style={{
@@ -1706,6 +1903,38 @@ const OrderListScreen = () => {
                           marginBottom: 12,
                         }}
                       >
+                        {bulkMode ? (
+                          <View
+                            style={{
+                              width: 22,
+                              height: 22,
+                              borderRadius: 6,
+                              borderWidth: 1.5,
+                              borderColor: isSelected
+                                ? theme.primary
+                                : theme.border,
+                              backgroundColor: isSelected
+                                ? theme.primary
+                                : "transparent",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              marginRight: 10,
+                            }}
+                          >
+                            {isSelected ? (
+                              <Text
+                                style={{
+                                  color: "#fff",
+                                  fontSize: 14,
+                                  fontWeight: "800",
+                                  lineHeight: 16,
+                                }}
+                              >
+                                ✓
+                              </Text>
+                            ) : null}
+                          </View>
+                        ) : null}
                         <View style={{ flex: 1 }}>
                           <Text
                             style={{
@@ -2315,38 +2544,38 @@ const OrderListScreen = () => {
         <Modal
           visible={summaryOpen}
           transparent
-          animationType="slide"
+          animationType="fade"
           onRequestClose={() => setSummaryOpen(false)}
         >
-          <View style={{ flex: 1 }} pointerEvents="box-none">
+          <View style={{ flex: 1 }}>
+            {/* Backdrop */}
             <Pressable
               style={{
-                position: "absolute",
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 0,
-                backgroundColor: "rgba(0,0,0,0.35)",
+                ...StyleSheet.absoluteFillObject,
+                backgroundColor: "rgba(190, 190, 190, 0.35)",
               }}
               onPress={() => setSummaryOpen(false)}
             />
+
+            {/* Centered Content */}
             <View
               style={{
-                position: "absolute",
-                left: 0,
-                right: 0,
-                bottom: 0,
+                flex: 1,
+                justifyContent: "center",
+                alignItems: "center",
                 paddingHorizontal: 16,
-                paddingBottom: 24,
               }}
               pointerEvents="box-none"
             >
               {summaryContentReady ? (
-                <AccountSummary account={account} />
+                <View style={{ width: "100%", maxWidth: 420 }}>
+                  <AccountSummary account={account} />
+                </View>
               ) : (
                 <View
                   style={{
                     width: "100%",
+                    maxWidth: 420,
                     borderRadius: 16,
                     padding: 16,
                     backgroundColor: theme.card,

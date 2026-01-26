@@ -89,6 +89,26 @@ export async function updateUser(userId, payload) {
   }
 }
 
+
+export async function getDetailsByAmountAndCategory( category , amount, mode , currencyCode) {
+  if (!category) {
+    throw new Error("category is required");
+  }
+  if (amount == null) {
+    throw new Error("amount is required");
+  }
+  if (!mode) {
+    throw new Error("mode is required");
+  }
+  if (!currencyCode) {
+    throw new Error("currencyCode is required");
+  } 
+  const response = await api.get(`/FinanceOptions/GetDetailsByAmountAndCategory`, {
+    params: { category, amount, mode, currencyCode },
+  });
+  return response.data;
+}
+
 // React Native: download protected files and return a local URI for preview
 export async function previewFile(imagePath) {
   if (!imagePath) {

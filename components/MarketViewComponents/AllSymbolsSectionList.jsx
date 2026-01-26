@@ -1,5 +1,15 @@
-import React, { useMemo, useState } from "react";
-import { View, Text, TouchableOpacity, SectionList } from "react-native";
+import { useAuthStore } from "@/store/authStore";
+import { useEffect, useMemo, useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  SectionList,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { addSymbolToFavouriteWatchlist, getFavouriteWatchlistSymbols, removeSymbolFromFavouriteWatchlist } from "../../api/auth";
+import AppIcon from "../AppIcon";
 import ExpandedRow from "./expandedRow";
 
 function canonicalGroupName(raw) {
@@ -40,6 +50,45 @@ export default function AllSymbolsSectionList({
 }) {
   // Start collapsed: initially show only the category headers
   const [openGroups, setOpenGroups] = useState(() => new Set());
+
+  const accountId = useAuthStore((s) => s.selectedAccountId);
+
+  const [favouritesBySymbol, setFavouritesBySymbol] = useState(() => new Map());
+  const [pendingSymbols, setPendingSymbols] = useState(() => new Set());
+
+  const refreshFavourites = async (aid) => {
+    const safeAccountId = Number(aid);
+    if (!Number.isFinite(safeAccountId) || safeAccountId <= 0) {
+      setFavouritesBySymbol(new Map());
+      return;
+    }
+
+    try {
+      const res = await getFavouriteWatchlistSymbols(safeAccountId);
+      const rows = Array.isArray(res)
+        ? res
+        : Array.isArray(res?.data)
+          ? res.data
+          : [];
+
+      const next = new Map();
+      rows.forEach((row) => {
+        const symbol = String(row?.symbol || "").trim();
+        const id = Number(row?.id);
+        if (symbol && Number.isFinite(id) && id > 0) {
+          next.set(symbol.toUpperCase(), id);
+        }
+      });
+      setFavouritesBySymbol(next);
+    } catch (err) {
+      console.error("getFavouriteWatchlistSymbols error:", err);
+    }
+  };
+
+  useEffect(() => {
+    refreshFavourites(accountId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [accountId]);
 
   const toggleGroup = (title) => {
     setOpenGroups((prev) => {
@@ -83,63 +132,130 @@ export default function AllSymbolsSectionList({
     }));
   }, [data, openGroups]);
 
-  return (
-    <SectionList
-      sections={sections}
-      keyExtractor={(item) => String(item.id)}
-      stickySectionHeadersEnabled
-      contentContainerStyle={{ paddingBottom: bottomPadding }}
-      renderSectionHeader={({ section }) => (
-        <TouchableOpacity
-          activeOpacity={0.85}
-          onPress={() => toggleGroup(section.title)}
-          style={{
-            paddingHorizontal: 14,
-            paddingTop: 10,
-            paddingBottom: 6,
-            backgroundColor: theme.background,
-            flexDirection: "row",
-            alignItems: "center",
-            justifyContent: "space-between",
-          }}
-        >
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-            <Text
-              style={{
-                color: theme.secondary,
-                fontSize: 13,
-                fontWeight: "800",
-                letterSpacing: 0.6,
-              }}
-            >
-              {section.title}
-            </Text>
-            <Text style={{ color: theme.secondary, fontSize: 12, fontWeight: "700" }}>
-              ({section.count ?? 0})
-            </Text>
-          </View>
+  const handleFavouritePress = async (item) => {
+    const aid = Number(accountId);
+    if (!Number.isFinite(aid) || aid <= 0) {
+      Alert.alert("No account", "Please select a valid account first.");
+      return;
+    }
+    
+    const symbolRaw = item?.symbol || item?.symbolName || item?.instrument || "";
+    const symbol = String(symbolRaw).trim();
+    const symbolKey = symbol ? symbol.toUpperCase() : "";
+    
+    if (!symbol) {
+      Alert.alert("No symbol", "This symbol is invalid.");
+      return;
+    }
 
-          <Text style={{ color: theme.secondary, fontSize: 18, fontWeight: "800" }}>
-            {openGroups.has(section.title) ? "⌄" : ">"}
-          </Text>
+    try {
+      setPendingSymbols((prev) => {
+        const next = new Set(prev);
+        if (symbolKey) next.add(symbolKey);
+        return next;
+      });
+
+      const favouriteId = favouritesBySymbol.get(symbolKey);
+      const isFavourite = Boolean(favouriteId);
+
+      if (isFavourite) {
+        await removeSymbolFromFavouriteWatchlist(favouriteId);
+        Alert.alert("Removed", `${symbol} removed from favourites.`);
+      } else {
+        await addSymbolToFavouriteWatchlist(aid, symbol);
+        Alert.alert("Saved", `${symbol} added to favourites.`);
+      }
+
+      await refreshFavourites(aid);
+    } catch (err) {
+      console.error("Favourite toggle error:", err);
+      const resp = err?.response || err;
+      const msg =
+        resp?.data?.message ||
+        resp?.data?.error ||
+        resp?.message ||
+        String(err);
+      Alert.alert("Error", msg);
+    } finally {
+      setPendingSymbols((prev) => {
+        const next = new Set(prev);
+        if (symbolKey) next.delete(symbolKey);
+        return next;
+      });
+    }
+  };
+
+  const renderItem = ({ item }) => {
+    const symbolRaw = item?.symbol || item?.symbolName || item?.instrument || "";
+    const symbol = String(symbolRaw).trim();
+    const symbolKey = symbol ? symbol.toUpperCase() : "";
+    const favouriteId = symbolKey ? favouritesBySymbol.get(symbolKey) : undefined;
+    const isFavourite = Boolean(favouriteId);
+    const isPending = symbolKey ? pendingSymbols.has(symbolKey) : false;
+
+    // Calculate change percentage if available
+    const changePercentage = item.changePercent || "";
+    const isPositive = item.isPositive !== undefined ? item.isPositive : (parseFloat(changePercentage) >= 0);
+
+    return (
+      <View style={{ 
+        flexDirection: 'row', 
+        alignItems: 'center',
+        paddingHorizontal: 8,
+        paddingVertical: 2,
+      }}>
+        {/* Favorite button - now on the left side */}
+        <TouchableOpacity
+          onPress={() => handleFavouritePress(item)}
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          style={{
+            width: 44,
+            height: 44,
+            justifyContent: 'center',
+            alignItems: 'center',
+            marginRight: 8,
+            backgroundColor: 'transparent',
+          }}
+          accessibilityRole="button"
+          accessibilityLabel={`${isFavourite ? 'Remove' : 'Add'} ${item.symbol} to favourites`}
+        >
+          {isPending ? (
+            <ActivityIndicator size="small" color={theme.primary} />
+          ) : (
+            <View style={{
+              width: 32,
+              height: 32,
+              borderRadius: 16,
+              backgroundColor: isFavourite ? `${theme.primary}15` : `${theme.secondary}10`,
+              justifyContent: 'center',
+              alignItems: 'center',
+            }}>
+              <AppIcon
+                name={isFavourite ? "favorite" : "favorite-border"}
+                size={20}
+                color={isFavourite ? theme.primary : theme.secondary}
+              />
+            </View>
+          )}
         </TouchableOpacity>
-      )}
-      renderItem={({ item }) => (
+        
+        {/* Main content container */}
         <TouchableOpacity
           onPress={() => onToggleExpand(item.id)}
+          activeOpacity={0.7}
           style={{
-            marginHorizontal: 12,
-            marginVertical: 6,
-            borderRadius: 12,
-            backgroundColor: theme.card,
-            borderWidth: 1,
-            borderColor: theme.border,
+            flex: 1,
+            marginVertical: 4,
+            borderRadius: 16,
+            backgroundColor: expandedId === item.id ? `${theme.card}EE` : theme.card,
+            borderWidth: expandedId === item.id ? 1.5 : 1,
+            borderColor: expandedId === item.id ? theme.primary : theme.border,
             overflow: "hidden",
-            shadowColor: "#000",
+            shadowColor: expandedId === item.id ? theme.primary : "#000",
             shadowOffset: { width: 0, height: 2 },
-            shadowOpacity: 0.08,
-            shadowRadius: 4,
-            elevation: 3,
+            shadowOpacity: expandedId === item.id ? 0.15 : 0.08,
+            shadowRadius: expandedId === item.id ? 8 : 4,
+            elevation: expandedId === item.id ? 5 : 3,
           }}
         >
           {expandedId === item.id ? (
@@ -186,7 +302,7 @@ export default function AllSymbolsSectionList({
                   ...prev,
                   [item.id]: Math.max(
                     0.01,
-                    parseFloat(prev[item.id] ?? "0.01") - 0.01
+                    parseFloat(prev[item.id] ?? "0.01") - 0.01,
                   ).toFixed(2),
                 }))
               }
@@ -196,121 +312,313 @@ export default function AllSymbolsSectionList({
               style={{
                 flexDirection: "row",
                 alignItems: "center",
-                paddingVertical: 14,
+                paddingVertical: 12,
                 paddingHorizontal: 16,
               }}
             >
               {/* Left: Symbol & Meta Info */}
-              <View style={{ flex: 1.5 }}>
-                <Text
-                  style={{
-                    color: theme.secondary,
-                    fontSize: 11,
-                    marginBottom: 3,
-                    fontWeight: "500",
-                  }}
-                >
-                  {item.time || "--"}
-                </Text>
+              <View style={{ flex: 1.8 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+                  <View style={{
+                    width: 6,
+                    height: 6,
+                    borderRadius: 3,
+                    backgroundColor: isPositive ? theme.positive : theme.negative,
+                    marginRight: 6,
+                  }} />
+                  <Text
+                    style={{
+                      color: theme.secondary,
+                      fontSize: 11,
+                      fontWeight: "600",
+                      letterSpacing: 0.3,
+                    }}
+                  >
+                    {item.time || "--:--"}
+                  </Text>
+                </View>
+                
                 <Text
                   style={{
                     color: theme.text,
-                    fontSize: 18,
-                    fontWeight: "700",
+                    fontSize: 20,
+                    fontWeight: "800",
                     letterSpacing: 0.5,
-                    marginBottom: 4,
+                    marginBottom: 6,
+                    fontFamily: 'System',
                   }}
                 >
                   {item.symbol}
                 </Text>
-                <View style={{ flexDirection: "row", alignItems: "center" }}>
+                
+                <View style={{ 
+                  flexDirection: "row", 
+                  alignItems: "center",
+                  backgroundColor: isPositive ? `${theme.positive}15` : `${theme.negative}15`,
+                  paddingHorizontal: 10,
+                  paddingVertical: 4,
+                  borderRadius: 12,
+                  alignSelf: 'flex-start',
+                }}>
                   <Text
                     style={{
-                      color: item.isPositive ? theme.positive : theme.negative,
+                      color: isPositive ? theme.positive : theme.negative,
                       fontSize: 13,
-                      fontWeight: "600",
+                      fontWeight: "700",
                       marginRight: 4,
                     }}
                   >
-                    {item.isPositive ? "↑" : "↓"} {item.change || "--"}
+                    {isPositive ? "▲" : "▼"}
                   </Text>
+                  <Text
+                    style={{
+                      color: isPositive ? theme.positive : theme.negative,
+                      fontSize: 13,
+                      fontWeight: "700",
+                    }}
+                  >
+                    {item.change || "--"}
+                  </Text>
+                  {changePercentage && (
+                    <Text
+                      style={{
+                        color: isPositive ? theme.positive : theme.negative,
+                        fontSize: 11,
+                        fontWeight: "600",
+                        marginLeft: 6,
+                        opacity: 0.9,
+                      }}
+                    >
+                      ({changePercentage}%)
+                    </Text>
+                  )}
                 </View>
               </View>
 
-              {/* Middle: Sell & Buy in columns */}
-              <View style={{ flex: 1.2, flexDirection: "row", gap: 14 }}>
-                <View style={{ alignItems: "flex-end", flex: 1 }}>
+              {/* Middle: Sell & Buy prices with improved visual design */}
+              <View
+                style={{
+                  flex: 1.2,
+                  flexDirection: "row",
+                  justifyContent: "flex-end",
+                  gap: 10,
+                }}
+              >
+                <View style={{ alignItems: "flex-end" }}>
                   <Text
                     style={{
                       fontSize: 10,
                       color: theme.secondary,
-                      marginBottom: 4,
-                      fontWeight: "500",
+                      marginBottom: 6,
+                      fontWeight: "600",
+                      letterSpacing: 0.5,
+                      textTransform: 'uppercase',
                     }}
                   >
                     Sell
                   </Text>
-                  <Text
+                  <View
                     style={{
-                      fontSize: 15,
-                      color: theme.negative,
-                      fontWeight: "700",
-                      letterSpacing: 0.3,
-                      minWidth: 55,
-                      textAlign: "right",
+                      minWidth: 88,
+                      paddingVertical: 8,
+                      paddingHorizontal: 12,
+                      borderRadius: 12,
+                      borderWidth: 1.5,
+                      borderColor: theme.negative,
+                      alignItems: "flex-end",
+                      backgroundColor: `${theme.negative}10`,
                     }}
                   >
-                    {item.bid || "--"}
-                  </Text>
+                    <Text
+                      style={{
+                        fontSize: 16,
+                        color: theme.negative,
+                        fontWeight: "800",
+                        letterSpacing: 0.3,
+                        textAlign: "right",
+                        fontFamily: 'System',
+                      }}
+                    >
+                      {item.bid || "--"}
+                    </Text>
+                  </View>
                 </View>
-                <View style={{ alignItems: "flex-end", flex: 1 }}>
+                
+                <View style={{ alignItems: "flex-end" }}>
                   <Text
                     style={{
                       fontSize: 10,
                       color: theme.secondary,
-                      marginBottom: 4,
-                      fontWeight: "500",
+                      marginBottom: 6,
+                      fontWeight: "600",
+                      letterSpacing: 0.5,
+                      textTransform: 'uppercase',
                     }}
                   >
                     Buy
                   </Text>
-                  <Text
+                  <View
                     style={{
-                      fontSize: 15,
-                      color: theme.positive,
-                      fontWeight: "700",
-                      letterSpacing: 0.3,
-                      minWidth: 55,
-                      textAlign: "right",
+                      minWidth: 88,
+                      paddingVertical: 8,
+                      paddingHorizontal: 12,
+                      borderRadius: 12,
+                      borderWidth: 1.5,
+                      borderColor: theme.positive,
+                      alignItems: "flex-end",
+                      backgroundColor: `${theme.positive}10`,
                     }}
                   >
-                    {item.ask || "--"}
-                  </Text>
+                    <Text
+                      style={{
+                        fontSize: 16,
+                        color: theme.positive,
+                        fontWeight: "800",
+                        letterSpacing: 0.3,
+                        textAlign: "right",
+                        fontFamily: 'System',
+                      }}
+                    >
+                      {item.ask || "--"}
+                    </Text>
+                  </View>
                 </View>
-              </View>
-
-              {/* Right: Indicator */}
-              <View
-                style={{
-                  width: 24,
-                  alignItems: "center",
-                  justifyContent: "center",
-                  marginLeft: 8,
-                }}
-              >
-                <Text style={{ fontSize: 20, color: theme.secondary }}>›</Text>
               </View>
             </View>
           )}
         </TouchableOpacity>
+      </View>
+    );
+  };
+
+  return (
+    <SectionList
+      sections={sections}
+      keyExtractor={(item) => String(item.id)}
+      stickySectionHeadersEnabled={true}
+      showsVerticalScrollIndicator={false}
+      contentContainerStyle={{ 
+        paddingBottom: bottomPadding,
+        paddingHorizontal: 4,
+      }}
+      renderSectionHeader={({ section }) => (
+        <TouchableOpacity
+          activeOpacity={0.8}
+          onPress={() => toggleGroup(section.title)}
+          style={{
+            paddingHorizontal: 16,
+            paddingVertical: 10,
+            backgroundColor: theme.background,
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "space-between",
+            borderBottomWidth: 1,
+            borderBottomColor: theme.border,
+            marginTop: 4,
+            marginBottom: 2,
+          }}
+        >
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+            <View style={{
+              width: 4,
+              height: 20,
+              borderRadius: 2,
+              backgroundColor: theme.primary,
+            }} />
+            <View>
+              <Text
+                style={{
+                  color: theme.text,
+                  fontSize: 15,
+                  fontWeight: "800",
+                  letterSpacing: 0.5,
+                }}
+              >
+                {section.title}
+              </Text>
+              <Text
+                style={{
+                  color: theme.secondary,
+                  fontSize: 12,
+                  fontWeight: "600",
+                  marginTop: 2,
+                }}
+              >
+                {section.count ?? 0} instruments
+              </Text>
+            </View>
+          </View>
+
+          <View style={{
+            width: 30,
+            height: 30,
+            borderRadius: 15,
+            backgroundColor: `${theme.primary}20`,
+            justifyContent: 'center',
+            alignItems: 'center',
+          }}>
+            <Text
+              style={{ 
+                color: theme.primary, 
+                fontSize: 16, 
+                fontWeight: "700",
+                marginTop: openGroups.has(section.title) ? 0 : -1,
+              }}
+            >
+              {openGroups.has(section.title) ? "–" : "+"}
+            </Text>
+          </View>
+        </TouchableOpacity>
       )}
+      renderItem={renderItem}
       ListEmptyComponent={
-        <View style={{ padding: 32, alignItems: "center" }}>
-          <Text style={{ color: theme.secondary, fontSize: 16, textAlign: "center" }}>
+        <View style={{ 
+          padding: 40, 
+          alignItems: "center",
+          justifyContent: 'center',
+          minHeight: 300,
+        }}>
+          <View style={{
+            width: 80,
+            height: 80,
+            borderRadius: 40,
+            backgroundColor: `${theme.primary}15`,
+            justifyContent: 'center',
+            alignItems: 'center',
+            marginBottom: 20,
+          }}>
+            <AppIcon
+              name="currency-exchange"
+              size={40}
+              color={theme.secondary}
+            />
+          </View>
+          <Text
+            style={{
+              color: theme.text,
+              fontSize: 18,
+              fontWeight: "700",
+              textAlign: "center",
+              marginBottom: 8,
+            }}
+          >
             No symbols available
+          </Text>
+          <Text
+            style={{
+              color: theme.secondary,
+              fontSize: 14,
+              textAlign: "center",
+              lineHeight: 20,
+            }}
+          >
+            Check back later or refresh to see trading instruments
           </Text>
         </View>
       }
+      initialNumToRender={10}
+      maxToRenderPerBatch={20}
+      windowSize={10}
     />
   );
 }

@@ -15,7 +15,7 @@ export function createAccountHubConnection(baseURL, accountId, onAccountDetails)
 
   const hubPath = process.env.EXPO_PUBLIC_ACCOUNT_HUB_PATH || "/accountHub";
   const hubUrl = `${hubBaseUrl}${hubPath.startsWith("/") ? "" : "/"}${hubPath}`;
-  console.log("[SignalR] AccountHub URL:", hubUrl);
+  // console.log("[SignalR] AccountHub URL:", hubUrl);
 
   const connection = new HubConnectionBuilder()
     .withUrl(hubUrl, {
@@ -53,12 +53,12 @@ export function createAccountHubConnection(baseURL, accountId, onAccountDetails)
   // SignalR JS matches these names case-insensitively, but logs the lowered name.
   connection.on("SubscriptionSuccess", (payload) => {
     if (isDisposed) return;
-    console.log("[SignalR] AccountHub SubscriptionSuccess", payload ?? "");
+    // console.log("[SignalR] AccountHub SubscriptionSuccess", payload ?? "");
   });
 
   connection.on("SubscriptionError", (payload) => {
     if (isDisposed) return;
-    console.log("[SignalR] AccountHub SubscriptionError", payload ?? "");
+    // console.log("[SignalR] AccountHub SubscriptionError", payload ?? "");
   });
 
   connection.onreconnected(() => {
@@ -79,7 +79,7 @@ export function createAccountHubConnection(baseURL, accountId, onAccountDetails)
     if (error) {
       console.error("[SignalR] AccountHub connection closed with error:", error?.message || error);
     } else {
-      console.log("[SignalR] AccountHub connection closed gracefully");
+      // console.log("[SignalR] AccountHub connection closed gracefully");
     }
     startPromise = null;
   });
