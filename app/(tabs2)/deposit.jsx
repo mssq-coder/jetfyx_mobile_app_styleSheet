@@ -14,6 +14,8 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  Dimensions,
+  Animated,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { getFinanceOptions, previewFile } from "../../api/getServices";
@@ -22,18 +24,15 @@ import AppIcon from "../../components/AppIcon";
 import { useAppTheme } from "../../contexts/ThemeContext";
 import { useAuthStore } from "../../store/authStore";
 
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const MODE = "deposit";
 
 function toPreviewPath(urlOrPath) {
   if (!urlOrPath) return null;
   const raw = String(urlOrPath);
 
-  // Already local or inline
   if (raw.startsWith("file:") || raw.startsWith("data:")) return raw;
 
-  // If backend gave a full URL, only extract the preview path when it is
-  // already pointing at our protected preview endpoint. Otherwise, pass
-  // the URL through so `previewFile()` can download it directly.
   if (raw.startsWith("http://") || raw.startsWith("https://")) {
     try {
       const u = new URL(raw);
@@ -44,9 +43,6 @@ function toPreviewPath(urlOrPath) {
         return decodeURIComponent(encoded);
       }
 
-      // Azure Blob URLs are often private (409 PublicAccessNotPermitted).
-      // Convert them into a container/path string so our backend preview
-      // endpoint can fetch the blob server-side.
       if (u.hostname.toLowerCase().endsWith(".blob.core.windows.net")) {
         const p = decodeURIComponent(u.pathname.replace(/^\//, ""));
         const parts = p.split("/").filter(Boolean);
@@ -62,7 +58,7 @@ function toPreviewPath(urlOrPath) {
   return raw;
 }
 
-function PreviewedImage({ uriOrPath, style, theme, fallbackIcon = "image" }) {
+function PreviewedImage({ uriOrPath, style, theme, fallbackIcon = "payments" }) {
   const [uri, setUri] = useState(null);
 
   useEffect(() => {
@@ -74,7 +70,6 @@ function PreviewedImage({ uriOrPath, style, theme, fallbackIcon = "image" }) {
         return;
       }
 
-      // If it's already local/data, just use it.
       if (p.startsWith("file:") || p.startsWith("data:")) {
         if (mounted) setUri(p);
         return;
@@ -84,7 +79,6 @@ function PreviewedImage({ uriOrPath, style, theme, fallbackIcon = "image" }) {
         const localUri = await previewFile(p);
         if (mounted) setUri(localUri);
       } catch (_e) {
-        // Don't fall back to Azure Blob direct URLs (often private -> 409).
         const raw = String(uriOrPath || "");
         const isBlob = /(^https?:\/\/[^/]+\.blob\.core\.windows\.net\/)/i.test(
           raw,
@@ -110,7 +104,7 @@ function PreviewedImage({ uriOrPath, style, theme, fallbackIcon = "image" }) {
           },
         ]}
       >
-        <AppIcon name={fallbackIcon} color={theme?.secondary} size={22} />
+        <AppIcon name={fallbackIcon} color={theme?.secondary} size={32} />
       </View>
     );
   }
@@ -123,6 +117,7 @@ export default function DepositScreen() {
   const {
     accounts,
     sharedAccounts,
+    userEmail,
     fullName,
     selectedAccountId,
     setSelectedAccount,
@@ -144,8 +139,8 @@ export default function DepositScreen() {
   const [selectedCategoryId, setSelectedCategoryId] = useState(null);
   const [selectedMethodName, setSelectedMethodName] = useState(null);
   const [selectedCurrency, setSelectedCurrency] = useState(null);
-
   const [amount, setAmount] = useState("");
+  const [buttonScale] = useState(new Animated.Value(1));
 
   const accountLabel = useMemo(() => {
     if (!selectedAccount) return "Select account";
@@ -155,11 +150,7 @@ export default function DepositScreen() {
       selectedAccount.type ||
       selectedAccount.accountType ||
       "Account";
-    const bal =
-      selectedAccount.balance != null
-        ? `${selectedAccount.balance} ${selectedAccount.currency ?? ""}`.trim()
-        : "—";
-    return `${number} • ${type} • ${bal}`;
+    return `${number} • ${type}`;
   }, [selectedAccount]);
 
   const normalizeAmount = (val) => String(val || "").replace(/[^0-9.]/g, "");
@@ -237,7 +228,7 @@ export default function DepositScreen() {
         setOptionsError(
           e?.response?.data?.message ||
             e?.message ||
-            "Failed to load finance options",
+            "Failed to load deposit options",
         );
       } finally {
         if (mounted) setLoadingOptions(false);
@@ -249,36 +240,54 @@ export default function DepositScreen() {
     };
   }, []);
 
+  const animateButton = () => {
+    Animated.sequence([
+      Animated.timing(buttonScale, {
+        toValue: 0.95,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+      Animated.spring(buttonScale, {
+        toValue: 1,
+        tension: 150,
+        friction: 3,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  };
+
   const validateAndProceed = async () => {
+    animateButton();
+    
     if (!selectedAccount) {
       Alert.alert(
-        "Select account",
+        "Select Account",
         "Please select an account to deposit into.",
       );
       return;
     }
 
     if (!selectedMethod) {
-      Alert.alert("Select method", "Please select a deposit method.");
+      Alert.alert("Select Method", "Please select a deposit method.");
       return;
     }
 
     const amt = Number(amount);
     if (!amount || Number.isNaN(amt) || amt <= 0) {
-      Alert.alert("Invalid amount", "Please enter a valid deposit amount.");
+      Alert.alert("Invalid Amount", "Please enter a valid deposit amount.");
       return;
     }
 
-    const min = Number(selectedMethod.amountMin);
-    const max = Number(selectedMethod.amountMax);
-    if (!Number.isNaN(min) && amt < min) {
-      Alert.alert("Amount too low", `Minimum amount is ${min}.`);
-      return;
-    }
-    if (!Number.isNaN(max) && amt > max) {
-      Alert.alert("Amount too high", `Maximum amount is ${max}.`);
-      return;
-    }
+    // const min = Number(selectedMethod.amountMin);
+    // const max = Number(selectedMethod.amountMax);
+    // if (!Number.isNaN(min) && amt < min) {
+    //   Alert.alert("Amount Too Low", `Minimum amount is ${min}.`);
+    //   return;
+    // }
+    // if (!Number.isNaN(max) && amt > max) {
+    //   Alert.alert("Amount Too High", `Maximum amount is ${max}.`);
+    //   return;
+    // }
 
     const settings = parseSettings(selectedMethod.settingsJson);
     const fields = settings?.fields || {};
@@ -287,7 +296,7 @@ export default function DepositScreen() {
     if (kind.includes("stripe")) {
       const link = fields?.paymentLink;
       if (!link) {
-        Alert.alert("Payment link missing", "No payment link found.");
+        Alert.alert("Payment Link Missing", "No payment link found.");
         return;
       }
       await WebBrowser.openBrowserAsync(String(link));
@@ -305,11 +314,12 @@ export default function DepositScreen() {
     if (kind.includes("bank")) {
       const lines = [
         `Amount: ${amt}`,
-        `Account Holder: ${fields?.accountHolderName || "—"}`,
-        `Account Number: ${fields?.accountNumber || "—"}`,
-        `Bank: ${fields?.bankName || "—"}`,
+        `Selected Category: ${selectedCategory?.name || "—"}`,
         `Branch: ${fields?.branchName || "—"}`,
         fields?.ifscCode ? `IFSC: ${fields.ifscCode}` : null,
+        `Mode: ${MODE}`,
+        `Curency: ${selectedCurrency || "—"}`,
+        `userEmail: ${userEmail || "—"}`,
         `Processing: ${selectedCategory?.processingTime || "—"}`,
       ].filter(Boolean);
       Alert.alert("Bank Deposit", lines.join("\n"));
@@ -322,20 +332,40 @@ export default function DepositScreen() {
     );
   };
 
+  const quickAmounts = [100, 500, 1000, 5000];
+
   return (
     <SafeAreaView
       style={[styles.container, { backgroundColor: theme.background }]}
     >
       <StatusBar backgroundColor={theme.primary} barStyle="light-content" />
 
-      <View style={[styles.header, { backgroundColor: theme.primary }]}>
+      {/* Enhanced Header */}
+      <View style={[styles.header, { 
+        backgroundColor: theme.primary,
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.15,
+        shadowRadius: 12,
+        elevation: 8,
+      }]}>
         <TouchableOpacity
           onPress={() => router.back()}
-          style={styles.backButton}
+          style={[styles.backButton, { 
+            backgroundColor: 'rgba(255,255,255,0.2)',
+          }]}
         >
-          <AppIcon name="arrow-back" color="#fff" size={24} />
+          <AppIcon name="arrow-back" color="#fff" size={22} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Deposit</Text>
+        <View style={{ flex: 1, alignItems: 'center' }}>
+          <Text style={styles.headerTitle}>Deposit Funds</Text>
+          <Text style={styles.headerSubtitle}>Add funds to your trading account</Text>
+        </View>
+        <TouchableOpacity style={[styles.headerButton, { 
+          backgroundColor: 'rgba(255,255,255,0.2)',
+        }]}>
+          <AppIcon name="help-outline" color="#fff" size={20} />
+        </TouchableOpacity>
       </View>
 
       <KeyboardAvoidingView
@@ -345,352 +375,341 @@ export default function DepositScreen() {
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
         >
-          {/* Account */}
-          <Text style={[styles.sectionTitle, { color: theme.text }]}>
-            Account
-          </Text>
+          {/* Account Selection Card */}
           <TouchableOpacity
             onPress={() => setAccountModalOpen(true)}
             style={[
-              styles.card,
-              { backgroundColor: theme.card, borderColor: theme.border },
+              styles.accountCard,
+              { 
+                backgroundColor: theme.card,
+                borderWidth: 1,
+                borderColor: theme.border,
+                shadowColor: "#000",
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.08,
+                shadowRadius: 8,
+                elevation: 4,
+              }
             ]}
+            activeOpacity={0.7}
           >
-            <View style={styles.rowCenter}>
-              <AppIcon
-                name="account-balance-wallet"
-                color={theme.primary}
-                size={20}
-              />
+            <View style={styles.accountCardContent}>
+              <View style={[styles.accountIcon, { backgroundColor: `${theme.primary}15` }]}>
+                <AppIcon name="account-balance" color={theme.primary} size={24} />
+              </View>
               <View style={{ flex: 1 }}>
-                <Text
-                  style={[styles.cardTitle, { color: theme.text }]}
-                  numberOfLines={1}
-                >
+                <Text style={[styles.accountTitle, { color: theme.text }]}>
+                  Deposit to Account
+                </Text>
+                <Text style={[styles.accountLabel, { color: theme.text }]} numberOfLines={1}>
                   {accountLabel}
                 </Text>
-                <Text
-                  style={[styles.cardSub, { color: theme.secondary }]}
-                  numberOfLines={1}
-                >
-                  Tap to change account
+                <Text style={[styles.accountBalance, { color: theme.secondary }]}>
+                  Balance: {selectedAccount?.balance ? `$${selectedAccount.balance}` : "$0.00"} • {selectedAccount?.currency || "USD"}
                 </Text>
               </View>
-              <AppIcon name="expand-more" color={theme.secondary} size={22} />
+              <AppIcon name="chevron-right" color={theme.secondary} size={22} />
             </View>
           </TouchableOpacity>
 
-
-          {/* Payment Options */}
-          <Text
-            style={[styles.sectionTitle, { color: theme.text, marginTop: 16 }]}
-          >
-            Payment Options
-          </Text>
-
-          {loadingOptions ? (
-            <View
-              style={[
-                styles.card,
-                {
-                  backgroundColor: theme.card,
-                  borderColor: theme.border,
-                  alignItems: "center",
-                },
-              ]}
-            >
-              <ActivityIndicator color={theme.primary} />
-              <Text
-                style={[
-                  styles.cardSub,
-                  { color: theme.secondary, marginTop: 8 },
-                ]}
-              >
-                Loading options...
+          {/* Payment Methods Section */}
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={[styles.sectionTitle, { color: theme.text }]}>
+                Payment Method
+              </Text>
+              <Text style={[styles.sectionSubtitle, { color: theme.secondary }]}>
+                Choose how you want to deposit
               </Text>
             </View>
-          ) : optionsError ? (
-            <View
-              style={[
-                styles.card,
-                { backgroundColor: theme.card, borderColor: theme.border },
-              ]}
-            >
-              <Text style={[styles.cardTitle, { color: theme.text }]}>
-                Failed to load
-              </Text>
-              <Text style={[styles.cardSub, { color: theme.secondary }]}>
-                {optionsError}
-              </Text>
-              <Text
-                style={[
-                  styles.cardSub,
-                  { color: theme.secondary, marginTop: 6 },
-                ]}
-              >
-                Endpoint: /FinanceOptions?mode=deposit
-              </Text>
-            </View>
-          ) : categories.length ? (
-            <View>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={{ gap: 12, paddingVertical: 4 }}
-              >
-                {categories.map((cat) => {
-                  const active = String(cat.id) === String(selectedCategoryId);
-                  return (
-                    <TouchableOpacity
-                      key={String(cat.id)}
-                      onPress={() => {
-                        setSelectedCategoryId(cat.id);
-                        setSelectedMethodName(cat?.methods?.[0]?.name ?? null);
-                        // set first available currency for the category
-                        const firstCsv = cat?.methods?.[0]?.currenciesCsv || "";
-                        const firstCurrency = (firstCsv.split(",").map((s) => s.trim()).filter(Boolean) || [null])[0];
-                        setSelectedCurrency(firstCurrency ?? null);
-                      }}
-                      style={[
-                        styles.optionCard,
-                        {
-                          backgroundColor: theme.card,
-                          borderColor: active ? theme.primary : theme.border,
-                        },
-                      ]}
-                    >
-                      <PreviewedImage
-                        uriOrPath={cat.imageUrl}
-                        style={styles.optionImage}
-                        theme={theme}
-                        fallbackIcon="payments"
-                      />
-                      <Text
-                        style={[styles.optionTitle, { color: theme.text }]}
-                        numberOfLines={1}
-                      >
-                        {cat.name}
-                      </Text>
-                      <Text
-                        style={[styles.optionSub, { color: theme.secondary }]}
-                        numberOfLines={1}
-                      >
-                        {cat.processingTime || "—"}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </ScrollView>
 
-              
-
-              {/* {selectedMethod ? (
-                <View style={{ marginTop: 12 }}>
-                  <Text style={[styles.sectionTitle, { color: theme.text }]}>
-                    Details
-                  </Text>
-                  <View
-                    style={[
-                      styles.card,
-                      {
-                        backgroundColor: theme.card,
-                        borderColor: theme.border,
-                      },
-                    ]}
-                  >
-                    {selectedMethod.imageUrl ? (
-                      <PreviewedImage
-                        uriOrPath={selectedMethod.imageUrl}
-                        style={styles.methodImage}
-                        theme={theme}
-                        fallbackIcon="image"
-                      />
-                    ) : null}
-                    <Text style={[styles.cardTitle, { color: theme.text }]}>
-                      {selectedMethod.name}
-                    </Text>
-                    <Text style={[styles.cardSub, { color: theme.secondary }]}>
-                      {selectedMethod.kind || ""}
-                    </Text>
-                    <Text
-                      style={[
-                        styles.cardSub,
-                        { color: theme.secondary, marginTop: 6 },
-                      ]}
-                    >
-                      Processing time: {selectedCategory?.processingTime || "—"}
-                    </Text>
-                    {(() => {
-                      const s = parseSettings(selectedMethod.settingsJson);
-                      const f = s?.fields || {};
-                      const kind = String(
-                        selectedMethod.kind || "",
-                      ).toLowerCase();
-                      if (kind.includes("upi")) {
-                        return (
-                          <Text
-                            style={[
-                              styles.cardSub,
-                              { color: theme.text, marginTop: 10 },
-                            ]}
-                          >
-                            UPI ID: {f?.upiId || "—"}
-                          </Text>
-                        );
-                      }
-                      if (kind.includes("stripe")) {
-                        return (
-                          <Text
-                            style={[
-                              styles.cardSub,
-                              { color: theme.text, marginTop: 10 },
-                            ]}
-                          >
-                            Payment Link: {f?.paymentLink || "—"}
-                          </Text>
-                        );
-                      }
-                      if (kind.includes("bank")) {
-                        return (
-                          <View style={{ marginTop: 10, gap: 4 }}>
-                            <Text
-                              style={[styles.cardSub, { color: theme.text }]}
-                            >
-                              Account Holder: {f?.accountHolderName || "—"}
-                            </Text>
-                            <Text
-                              style={[styles.cardSub, { color: theme.text }]}
-                            >
-                              Account Number: {f?.accountNumber || "—"}
-                            </Text>
-                            <Text
-                              style={[styles.cardSub, { color: theme.text }]}
-                            >
-                              Bank: {f?.bankName || "—"}
-                            </Text>
-                            <Text
-                              style={[styles.cardSub, { color: theme.text }]}
-                            >
-                              Branch: {f?.branchName || "—"}
-                            </Text>
-                            {f?.ifscCode ? (
-                              <Text
-                                style={[styles.cardSub, { color: theme.text }]}
-                              >
-                                IFSC: {f.ifscCode}
-                              </Text>
-                            ) : null}
-                          </View>
-                        );
-                      }
-                      return (
-                        <Text
-                          style={[
-                            styles.cardSub,
-                            { color: theme.secondary, marginTop: 10 },
-                          ]}
-                        >
-                          No extra details for this method.
-                        </Text>
-                      );
-                    })()}
-                  </View>
+            {loadingOptions ? (
+              <View style={[styles.loadingCard, { backgroundColor: theme.card }]}>
+                <ActivityIndicator color={theme.primary} size="large" />
+                <Text style={[styles.loadingText, { color: theme.secondary }]}>
+                  Loading deposit options...
+                </Text>
+              </View>
+            ) : optionsError ? (
+              <View style={[styles.errorCard, { backgroundColor: theme.card }]}>
+                <View style={[styles.errorIcon, { backgroundColor: `${theme.negative}15` }]}>
+                  <AppIcon name="error" color={theme.negative} size={24} />
                 </View>
-              ) : null} */}
-            </View>
-          ) : (
-            <View
-              style={[
-                styles.card,
-                { backgroundColor: theme.card, borderColor: theme.border },
-              ]}
-            >
-              <Text style={[styles.cardTitle, { color: theme.text }]}>
-                No options
-              </Text>
-              <Text style={[styles.cardSub, { color: theme.secondary }]}>
-                No deposit methods available.
-              </Text>
-            </View>
-          )}
-
-         
-
-          <View style={{ marginTop: 12 }}>
-                <Text style={[styles.sectionTitle, { color: theme.text }]}>Currency</Text>
+                <Text style={[styles.errorTitle, { color: theme.text }]}>
+                  Failed to Load
+                </Text>
+                <Text style={[styles.errorMessage, { color: theme.secondary }]}>
+                  {optionsError}
+                </Text>
+              </View>
+            ) : categories.length ? (
+              <>
+                {/* Category Selection */}
                 <ScrollView
                   horizontal
                   showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={{ gap: 12, paddingVertical: 4 }}
+                  contentContainerStyle={styles.categoryContainer}
                 >
-                  {currencyList.length ? (
-                    currencyList.map((c) => {
-                      const active = String(c) === String(selectedCurrency);
-                      return (
-                        <TouchableOpacity
-                          key={c}
-                          onPress={() => setSelectedCurrency(c)}
-                          style={[
-                            styles.optionCard,
-                            {
-                              backgroundColor: theme.card,
-                              borderColor: active ? theme.primary : theme.border,
-                              minWidth: 100,
-                            },
-                          ]}
-                        >
-                          <Text style={[styles.optionTitle, { color: theme.text }]}>
-                            {c}
-                          </Text>
-                          <Text style={[styles.optionSub, { color: theme.secondary }]}> 
-                            Min {currencyLimits.min ?? "—"} • Max {currencyLimits.max ?? "—"}
-                          </Text>
-                        </TouchableOpacity>
-                      );
-                    })
-                  ) : (
-                    <View style={[styles.methodLine, { backgroundColor: theme.card }]}> 
-                      <Text style={{ color: theme.secondary }}>No currencies available</Text>
-                    </View>
-                  )}
+                  {categories.map((cat) => {
+                    const active = String(cat.id) === String(selectedCategoryId);
+                    return (
+                      <TouchableOpacity
+                        key={String(cat.id)}
+                        onPress={() => {
+                          setSelectedCategoryId(cat.id);
+                          setSelectedMethodName(cat?.methods?.[0]?.name ?? null);
+                          const firstCsv = cat?.methods?.[0]?.currenciesCsv || "";
+                          const firstCurrency = (firstCsv.split(",").map((s) => s.trim()).filter(Boolean) || [null])[0];
+                          setSelectedCurrency(firstCurrency ?? null);
+                        }}
+                        style={[
+                          styles.categoryCard,
+                          { 
+                            backgroundColor: active ? theme.card : `${theme.card}80`,
+                            borderColor: active ? theme.primary : theme.border,
+                          }
+                        ]}
+                        activeOpacity={0.7}
+                      >
+                        <PreviewedImage
+                          uriOrPath={cat.imageUrl}
+                          style={styles.categoryImage}
+                          theme={theme}
+                          fallbackIcon="payments"
+                        />
+                        <Text style={[styles.categoryName, { 
+                          color: active ? theme.text : theme.secondary,
+                          fontWeight: active ? "700" : "600",
+                        }]}>
+                          {cat.name}
+                        </Text>
+                        <Text style={[styles.categoryProcessing, { color: theme.secondary }]}>
+                          {cat.processingTime || "Instant"}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
                 </ScrollView>
-              </View>
 
-          {/* Amount */}
-          <Text
-            style={[styles.sectionTitle, { color: theme.text, marginTop: 16 }]}
-          >
-            Amount
-          </Text>
-          <View
-            style={[
-              styles.inputWrap,
-              { backgroundColor: theme.card, borderColor: theme.border },
-            ]}
-          >
-            <Text style={[styles.currencyPrefix, { color: theme.secondary }]}>
-              $
-            </Text>
-            <TextInput
-              value={amount}
-              onChangeText={(t) => setAmount(normalizeAmount(t))}
-              placeholder="0.00"
-              placeholderTextColor={theme.secondary}
-              keyboardType="decimal-pad"
-              style={[styles.amountInput, { color: theme.text }]}
-            />
+                {/* Currency Selection */}
+                <View style={{ marginTop: 20 }}>
+                  <Text style={[styles.sectionLabel, { color: theme.text }]}>
+                    Select Currency
+                  </Text>
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.currencyContainer}
+                  >
+                    {currencyList.length ? (
+                      currencyList.map((c) => {
+                        const active = String(c) === String(selectedCurrency);
+                        const limits = currencyList.includes(c) ? currencyLimits : { min: null, max: null };
+                        return (
+                          <TouchableOpacity
+                            key={c}
+                            onPress={() => setSelectedCurrency(c)}
+                            style={[
+                              styles.currencyCard,
+                              { 
+                                backgroundColor: active ? `${theme.primary}15` : theme.card,
+                                borderColor: active ? theme.primary : theme.border,
+                              }
+                            ]}
+                            activeOpacity={0.7}
+                          >
+                            <Text style={[styles.currencySymbol, { 
+                              color: active ? theme.primary : theme.text,
+                              fontWeight: "800",
+                            }]}>
+                              {c}
+                            </Text>
+                            <Text style={[styles.currencyLimits, { color: theme.secondary }]}>
+                              Min: {limits.min || "—"} • Max: {limits.max || "—"}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })
+                    ) : (
+                      <View style={[styles.emptyCurrencies, { backgroundColor: theme.card }]}>
+                        <Text style={[styles.emptyText, { color: theme.secondary }]}>
+                          No currencies available for this method
+                        </Text>
+                      </View>
+                    )}
+                  </ScrollView>
+                </View>
+
+              </>
+            ) : (
+              <View style={[styles.emptyCard, { backgroundColor: theme.card }]}>
+                <View style={[styles.emptyIcon, { backgroundColor: `${theme.secondary}15` }]}>
+                  <AppIcon name="payment" color={theme.secondary} size={32} />
+                </View>
+                <Text style={[styles.emptyTitle, { color: theme.text }]}>
+                  No Deposit Methods
+                </Text>
+                <Text style={[styles.emptyMessage, { color: theme.secondary }]}>
+                  No payment methods are currently available.
+                </Text>
+              </View>
+            )}
           </View>
 
+          {/* Amount Section */}
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={[styles.sectionTitle, { color: theme.text }]}>
+                Deposit Amount
+              </Text>
+              <Text style={[styles.sectionSubtitle, { color: theme.secondary }]}>
+                Enter the amount you wish to deposit
+              </Text>
+            </View>
 
+            {/* Quick Amounts */}
+            <View style={styles.quickAmounts}>
+              {quickAmounts.map((amt) => (
+                <TouchableOpacity
+                  key={amt}
+                  onPress={() => setAmount(amt.toString())}
+                  style={[
+                    styles.quickAmountButton,
+                    { 
+                      backgroundColor: amount === amt.toString() 
+                        ? theme.primary 
+                        : theme.card,
+                      borderColor: amount === amt.toString() 
+                        ? theme.primary 
+                        : theme.border,
+                    }
+                  ]}
+                >
+                  <Text style={[
+                    styles.quickAmountText,
+                    { 
+                      color: amount === amt.toString() 
+                        ? "#FFFFFF" 
+                        : theme.text,
+                      fontWeight: amount === amt.toString() 
+                        ? "700" 
+                        : "600",
+                    }
+                  ]}>
+                    ${amt}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
 
-          <TouchableOpacity
-            onPress={validateAndProceed}
-            style={[styles.primaryButton, { backgroundColor: theme.primary }]}
-          >
-            <Text style={styles.primaryButtonText}>Proceed</Text>
-          </TouchableOpacity>
+            {/* Amount Input */}
+            <View style={[
+              styles.amountInputContainer,
+              { 
+                backgroundColor: theme.card,
+                borderColor: theme.border,
+                shadowColor: "#000",
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.08,
+                shadowRadius: 8,
+                elevation: 4,
+              }
+            ]}>
+              <View style={styles.amountInputHeader}>
+                <Text style={[styles.amountLabel, { color: theme.secondary }]}>
+                  Enter Amount
+                </Text>
+                {currencyLimits.min && (
+                  <Text style={[styles.amountLimits, { color: theme.secondary }]}>
+                    Min: {currencyLimits.min} • Max: {currencyLimits.max || "No limit"}
+                  </Text>
+                )}
+              </View>
+              <View style={styles.amountInputWrapper}>
+                <Text style={[styles.currencySymbol, { color: theme.secondary, fontSize: 28 }]}>
+                  $
+                </Text>
+                <TextInput
+                  value={amount}
+                  onChangeText={(t) => setAmount(normalizeAmount(t))}
+                  placeholder="0.00"
+                  placeholderTextColor={theme.secondary}
+                  keyboardType="decimal-pad"
+                  style={[styles.amountInput, { color: theme.text }]}
+                />
+                <Text style={[styles.currencyCode, { color: theme.secondary }]}>
+                  {selectedCurrency || "USD"}
+                </Text>
+              </View>
+            </View>
 
+            {/* Amount Summary */}
+            <View style={[styles.amountSummary, { backgroundColor: `${theme.primary}10` }]}>
+              <View style={styles.summaryRow}>
+                <Text style={[styles.summaryLabel, { color: theme.text }]}>
+                  Amount to Deposit
+                </Text>
+                <Text style={[styles.summaryValue, { color: theme.text, fontWeight: "700" }]}>
+                  ${amount || "0.00"}
+                </Text>
+              </View>
+              <View style={styles.summaryRow}>
+                <Text style={[styles.summaryLabel, { color: theme.secondary }]}>
+                  Processing Time
+                </Text>
+                <Text style={[styles.summaryValue, { color: theme.positive }]}>
+                  {selectedCategory?.processingTime || "Instant"}
+                </Text>
+              </View>
+              <View style={styles.summaryRow}>
+                <Text style={[styles.summaryLabel, { color: theme.secondary }]}>
+                  Fee
+                </Text>
+                <Text style={[styles.summaryValue, { color: theme.text }]}>
+                  No fee
+                </Text>
+              </View>
+            </View>
+          </View>
+
+          {/* Proceed Button */}
+          <Animated.View style={{ transform: [{ scale: buttonScale }] }}>
+            <TouchableOpacity
+              onPress={validateAndProceed}
+              style={[
+                styles.proceedButton,
+                { 
+                  backgroundColor: theme.primary,
+                  shadowColor: theme.primary,
+                  shadowOffset: { width: 0, height: 4 },
+                  shadowOpacity: 0.3,
+                  shadowRadius: 8,
+                  elevation: 6,
+                }
+              ]}
+              activeOpacity={0.8}
+            >
+              <View style={styles.buttonContent}>
+                <AppIcon name="payment" color="#FFFFFF" size={20} />
+                <Text style={styles.proceedButtonText}>
+                  Proceed to Deposit
+                </Text>
+              </View>
+              <Text style={styles.proceedButtonSubtext}>
+                Deposit ${amount || "0.00"} to your account
+              </Text>
+            </TouchableOpacity>
+          </Animated.View>
+
+          {/* Security Notice */}
+          <View style={[styles.securityNotice, { backgroundColor: `${theme.primary}10` }]}>
+            <AppIcon name="security" color={theme.primary} size={16} />
+            <Text style={[styles.securityText, { color: theme.secondary }]}>
+              Your payment is secured with 256-bit encryption
+            </Text>
+          </View>
         </ScrollView>
       </KeyboardAvoidingView>
 
@@ -713,146 +732,354 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 16,
   },
-  backButton: { marginRight: 16 },
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   headerTitle: {
-    fontSize: 18,
-    fontWeight: "600",
+    fontSize: 20,
+    fontWeight: "800",
     color: "#fff",
+    letterSpacing: 0.3,
+  },
+  headerSubtitle: {
+    fontSize: 12,
+    color: "rgba(255,255,255,0.8)",
+    marginTop: 2,
+  },
+  headerButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
   },
   scrollContent: {
-    padding: 16,
-    paddingBottom: 28,
+    padding: 20,
+    paddingBottom: 30,
+    gap: 24,
   },
-  sectionTitle: {
-    fontSize: 14,
-    fontWeight: "700",
-    marginBottom: 10,
+  accountCard: {
+    borderRadius: 16,
+    padding: 20,
   },
-  card: {
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 12,
-  },
-  rowCenter: {
+  accountCardContent: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
+    gap: 16,
   },
-  cardTitle: {
-    fontSize: 14,
+  accountIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  accountTitle: {
+    fontSize: 12,
+    fontWeight: "600",
+    marginBottom: 2,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  accountLabel: {
+    fontSize: 16,
     fontWeight: "700",
+    marginBottom: 4,
   },
-  cardSub: {
-    marginTop: 2,
+  accountBalance: {
     fontSize: 12,
     fontWeight: "600",
   },
-  inputWrap: {
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    flexDirection: "row",
+  section: {
+    gap: 16,
+  },
+  sectionHeader: {
+    gap: 4,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: "800",
+  },
+  sectionSubtitle: {
+    fontSize: 13,
+    fontWeight: "500",
+  },
+  loadingCard: {
+    padding: 32,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 14,
+  },
+  errorCard: {
+    padding: 24,
+    borderRadius: 16,
     alignItems: "center",
   },
-  currencyPrefix: {
+  errorIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 12,
+  },
+  errorTitle: {
     fontSize: 16,
+    fontWeight: "700",
+    marginBottom: 8,
+  },
+  errorMessage: {
+    fontSize: 14,
+    textAlign: "center",
+    lineHeight: 20,
+  },
+  categoryContainer: {
+    gap: 12,
+    paddingVertical: 4,
+  },
+  categoryCard: {
+    width: 140,
+    borderWidth: 2,
+    borderRadius: 16,
+    padding: 12,
+    alignItems: "center",
+  },
+  categoryImage: {
+    width: 56,
+    height: 56,
+    borderRadius: 12,
+    marginBottom: 12,
+  },
+  categoryName: {
+    fontSize: 14,
+    textAlign: "center",
+    marginBottom: 4,
+  },
+  categoryProcessing: {
+    fontSize: 11,
+    fontWeight: "600",
+  },
+  sectionLabel: {
+    fontSize: 14,
+    fontWeight: "700",
+    marginBottom: 12,
+  },
+  currencyContainer: {
+    gap: 12,
+    paddingVertical: 4,
+  },
+  currencyCard: {
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: "center",
+  },
+  currencySymbol: {
+    fontSize: 18,
+    marginBottom: 4,
+  },
+  currencyLimits: {
+    fontSize: 11,
+    fontWeight: "600",
+  },
+  emptyCurrencies: {
+    padding: 20,
+    borderRadius: 12,
+    alignItems: "center",
+  },
+  emptyText: {
+    fontSize: 14,
+  },
+  methodDetails: {
+    padding: 20,
+    borderRadius: 16,
+    gap: 16,
+  },
+  methodTitle: {
+    fontSize: 18,
     fontWeight: "800",
-    marginRight: 8,
+  },
+  methodDescription: {
+    fontSize: 14,
+    marginBottom: 8,
+  },
+  methodFeatures: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+  },
+  featureItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  featureIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  featureText: {
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  methodInfo: {
+    gap: 8,
+    marginTop: 8,
+  },
+  infoRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0,0,0,0.05)',
+  },
+  infoLabel: {
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  infoValue: {
+    fontSize: 13,
+  },
+  emptyCard: {
+    padding: 32,
+    borderRadius: 16,
+    alignItems: "center",
+  },
+  emptyIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 16,
+  },
+  emptyTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    marginBottom: 8,
+  },
+  emptyMessage: {
+    fontSize: 14,
+    textAlign: "center",
+  },
+  quickAmounts: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+  },
+  quickAmountButton: {
+    flex: 1,
+    minWidth: (SCREEN_WIDTH - 72) / 4,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: "center",
+  },
+  quickAmountText: {
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  amountInputContainer: {
+    borderRadius: 16,
+    padding: 20,
+    borderWidth: 1,
+  },
+  amountInputHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  amountLabel: {
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  amountLimits: {
+    fontSize: 11,
+    fontWeight: "600",
+  },
+  amountInputWrapper: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
   },
   amountInput: {
     flex: 1,
-    fontSize: 18,
+    fontSize: 32,
     fontWeight: "800",
+    padding: 0,
   },
-  textInput: {
-    flex: 1,
-    fontSize: 14,
+  currencyCode: {
+    fontSize: 16,
     fontWeight: "700",
+    opacity: 0.8,
   },
-  methodRow: {
-    flexDirection: "row",
+  amountSummary: {
+    padding: 16,
+    borderRadius: 12,
     gap: 12,
   },
-  methodCard: {
-    flex: 1,
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 12,
-  },
-  methodTitle: {
-    marginTop: 8,
-    fontSize: 14,
-    fontWeight: "800",
-  },
-  methodSub: {
-    marginTop: 2,
-    fontSize: 12,
-    fontWeight: "600",
-  },
-  primaryButton: {
-    marginTop: 18,
-    borderRadius: 12,
-    paddingVertical: 12,
+  summaryRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
     alignItems: "center",
   },
-  primaryButtonText: {
-    color: "#fff",
-    fontSize: 15,
-    fontWeight: "800",
-  },
-  helper: {
-    marginTop: 10,
-    fontSize: 12,
-    fontWeight: "600",
-    lineHeight: 16,
-  },
-  optionCard: {
-    width: 160,
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 10,
-  },
-  optionImage: {
-    width: "100%",
-    height: 80,
-    borderRadius: 10,
-    marginBottom: 8,
-  },
-  optionTitle: {
-    fontSize: 13,
-    fontWeight: "800",
-  },
-  optionSub: {
-    marginTop: 2,
-    fontSize: 12,
+  summaryLabel: {
+    fontSize: 14,
     fontWeight: "600",
   },
-  methodLine: {
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 10,
+  summaryValue: {
+    fontSize: 14,
+  },
+  proceedButton: {
+    paddingVertical: 20,
+    paddingHorizontal: 24,
+    borderRadius: 16,
+    alignItems: "center",
+    marginTop: 8,
+  },
+  buttonContent: {
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
+    marginBottom: 6,
   },
-  methodName: {
-    fontSize: 14,
+  proceedButtonText: {
+    color: "#FFFFFF",
+    fontSize: 18,
     fontWeight: "800",
   },
-  methodMeta: {
-    marginTop: 2,
-    fontSize: 12,
+  proceedButtonSubtext: {
+    color: "rgba(255,255,255,0.9)",
+    fontSize: 13,
     fontWeight: "600",
   },
-  methodImage: {
-    width: "100%",
-    height: 160,
+  securityNotice: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    padding: 16,
     borderRadius: 12,
-    marginBottom: 10,
+    justifyContent: "center",
+  },
+  securityText: {
+    fontSize: 12,
+    fontWeight: "600",
   },
 });
