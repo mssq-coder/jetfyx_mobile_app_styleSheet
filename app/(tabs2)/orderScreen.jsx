@@ -9,17 +9,16 @@ import {
   Modal,
   ScrollView,
   StatusBar,
-  Switch,
   Text,
-  TextInput,
   TouchableOpacity,
-  View,
+  View
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { getAllCurrencyListFromDB } from "../../api/getServices";
 import { createOrder } from "../../api/orders";
 import AccountSelectorModal from "../../components/Accounts/AccountSelectorModal";
 import AppIcon from "../../components/AppIcon";
+import TradingModal from "../../components/OrderComponents/TradingModal";
 import TradingViewChart from "../../components/TradingViewChart";
 import { useAppTheme } from "../../contexts/ThemeContext";
 import useAccountSummary from "../../hooks/useAccountSummary";
@@ -66,6 +65,11 @@ export default function Orders() {
   const sharedAccounts = useAuthStore((state) => state.sharedAccounts);
   const fullName = useAuthStore((state) => state.fullName);
   const setSelectedAccount = useAuthStore((state) => state.setSelectedAccount);
+
+  // Animation values
+  const priceChangeAnim = useRef(new Animated.Value(0)).current;
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+
   const currentAccount = useMemo(() => {
     const id = selectedAccountId;
     return (
@@ -80,22 +84,36 @@ export default function Orders() {
   const [isSymbolModalVisible, setSymbolModalVisible] = useState(false);
   const [isAccountModalVisible, setAccountModalVisible] = useState(false);
   const [isTradingModalVisible, setTradingModalVisible] = useState(false);
+  const wasTradingModalOpen = useRef(false);
+
   const [orderType, setOrderType] = useState("BUY");
   const [topTab, setTopTab] = useState("Chart");
   const [tradeTab, setTradeTab] = useState("Market");
-  const [regularSettingsOpen, setRegularSettingsOpen] = useState(true);
+  const [pendingEntryPrice, setPendingEntryPrice] = useState("");
+  const [pendingOrderTypeKey, setPendingOrderTypeKey] = useState("buyStop");
+  const [pendingExpirationEnabled, setPendingExpirationEnabled] =
+    useState(true);
+  const [pendingExpirationTimeIso, setPendingExpirationTimeIso] = useState("");
   const [tpEnabled, setTpEnabled] = useState(false);
   const [slEnabled, setSlEnabled] = useState(false);
   const [isFavourite, setIsFavourite] = useState(false);
   const connectionRef = useRef(null);
   const symbolsBySymbolRef = useRef({});
-  const modalTranslateY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
 
   const [symbols, setSymbols] = useState([]);
   const [quotesBySymbol, setQuotesBySymbol] = useState({});
   const [lot, setLot] = useState(0.01);
   const [tp, setTp] = useState("");
   const [sl, setSl] = useState("");
+
+  // Animate on mount
+  useEffect(() => {
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 300,
+      useNativeDriver: true,
+    }).start();
+  }, []);
 
   const symbolsBySymbol = useMemo(() => {
     return (Array.isArray(symbols) ? symbols : []).reduce((acc, item) => {
@@ -126,30 +144,127 @@ export default function Orders() {
   const highStr = formatPrice(quote?.high, digits);
   const isPositiveChange = changePct != null && changePct >= 0;
 
+  // Animate price change
+  useEffect(() => {
+    if (changePct != null) {
+      Animated.sequence([
+        Animated.timing(priceChangeAnim, {
+          toValue: isPositiveChange ? 1 : -1,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.timing(priceChangeAnim, {
+          toValue: 0,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }
+  }, [changePct]);
+
+  const changeColor = priceChangeAnim.interpolate({
+    inputRange: [-1, 0, 1],
+    outputRange: [theme.negative, theme.secondary, theme.positive],
+  });
+
   const getReferencePrice = () => {
     const price =
       orderType === "BUY" ? safeNumber(quote?.ask) : safeNumber(quote?.bid);
     return price;
   };
 
+  const currentMarketMid = useMemo(() => {
+    const mid = safeNumber(quote?.mid);
+    if (mid != null) return mid;
+
+    const bid = safeNumber(quote?.bid);
+    const ask = safeNumber(quote?.ask);
+    if (bid != null && ask != null) return (bid + ask) / 2;
+    return bid ?? ask ?? null;
+  }, [quote?.mid, quote?.bid, quote?.ask]);
+
   const currentTradePriceStr = orderType === "BUY" ? askStr : bidStr;
 
-  // Animate modal
+  const modalSide = useMemo(() => {
+    if (tradeTab !== "Pending") return orderType;
+    return String(pendingOrderTypeKey).toLowerCase().startsWith("buy")
+      ? "BUY"
+      : "SELL";
+  }, [orderType, pendingOrderTypeKey, tradeTab]);
+
+  const modalSidePriceStr = modalSide === "BUY" ? askStr : bidStr;
+  const currentMarketMidStr = formatPrice(currentMarketMid, digits);
+
+  const shiftPendingExpiration = useCallback(
+    (deltaMs) => {
+      const base =
+        pendingExpirationTimeIso &&
+        !Number.isNaN(Date.parse(pendingExpirationTimeIso))
+          ? new Date(pendingExpirationTimeIso)
+          : new Date();
+
+      setPendingExpirationTimeIso(
+        new Date(base.getTime() + deltaMs).toISOString(),
+      );
+    },
+    [pendingExpirationTimeIso],
+  );
+
+  const pendingPriceNumber = useMemo(
+    () => safeNumber(pendingEntryPrice),
+    [pendingEntryPrice],
+  );
+
+  const pendingOrderOptions = useMemo(() => {
+    const curr = safeNumber(currentMarketMid);
+    const entered = safeNumber(pendingEntryPrice);
+
+    const all = [
+      { key: "buyStop", label: "Buy Stop", value: 2 },
+      { key: "sellStop", label: "Sell Stop", value: 3 },
+      { key: "buyLimit", label: "Buy Limit", value: 4 },
+      { key: "sellLimit", label: "Sell Limit", value: 5 },
+    ];
+
+    if (curr == null || entered == null) return all;
+    if (entered > curr) {
+      return all.filter((o) => o.key === "buyStop" || o.key === "sellLimit");
+    }
+    if (entered < curr) {
+      return all.filter((o) => o.key === "buyLimit" || o.key === "sellStop");
+    }
+    return all;
+  }, [currentMarketMid, pendingEntryPrice]);
+
   useEffect(() => {
-    if (isTradingModalVisible) {
-      Animated.spring(modalTranslateY, {
-        toValue: 0,
-        tension: 50,
-        friction: 10,
-        useNativeDriver: true,
-      }).start();
-    } else {
-      Animated.spring(modalTranslateY, {
-        toValue: SCREEN_HEIGHT,
-        tension: 50,
-        friction: 10,
-        useNativeDriver: true,
-      }).start();
+    if (!pendingOrderOptions.some((o) => o.key === pendingOrderTypeKey)) {
+      setPendingOrderTypeKey(pendingOrderOptions[0]?.key ?? "buyStop");
+    }
+  }, [pendingOrderOptions, pendingOrderTypeKey]);
+
+  // Initialize default modal state on open
+  useEffect(() => {
+    // Detect open transition only
+    if (isTradingModalVisible && !wasTradingModalOpen.current) {
+      wasTradingModalOpen.current = true;
+
+      setTradeTab("Market");
+
+      try {
+        const base = safeNumber(currentMarketMid) ?? getReferencePrice();
+        if (base != null) {
+          setPendingEntryPrice(formatPrice(base, digits));
+        }
+      } catch (_) {}
+
+      const defaultExp = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+      setPendingExpirationEnabled(true);
+      setPendingExpirationTimeIso(defaultExp);
+    }
+
+    // Reset flag when modal closes
+    if (!isTradingModalVisible) {
+      wasTradingModalOpen.current = false;
     }
   }, [isTradingModalVisible]);
 
@@ -338,35 +453,148 @@ export default function Orders() {
     setter(formatPrice(next, digits));
   };
 
+  const adjustFieldWithBase = (setter, value, direction, baseOverride) => {
+    const current = safeNumber(value);
+    const baseCandidate =
+      current != null
+        ? current
+        : (safeNumber(baseOverride) ?? getReferencePrice() ?? 0);
+    const next = baseCandidate + direction * priceStep;
+    setter(formatPrice(next, digits));
+  };
+
   const normalizePriceInput = (value) => {
     const n = safeNumber(value);
     if (n == null) return value;
     return formatPrice(n, digits);
   };
 
-  const executeOrder = async (side) => {
+  const handleTradeTabPress = useCallback(
+    (t) => {
+      setTradeTab(t);
+
+      if (t === "Pending") {
+        try {
+          const base = safeNumber(currentMarketMid) ?? getReferencePrice();
+          if (
+            base != null &&
+            (!pendingEntryPrice || String(pendingEntryPrice).trim() === "")
+          ) {
+            setPendingEntryPrice(formatPrice(base, digits));
+          }
+        } catch (_) {}
+      }
+    },
+    [currentMarketMid, digits, getReferencePrice, pendingEntryPrice],
+  );
+
+  const handleTpFocus = useCallback(() => {
+    try {
+      const ref =
+        tradeTab === "Pending"
+          ? (safeNumber(pendingEntryPrice) ?? safeNumber(currentMarketMid))
+          : getReferencePrice();
+      if (ref != null && (!tp || String(tp).trim() === "")) {
+        setTp(formatPrice(ref, digits));
+      }
+    } catch (_) {}
+  }, [
+    currentMarketMid,
+    digits,
+    getReferencePrice,
+    pendingEntryPrice,
+    tp,
+    tradeTab,
+  ]);
+
+  const handleSlFocus = useCallback(() => {
+    try {
+      const ref =
+        tradeTab === "Pending"
+          ? (safeNumber(pendingEntryPrice) ?? safeNumber(currentMarketMid))
+          : getReferencePrice();
+      if (ref != null && (!sl || String(sl).trim() === "")) {
+        setSl(formatPrice(ref, digits));
+      }
+    } catch (_) {}
+  }, [
+    currentMarketMid,
+    digits,
+    getReferencePrice,
+    pendingEntryPrice,
+    sl,
+    tradeTab,
+  ]);
+
+  const executeOrder = async () => {
     try {
       if (!selectedAccountId) {
         Alert.alert("Account missing", "Please select an account first.");
         return;
       }
 
-      const orderTypeNum = side === "BUY" ? 0 : 1;
+      const nowIso = new Date().toISOString();
+      const isPending = tradeTab === "Pending";
+
+      if (isPending) {
+        const n = safeNumber(pendingPriceNumber);
+        if (n == null || n <= 0) {
+          Alert.alert(
+            "Missing Entry Price",
+            "Entry price is required and must be greater than 0 for pending orders.",
+          );
+          return;
+        }
+      }
+
+      const pendingType = pendingOrderOptions.find(
+        (o) => o.key === pendingOrderTypeKey,
+      );
+
+      const marketTypeNum = orderType === "BUY" ? 0 : 1;
+      const pendingTypeNum = pendingType?.value ?? 2;
+
+      const expirationIso = (() => {
+        if (
+          pendingExpirationTimeIso &&
+          !Number.isNaN(Date.parse(pendingExpirationTimeIso))
+        ) {
+          return new Date(pendingExpirationTimeIso).toISOString();
+        }
+        return nowIso;
+      })();
 
       const payload = {
         accountId: Number(selectedAccountId),
         lotSize: String(lot ?? "0.01"),
-        orderTime: new Date().toISOString(),
-        orderType: orderTypeNum,
+        orderTime: nowIso,
+        orderType: isPending ? pendingTypeNum : marketTypeNum,
         remark: "",
-        status: 0,
+        status: isPending ? 2 : 0,
         stopLoss: Number(sl) || 0,
         symbol: String(symbol),
         takeProfit: Number(tp) || 0,
+
+        ...(isPending
+          ? {
+              EntryPriceForPendingOrder: Number(pendingPriceNumber),
+              lotSizeForPendingOrders: Number(lot) || 0,
+              expirationTimeForPendingOrder: expirationIso,
+              isExpirationTimeEnabledForPendingOrder: Boolean(
+                pendingExpirationEnabled,
+              ),
+            }
+          : {}),
       };
 
-      const resp = await createOrder(payload);
-      Alert.alert("✅ Order Placed", `${side} ${symbol} ${payload.lotSize}`);
+      await createOrder(payload);
+
+      Alert.alert(
+        "✅ Order Placed",
+        isPending
+          ? `${pendingType?.label ?? "Pending"} ${symbol} ${payload.lotSize}`
+          : `${orderType} ${symbol} ${payload.lotSize}`,
+      );
       setTradingModalVisible(false);
     } catch (err) {
       console.error("Create order failed:", err?.response?.data ?? err);
@@ -376,1305 +604,1020 @@ export default function Orders() {
     }
   };
 
-  return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: theme.background }}>
-      <StatusBar
-        backgroundColor={theme.background}
-        barStyle={themeName === "light" ? "dark-content" : "light-content"}
-      />
+  // Trading modal extracted to components/OrderComponents/TradingModal.jsx
 
-      {/* Enhanced Header */}
-      <View
-        style={{
-          paddingHorizontal: 16,
-          paddingTop: 8,
-          paddingBottom: 12,
-          borderBottomWidth: 1,
-          borderBottomColor: theme.border,
-          backgroundColor: theme.background,
-        }}
-      >
+  return (
+    <Animated.View style={{ flex: 1, opacity: fadeAnim }}>
+      <SafeAreaView style={{ flex: 1, backgroundColor: theme.background }}>
+        <StatusBar
+          backgroundColor={theme.background}
+          barStyle={themeName === "light" ? "dark-content" : "light-content"}
+        />
+
+        {/* Minimalist Header */}
         <View
           style={{
-            flexDirection: "row",
-            alignItems: "center",
-            justifyContent: "space-between",
+            paddingHorizontal: 20,
+            paddingTop: 12,
+            paddingBottom: 12,
+            backgroundColor: theme.background,
           }}
         >
-          <TouchableOpacity
-            onPress={() => router.back()}
+          <View
             style={{
-              width: 40,
-              height: 40,
-              borderRadius: 20,
-              backgroundColor: `${theme.card}80`,
+              flexDirection: "row",
               alignItems: "center",
-              justifyContent: "center",
+              justifyContent: "space-between",
             }}
           >
-            <AppIcon name="arrow-back" color={theme.text} size={22} />
-          </TouchableOpacity>
-
-          <View style={{ alignItems: "center", flex: 1 }}>
-            <View
+            <TouchableOpacity
+              onPress={() => router.back()}
               style={{
-                flexDirection: "row",
+                width: 40,
+                height: 40,
+                borderRadius: 12,
+                backgroundColor: `${theme.primary}15`,
                 alignItems: "center",
-                marginBottom: 4,
+                justifyContent: "center",
               }}
             >
-              <TouchableOpacity
-                onPress={() => setAccountModalVisible(true)}
+              <AppIcon name="arrow-back" color={theme.primary} size={20} />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() => setAccountModalVisible(true)}
+              style={{
+                alignItems: "center",
+              }}
+            >
+              <View
                 style={{
                   flexDirection: "row",
                   alignItems: "center",
-                  paddingHorizontal: 12,
-                  paddingVertical: 6,
+                  marginBottom: 4,
                 }}
               >
                 <View
                   style={{
-                    width: 8,
-                    height: 8,
-                    borderRadius: 4,
+                    width: 6,
+                    height: 6,
+                    borderRadius: 3,
                     backgroundColor: theme.positive,
-                    marginRight: 8,
+                    marginRight: 6,
                   }}
                 />
                 <Text
-                  style={{ fontSize: 16, fontWeight: "700", color: theme.text }}
+                  style={{ fontSize: 14, fontWeight: "600", color: theme.text }}
                 >
                   {String(
                     currentAccount?.accountNumber ?? selectedAccountId ?? "--",
                   )}
                 </Text>
                 <AppIcon
-                  name="keyboard-arrow-down"
+                  name="info"
                   color={theme.secondary}
-                  size={18}
+                  size={16}
                   style={{ marginLeft: 4 }}
                 />
-              </TouchableOpacity>
-            </View>
+              </View>
 
-            <View style={{ flexDirection: "row", alignItems: "center" }}>
-              <Text
-                style={{
-                  fontSize: 28,
-                  fontWeight: "900",
-                  color: theme.text,
-                  marginRight: 12,
-                }}
-              >
-                $
-                {summary?.balance != null
-                  ? Number(summary.balance).toFixed(2)
-                  : "--"}
-              </Text>
-              <View
-                style={{
-                  paddingHorizontal: 12,
-                  paddingVertical: 4,
-                  borderRadius: 20,
-                  backgroundColor: `${theme.positive}20`,
-                }}
-              >
+              <View style={{ flexDirection: "row", alignItems: "center" }}>
                 <Text
                   style={{
-                    fontSize: 12,
+                    fontSize: 24,
                     fontWeight: "800",
-                    color: theme.positive,
+                    color: theme.text,
+                    marginRight: 8,
                   }}
                 >
-                  {String(currentAccount?.accountType ?? "DEMO")}
+                  $
+                  {summary?.balance != null
+                    ? Number(summary.balance).toFixed(2)
+                    : "--"}
                 </Text>
+                <View
+                  style={{
+                    paddingHorizontal: 10,
+                    paddingVertical: 4,
+                    borderRadius: 12,
+                    backgroundColor: `${theme.primary}15`,
+                  }}
+                >
+              
+                </View>
               </View>
-            </View>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() => setIsFavourite((v) => !v)}
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: 12,
+                backgroundColor: `${theme.primary}15`,
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <AppIcon
+                name={isFavourite ? "star" : "star-outline"}
+                color={isFavourite ? theme.primary : theme.secondary}
+                size={20}
+              />
+            </TouchableOpacity>
           </View>
-
-          <TouchableOpacity
-            onPress={() => setIsFavourite((v) => !v)}
-            style={{
-              width: 40,
-              height: 40,
-              borderRadius: 20,
-              backgroundColor: `${theme.card}80`,
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <AppIcon
-              name={isFavourite ? "star" : "star-border"}
-              color={isFavourite ? theme.primary : theme.secondary}
-              size={22}
-            />
-          </TouchableOpacity>
         </View>
-      </View>
 
-      {/* Enhanced Symbol Selection Row */}
-      <View
-        style={{
-          paddingHorizontal: 16,
-          paddingVertical: 12,
-          backgroundColor: theme.card,
-          borderBottomWidth: 1,
-          borderBottomColor: theme.border,
-        }}
-      >
+        {/* Symbol Card with Gradient */}
         <View
           style={{
-            flexDirection: "row",
-            alignItems: "center",
-            justifyContent: "space-between",
+            marginHorizontal: 20,
+            marginTop: 8,
+            borderRadius: 20,
+            backgroundColor: theme.card,
+            padding: 16,
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: 4 },
+            shadowOpacity: 0.1,
+            shadowRadius: 12,
+            elevation: 5,
+            borderWidth: 1,
+            borderColor: `${theme.border}30`,
           }}
         >
-          <View style={{ flexDirection: "row", alignItems: "center" }}>
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "space-between",
+              marginBottom: 12,
+            }}
+          >
             <TouchableOpacity
               onPress={() => setSymbolModalVisible(true)}
               style={{
                 flexDirection: "row",
                 alignItems: "center",
-                paddingHorizontal: 16,
-                paddingVertical: 10,
-                borderRadius: 14,
-                backgroundColor: theme.background,
-                borderWidth: 2,
-                borderColor: theme.primary,
-                marginRight: 12,
               }}
             >
-              <Text
-                style={{
-                  fontSize: 22,
-                  fontWeight: "900",
-                  color: theme.text,
-                  marginRight: 8,
-                }}
-              >
-                {symbol}
-              </Text>
-              <AppIcon name="expand-more" color={theme.primary} size={20} />
+              <View style={{ flexDirection: "row", alignItems: "center" }}>
+                <View
+                  style={{
+                    width: 40,
+                    height: 40,
+                    borderRadius: 12,
+                    backgroundColor: `${theme.primary}20`,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    marginRight: 12,
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontSize: 18,
+                      fontWeight: "900",
+                      color: theme.primary,
+                    }}
+                  >
+                    {symbol.slice(0, 2)}
+                  </Text>
+                </View>
+                <View>
+                  <Text
+                    style={{
+                      fontSize: 22,
+                      fontWeight: "800",
+                      color: theme.text,
+                      marginBottom: 2,
+                    }}
+                  >
+                    {symbol}
+                  </Text>
+                  <Text
+                    style={{
+                      fontSize: 12,
+                      color: theme.secondary,
+                      maxWidth: 150,
+                    }}
+                    numberOfLines={1}
+                  >
+                    {description}
+                  </Text>
+                </View>
+              </View>
+              <AppIcon
+                name="chevron-right"
+                color={theme.secondary}
+                size={20}
+                style={{ marginLeft: 8 }}
+              />
             </TouchableOpacity>
 
-            {/* Change Indicator */}
-            <View
+            <Animated.View
               style={{
-                paddingHorizontal: 12,
+                backgroundColor: changeColor,
+                paddingHorizontal: 16,
                 paddingVertical: 8,
-                borderRadius: 10,
-                backgroundColor: isPositiveChange
-                  ? `${theme.positive}20`
-                  : `${theme.negative}20`,
-                borderWidth: 1,
-                borderColor: isPositiveChange ? theme.positive : theme.negative,
+                borderRadius: 12,
+                transform: [
+                  {
+                    scale: priceChangeAnim.interpolate({
+                      inputRange: [-1, 0, 1],
+                      outputRange: [1.1, 1, 1.1],
+                    }),
+                  },
+                ],
               }}
             >
               <Text
                 style={{
                   fontSize: 16,
-                  fontWeight: "900",
-                  color: isPositiveChange ? theme.positive : theme.negative,
+                  fontWeight: "800",
+                  color: "#FFFFFF",
                 }}
               >
                 {changePct == null
                   ? "--"
                   : `${changePct >= 0 ? "+" : ""}${changePct.toFixed(2)}%`}
               </Text>
+            </Animated.View>
+          </View>
+
+          {/* Price Row */}
+          <View
+            style={{
+              flexDirection: "row",
+              justifyContent: "space-between",
+              alignItems: "center",
+              marginTop: 8,
+            }}
+          >
+            <View style={{ alignItems: "center" }}>
+              <Text
+                style={{
+                  fontSize: 11,
+                  fontWeight: "600",
+                  color: theme.secondary,
+                  marginBottom: 4,
+                  opacity: 0.7,
+                }}
+              >
+                SELL
+              </Text>
+              <Text
+                style={{
+                  fontSize: 20,
+                  fontWeight: "800",
+                  color: theme.text,
+                }}
+              >
+                {bidStr}
+              </Text>
+            </View>
+
+            <View
+              style={{
+                height: 40,
+                width: 1,
+                backgroundColor: `${theme.border}50`,
+              }}
+            />
+
+            <View style={{ alignItems: "center" }}>
+              <Text
+                style={{
+                  fontSize: 11,
+                  fontWeight: "600",
+                  color: theme.secondary,
+                  marginBottom: 4,
+                  opacity: 0.7,
+                }}
+              >
+                BUY
+              </Text>
+              <Text
+                style={{
+                  fontSize: 20,
+                  fontWeight: "800",
+                  color: theme.text,
+                }}
+              >
+                {askStr}
+              </Text>
+            </View>
+
+            <View
+              style={{
+                height: 40,
+                width: 1,
+                backgroundColor: `${theme.border}50`,
+              }}
+            />
+
+            <View style={{ alignItems: "center" }}>
+              <Text
+                style={{
+                  fontSize: 11,
+                  fontWeight: "600",
+                  color: theme.secondary,
+                  marginBottom: 4,
+                  opacity: 0.7,
+                }}
+              >
+                SPREAD
+              </Text>
+              <Text
+                style={{
+                  fontSize: 14,
+                  fontWeight: "700",
+                  color: theme.text,
+                }}
+              >
+                {(Number(askStr) - Number(bidStr) || 0).toFixed(digits)}
+              </Text>
             </View>
           </View>
 
-          {/* Quick Stats */}
-          <View style={{ alignItems: "flex-end" }}>
-            <View style={{ flexDirection: "row", gap: 12 }}>
-              <View style={{ alignItems: "center" }}>
-                <Text
-                  style={{
-                    fontSize: 11,
-                    color: theme.secondary,
-                    fontWeight: "600",
-                    marginBottom: 4,
-                  }}
-                >
-                  LOW
-                </Text>
-                <Text
-                  style={{
-                    fontSize: 14,
-                    fontWeight: "800",
-                    color: theme.negative,
-                  }}
-                >
+          {/* High/Low Indicators */}
+          <View
+            style={{
+              flexDirection: "row",
+              justifyContent: "space-between",
+              marginTop: 16,
+              paddingTop: 12,
+              borderTopWidth: 1,
+              borderTopColor: `${theme.border}30`,
+            }}
+          >
+            <View style={{ flexDirection: "row", alignItems: "center" }}>
+              <View
+                style={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: 4,
+                  backgroundColor: theme.negative,
+                  marginRight: 6,
+                }}
+              />
+              <Text style={{ fontSize: 12, color: theme.secondary }}>
+                Low:{" "}
+                <Text style={{ fontWeight: "700", color: theme.text }}>
                   {lowStr}
                 </Text>
-              </View>
-              <View style={{ width: 1, backgroundColor: theme.border }} />
-              <View style={{ alignItems: "center" }}>
-                <Text
-                  style={{
-                    fontSize: 11,
-                    color: theme.secondary,
-                    fontWeight: "600",
-                    marginBottom: 4,
-                  }}
-                >
-                  HIGH
-                </Text>
-                <Text
-                  style={{
-                    fontSize: 14,
-                    fontWeight: "800",
-                    color: theme.positive,
-                  }}
-                >
+              </Text>
+            </View>
+            <View style={{ flexDirection: "row", alignItems: "center" }}>
+              <Text style={{ fontSize: 12, color: theme.secondary }}>
+                High:{" "}
+                <Text style={{ fontWeight: "700", color: theme.text }}>
                   {highStr}
                 </Text>
-              </View>
+              </Text>
+              <View
+                style={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: 4,
+                  backgroundColor: theme.positive,
+                  marginLeft: 6,
+                }}
+              />
             </View>
           </View>
         </View>
-      </View>
 
-      {/* Enhanced Top Tabs */}
-      <View
-        style={{
-          flexDirection: "row",
-          paddingHorizontal: 16,
-          paddingTop: 12,
-          paddingBottom: 0,
-          backgroundColor: theme.background,
-        }}
-      >
-        {["Chart", "Info", "News"].map((t) => {
-          const active = topTab === t;
-          return (
-            <TouchableOpacity
-              key={t}
-              onPress={() => setTopTab(t)}
-              style={{
-                marginRight: 24,
-                paddingBottom: 12,
-                position: "relative",
-              }}
-            >
-              <Text
-                style={{
-                  fontSize: 16,
-                  fontWeight: active ? "900" : "600",
-                  color: active ? theme.text : theme.secondary,
-                  letterSpacing: 0.3,
-                }}
-              >
-                {t}
-              </Text>
-              {active && (
-                <View
-                  style={{
-                    position: "absolute",
-                    bottom: 0,
-                    left: 0,
-                    right: 0,
-                    height: 3,
-                    borderRadius: 1.5,
-                    backgroundColor: theme.primary,
-                  }}
-                />
-              )}
-            </TouchableOpacity>
-          );
-        })}
-      </View>
-
-      {/* Symbol Selection Modal */}
-      <Modal
-        visible={isSymbolModalVisible}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setSymbolModalVisible(false)}
-      >
-        <TouchableOpacity
-          activeOpacity={1}
-          onPress={() => setSymbolModalVisible(false)}
+        {/* Segmented Control Tabs */}
+        <View
           style={{
-            flex: 1,
-            backgroundColor: "rgba(0,0,0,0.7)",
-            justifyContent: "center",
-            paddingHorizontal: 20,
+            marginHorizontal: 20,
+            marginTop: 20,
+            flexDirection: "row",
+            backgroundColor: `${theme.border}20`,
+            borderRadius: 14,
+            padding: 4,
           }}
         >
-          <View
-            style={{
-              backgroundColor: theme.card,
-              borderRadius: 20,
-              paddingVertical: 16,
-              shadowColor: "#000",
-              shadowOffset: { width: 0, height: 4 },
-              shadowOpacity: 0.3,
-              shadowRadius: 12,
-              elevation: 10,
-              maxHeight: SCREEN_HEIGHT * 0.7,
-            }}
-          >
-            <View
-              style={{
-                paddingHorizontal: 20,
-                paddingBottom: 16,
-                borderBottomWidth: 1,
-                borderBottomColor: theme.border,
-              }}
-            >
-              <Text
+          {["Chart", "Info", "News"].map((t) => {
+            const active = topTab === t;
+            return (
+              <TouchableOpacity
+                key={t}
+                onPress={() => setTopTab(t)}
                 style={{
-                  fontSize: 18,
-                  fontWeight: "900",
-                  color: theme.text,
-                  textAlign: "center",
+                  flex: 1,
+                  paddingVertical: 10,
+                  borderRadius: 10,
+                  backgroundColor: active ? theme.background : "transparent",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  shadowColor: active ? theme.primary : "transparent",
+                  shadowOffset: { width: 0, height: 2 },
+                  shadowOpacity: active ? 0.1 : 0,
+                  shadowRadius: 4,
+                  elevation: active ? 2 : 0,
                 }}
               >
-                Select Symbol
-              </Text>
-            </View>
-            <ScrollView style={{ maxHeight: SCREEN_HEIGHT * 0.6 }}>
-              {(Array.isArray(symbols) && symbols.length
-                ? symbols
-                : [{ symbol, description }]
-              ).map((item, index) => {
-                const s = item.symbol;
-                const q = quotesBySymbol?.[s];
-                const d = item?.digits ?? q?.digits ?? 2;
-                const b = formatPrice(q?.bid, d);
-                const a = formatPrice(q?.ask, d);
-                const change = q?.changePct || 0;
-                const isItemPositive = change >= 0;
+                <Text
+                  style={{
+                    fontSize: 14,
+                    fontWeight: active ? "800" : "600",
+                    color: active ? theme.text : theme.secondary,
+                  }}
+                >
+                  {t}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
 
-                return (
-                  <TouchableOpacity
-                    key={s}
-                    onPress={() => {
-                      setSymbol(s);
-                      setSymbolModalVisible(false);
-                    }}
-                    style={{
-                      paddingHorizontal: 20,
-                      paddingVertical: 16,
-                      backgroundColor:
-                        symbol === s ? `${theme.primary}15` : theme.background,
-                      borderBottomWidth: index < symbols.length - 1 ? 1 : 0,
-                      borderBottomColor: theme.border,
-                    }}
-                  >
-                    <View
-                      style={{
-                        flexDirection: "row",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                      }}
-                    >
-                      <View style={{ flex: 1, paddingRight: 10 }}>
-                        <View
-                          style={{
-                            flexDirection: "row",
-                            alignItems: "center",
-                            marginBottom: 4,
-                          }}
-                        >
-                          <Text
-                            style={{
-                              fontSize: 18,
-                              fontWeight: "800",
-                              color: symbol === s ? theme.primary : theme.text,
-                            }}
-                          >
-                            {s}
-                          </Text>
-                          <View
-                            style={{
-                              marginLeft: 8,
-                              paddingHorizontal: 8,
-                              paddingVertical: 2,
-                              borderRadius: 4,
-                              backgroundColor: isItemPositive
-                                ? `${theme.positive}20`
-                                : `${theme.negative}20`,
-                            }}
-                          >
-                            <Text
-                              style={{
-                                fontSize: 10,
-                                fontWeight: "800",
-                                color: isItemPositive
-                                  ? theme.positive
-                                  : theme.negative,
-                              }}
-                            >
-                              {change >= 0 ? "+" : ""}
-                              {change.toFixed(2)}%
-                            </Text>
-                          </View>
-                        </View>
-                        <Text
-                          style={{
-                            fontSize: 12,
-                            color: theme.secondary,
-                            marginTop: 2,
-                          }}
-                          numberOfLines={1}
-                        >
-                          {item?.description || ""}
-                        </Text>
-                      </View>
-                      <View style={{ alignItems: "flex-end" }}>
-                        <View
-                          style={{
-                            backgroundColor:
-                              symbol === s ? theme.primary : theme.positive,
-                            paddingHorizontal: 12,
-                            paddingVertical: 6,
-                            borderRadius: 8,
-                            marginBottom: 4,
-                          }}
-                        >
-                          <Text
-                            style={{
-                              fontSize: 14,
-                              fontWeight: "800",
-                              color: "#FFFFFF",
-                            }}
-                          >
-                            {a}
-                          </Text>
-                        </View>
-                        <Text style={{ fontSize: 11, color: theme.secondary }}>
-                          Bid: {b}
-                        </Text>
-                      </View>
-                    </View>
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
-          </View>
-        </TouchableOpacity>
-      </Modal>
-
-      {/* Content Area */}
-      <View style={{ flex: 1 }}>
-        {topTab === "Chart" ? (
-          <TradingViewChart symbol={symbol} accountId={selectedAccountId} />
-        ) : (
-          <View
-            style={{
-              flex: 1,
-              alignItems: "center",
-              justifyContent: "center",
-              padding: 20,
-            }}
-          >
+        {/* Content Area */}
+        <View style={{ flex: 1, marginTop: 12 }}>
+          {topTab === "Chart" ? (
             <View
               style={{
-                width: 80,
-                height: 80,
-                borderRadius: 40,
-                backgroundColor: `${theme.primary}15`,
+                flex: 1,
+                marginHorizontal: 20,
+                borderRadius: 16,
+                overflow: "hidden",
+              }}
+            >
+              <TradingViewChart symbol={symbol} accountId={selectedAccountId} />
+            </View>
+          ) : (
+            <View
+              style={{
+                flex: 1,
                 alignItems: "center",
                 justifyContent: "center",
-                marginBottom: 20,
+                padding: 20,
               }}
             >
-              <AppIcon
-                name={topTab === "Info" ? "info" : "newspaper"}
-                size={40}
-                color={theme.primary}
-              />
+              <View
+                style={{
+                  width: 80,
+                  height: 80,
+                  borderRadius: 20,
+                  backgroundColor: `${theme.primary}15`,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  marginBottom: 20,
+                  borderWidth: 2,
+                  borderColor: `${theme.primary}30`,
+                }}
+              >
+                <AppIcon
+                  name={topTab === "Info" ? "bar-chart" : "newspaper"}
+                  size={36}
+                  color={theme.primary}
+                />
+              </View>
+              <Text
+                style={{
+                  color: theme.text,
+                  fontSize: 20,
+                  fontWeight: "800",
+                  marginBottom: 8,
+                }}
+              >
+                {topTab === "Info" ? "Market Analysis" : "Financial News"}
+              </Text>
+              <Text
+                style={{
+                  color: theme.secondary,
+                  fontSize: 14,
+                  textAlign: "center",
+                  lineHeight: 20,
+                }}
+              >
+                {topTab === "Info"
+                  ? `Detailed analytics and insights for ${symbol} will be available here shortly.`
+                  : "Stay updated with the latest market news and expert analysis coming soon."}
+              </Text>
             </View>
-            <Text
-              style={{
-                color: theme.text,
-                fontSize: 18,
-                fontWeight: "800",
-                marginBottom: 8,
-              }}
-            >
-              {topTab === "Info" ? "Symbol Information" : "Market News"}
-            </Text>
-            <Text
-              style={{
-                color: theme.secondary,
-                fontSize: 14,
-                textAlign: "center",
-              }}
-            >
-              {topTab === "Info"
-                ? "Detailed information about " + symbol + " coming soon"
-                : "Latest market news and analysis coming soon"}
-            </Text>
-          </View>
-        )}
-      </View>
+          )}
+        </View>
 
-      {/* Enhanced Trading Bottom Sheet Modal */}
-      <Modal
-        visible={isTradingModalVisible}
-        transparent
-        animationType="none"
-        onRequestClose={() => setTradingModalVisible(false)}
-      >
-        <TouchableOpacity
-          activeOpacity={1}
-          onPress={() => setTradingModalVisible(false)}
-          style={{
-            flex: 1,
-            backgroundColor: "rgba(0,0,0,0.6)",
-          }}
+        {/* Symbol Selection Modal */}
+        <Modal
+          visible={isSymbolModalVisible}
+          transparent
+          animationType="slide"
+          onRequestClose={() => setSymbolModalVisible(false)}
         >
-          <Animated.View
-            style={{
-              transform: [{ translateY: modalTranslateY }],
-              position: "absolute",
-              bottom: 0,
-              left: 0,
-              right: 0,
-            }}
-          >
-            <TouchableOpacity
-              activeOpacity={1}
+          <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.8)" }}>
+            <View
               style={{
                 backgroundColor: theme.background,
                 borderTopLeftRadius: 24,
                 borderTopRightRadius: 24,
+                marginTop: 60,
+                flex: 1,
                 paddingTop: 20,
-                paddingBottom: 34,
-                paddingHorizontal: 20,
-                minHeight: 460,
-                borderWidth: 1,
-                borderColor: theme.border,
-                shadowColor: "#000",
-                shadowOffset: { width: 0, height: -4 },
-                shadowOpacity: 0.15,
-                shadowRadius: 20,
-                elevation: 20,
               }}
             >
-              {/* Sheet Header */}
+              {/* Modal Header */}
               <View
                 style={{
                   flexDirection: "row",
                   alignItems: "center",
                   justifyContent: "space-between",
-                  marginBottom: 20,
+                  paddingHorizontal: 20,
+                  paddingBottom: 16,
+                  borderBottomWidth: 1,
+                  borderBottomColor: theme.border,
                 }}
               >
-                <View style={{ flexDirection: "row", alignItems: "center" }}>
-                  <View
-                    style={{
-                      width: 40,
-                      height: 40,
-                      borderRadius: 20,
-                      backgroundColor: `${theme.primary}20`,
-                      alignItems: "center",
-                      justifyContent: "center",
-                      marginRight: 12,
-                    }}
-                  >
-                    <AppIcon
-                      name={
-                        orderType === "BUY" ? "trending-up" : "trending-down"
-                      }
-                      size={20}
-                      color={
-                        orderType === "BUY" ? theme.positive : theme.negative
-                      }
-                    />
-                  </View>
-                  <View>
-                    <Text
-                      style={{
-                        fontSize: 22,
-                        fontWeight: "900",
-                        color: theme.text,
-                      }}
-                    >
-                      {orderType === "BUY" ? "Buy" : "Sell"} {symbol}
-                    </Text>
-                    <Text
-                      style={{
-                        fontSize: 14,
-                        color: theme.secondary,
-                        marginTop: 2,
-                      }}
-                    >
-                      {orderType === "BUY" ? "at Ask price" : "at Bid price"}
-                    </Text>
-                  </View>
-                </View>
-                <TouchableOpacity
-                  onPress={() => setTradingModalVisible(false)}
+                <Text
                   style={{
-                    width: 40,
-                    height: 40,
-                    borderRadius: 20,
-                    backgroundColor: `${theme.card}80`,
+                    fontSize: 20,
+                    fontWeight: "800",
+                    color: theme.text,
+                  }}
+                >
+                  Select Symbol
+                </Text>
+                <TouchableOpacity
+                  onPress={() => setSymbolModalVisible(false)}
+                  style={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: 18,
+                    backgroundColor: `${theme.primary}15`,
                     alignItems: "center",
                     justifyContent: "center",
                   }}
                 >
-                  <AppIcon name="close" color={theme.secondary} size={22} />
+                  <AppIcon name="close" size={20} color={theme.text} />
                 </TouchableOpacity>
               </View>
 
-              {/* Current Price Display */}
+              {/* Search Bar */}
               <View
                 style={{
-                  backgroundColor:
-                    orderType === "BUY"
-                      ? `${theme.positive}15`
-                      : `${theme.negative}15`,
-                  padding: 20,
-                  borderRadius: 16,
-                  marginBottom: 20,
-                  borderWidth: 2,
-                  borderColor:
-                    orderType === "BUY" ? theme.positive : theme.negative,
+                  paddingHorizontal: 20,
+                  paddingVertical: 12,
+                  borderBottomWidth: 1,
+                  borderBottomColor: theme.border,
                 }}
               >
-                <Text
-                  style={{
-                    fontSize: 12,
-                    fontWeight: "700",
-                    color:
-                      orderType === "BUY" ? theme.positive : theme.negative,
-                    textAlign: "center",
-                    marginBottom: 8,
-                    textTransform: "uppercase",
-                    letterSpacing: 1,
-                  }}
-                >
-                  Current {orderType === "BUY" ? "Ask" : "Bid"} Price
-                </Text>
-                <Text
-                  style={{
-                    fontSize: 32,
-                    fontWeight: "900",
-                    color:
-                      orderType === "BUY" ? theme.positive : theme.negative,
-                    textAlign: "center",
-                  }}
-                >
-                  {currentTradePriceStr}
-                </Text>
-              </View>
-
-              {/* Lot Size Control */}
-              <View style={{ marginBottom: 20 }}>
                 <View
                   style={{
                     flexDirection: "row",
                     alignItems: "center",
-                    justifyContent: "space-between",
-                    marginBottom: 12,
+                    backgroundColor: `${theme.border}20`,
+                    borderRadius: 12,
+                    paddingHorizontal: 16,
+                    paddingVertical: 12,
                   }}
                 >
-                  <Text
-                    style={{
-                      fontSize: 16,
-                      fontWeight: "800",
-                      color: theme.text,
-                    }}
-                  >
-                    Lot Size
+                  <AppIcon
+                    name="search"
+                    size={20}
+                    color={theme.secondary}
+                    style={{ marginRight: 10 }}
+                  />
+                  <Text style={{ color: theme.secondary, fontSize: 16 }}>
+                    Search symbols...
                   </Text>
-                  <Text style={{ fontSize: 14, color: theme.secondary }}>
-                    Min {lotMin.toFixed(lotDecimals)} • Max{" "}
-                    {lotMax?.toFixed(lotDecimals) || "∞"}
-                  </Text>
-                </View>
-                <View
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    backgroundColor: theme.card,
-                    borderRadius: 16,
-                    padding: 16,
-                    borderWidth: 1,
-                    borderColor: theme.border,
-                  }}
-                >
-                  <TouchableOpacity
-                    onPress={() => adjustLotBySteps(-1)}
-                    style={{
-                      width: 48,
-                      height: 48,
-                      borderRadius: 24,
-                      backgroundColor: `${theme.secondary}15`,
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                  >
-                    <Text
-                      style={{
-                        fontSize: 24,
-                        fontWeight: "900",
-                        color: theme.secondary,
-                      }}
-                    >
-                      −
-                    </Text>
-                  </TouchableOpacity>
-
-                  <View style={{ alignItems: "center" }}>
-                    <Text
-                      style={{
-                        fontSize: 28,
-                        fontWeight: "900",
-                        color: theme.text,
-                        marginBottom: 4,
-                      }}
-                    >
-                      {Number(lot).toFixed(lotDecimals)}
-                    </Text>
-                    <Text style={{ fontSize: 12, color: theme.secondary }}>
-                      Volume
-                    </Text>
-                  </View>
-
-                  <TouchableOpacity
-                    onPress={() => adjustLotBySteps(1)}
-                    style={{
-                      width: 48,
-                      height: 48,
-                      borderRadius: 24,
-                      backgroundColor: `${theme.primary}15`,
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                  >
-                    <Text
-                      style={{
-                        fontSize: 24,
-                        fontWeight: "900",
-                        color: theme.primary,
-                      }}
-                    >
-                      +
-                    </Text>
-                  </TouchableOpacity>
                 </View>
               </View>
 
-              {/* TP/SL Toggles */}
-              <View style={{ marginBottom: 24 }}>
-                <View style={{ flexDirection: "row", gap: 16 }}>
-                  <View style={{ flex: 1 }}>
-                    <View
+              {/* Symbols List */}
+              <ScrollView style={{ flex: 1 }}>
+                {(Array.isArray(symbols) && symbols.length
+                  ? symbols
+                  : [{ symbol, description }]
+                ).map((item, index) => {
+                  const s = item.symbol;
+                  const q = quotesBySymbol?.[s];
+                  const d = item?.digits ?? q?.digits ?? 2;
+                  const b = formatPrice(q?.bid, d);
+                  const a = formatPrice(q?.ask, d);
+                  const change = q?.changePct || 0;
+                  const isItemPositive = change >= 0;
+                  const isSelected = symbol === s;
+
+                  return (
+                    <TouchableOpacity
+                      key={s}
+                      onPress={() => {
+                        setSymbol(s);
+                        setSymbolModalVisible(false);
+                      }}
                       style={{
-                        flexDirection: "row",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                        marginBottom: 8,
+                        paddingHorizontal: 20,
+                        paddingVertical: 16,
+                        backgroundColor: isSelected
+                          ? `${theme.primary}15`
+                          : theme.background,
+                        borderBottomWidth: 1,
+                        borderBottomColor: `${theme.border}30`,
                       }}
                     >
-                      <Text
-                        style={{
-                          fontSize: 14,
-                          fontWeight: "700",
-                          color: theme.text,
-                        }}
-                      >
-                        Take Profit
-                      </Text>
-                      <Switch
-                        value={tpEnabled}
-                        onValueChange={setTpEnabled}
-                        trackColor={{
-                          false: theme.border,
-                          true: theme.positive,
-                        }}
-                        thumbColor="#FFFFFF"
-                      />
-                    </View>
-                    {tpEnabled && (
                       <View
                         style={{
                           flexDirection: "row",
                           alignItems: "center",
-                          gap: 8,
+                          justifyContent: "space-between",
                         }}
                       >
-                        <TouchableOpacity
-                          onPress={() => adjustField(setTp, tp, -1)}
+                        <View
                           style={{
-                            width: 44,
-                            height: 44,
-                            borderRadius: 10,
-                            backgroundColor: `${theme.secondary}10`,
+                            flexDirection: "row",
                             alignItems: "center",
-                            justifyContent: "center",
-                          }}
-                        >
-                          <Text
-                            style={{
-                              fontSize: 20,
-                              color: theme.secondary,
-                              fontWeight: "700",
-                            }}
-                          >
-                            −
-                          </Text>
-                        </TouchableOpacity>
-
-                        <TextInput
-                          value={tp}
-                          onChangeText={setTp}
-                          onFocus={() => {
-                            try {
-                              const ref = getReferencePrice();
-                              if (
-                                ref != null &&
-                                (!tp || String(tp).trim() === "")
-                              ) {
-                                setTp(formatPrice(ref, digits));
-                              }
-                            } catch (_) {}
-                          }}
-                          placeholder="TP Price"
-                          placeholderTextColor={theme.secondary}
-                          style={{
                             flex: 1,
-                            minWidth: 90,
-                            backgroundColor: theme.card,
-                            paddingHorizontal: 8,
-                            paddingVertical: 12,
-                            borderRadius: 12,
-                            fontSize: 16,
-                            fontWeight: "600",
-                            color: theme.text,
-                            borderWidth: 1,
-                            borderColor: theme.border,
-                            textAlign: "center",
-                          }}
-                          keyboardType="decimal-pad"
-                        />
-
-                        <TouchableOpacity
-                          onPress={() => adjustField(setTp, tp, 1)}
-                          style={{
-                            width: 44,
-                            height: 44,
-                            borderRadius: 10,
-                            backgroundColor: `${theme.primary}15`,
-                            alignItems: "center",
-                            justifyContent: "center",
                           }}
                         >
-                          <Text
+                          <View
                             style={{
-                              fontSize: 20,
-                              color: theme.primary,
-                              fontWeight: "700",
+                              width: 40,
+                              height: 40,
+                              borderRadius: 12,
+                              backgroundColor: isSelected
+                                ? theme.primary
+                                : `${theme.primary}20`,
+                              alignItems: "center",
+                              justifyContent: "center",
+                              marginRight: 12,
                             }}
                           >
-                            +
+                            <Text
+                              style={{
+                                fontSize: 16,
+                                fontWeight: "800",
+                                color: isSelected ? "#FFFFFF" : theme.primary,
+                              }}
+                            >
+                              {s.slice(0, 2)}
+                            </Text>
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <View
+                              style={{
+                                flexDirection: "row",
+                                alignItems: "center",
+                                marginBottom: 4,
+                              }}
+                            >
+                              <Text
+                                style={{
+                                  fontSize: 18,
+                                  fontWeight: "800",
+                                  color: isSelected
+                                    ? theme.primary
+                                    : theme.text,
+                                }}
+                              >
+                                {s}
+                              </Text>
+                              <View
+                                style={{
+                                  marginLeft: 8,
+                                  paddingHorizontal: 8,
+                                  paddingVertical: 2,
+                                  borderRadius: 4,
+                                  backgroundColor: isItemPositive
+                                    ? `${theme.positive}20`
+                                    : `${theme.negative}20`,
+                                }}
+                              >
+                                <Text
+                                  style={{
+                                    fontSize: 10,
+                                    fontWeight: "800",
+                                    color: isItemPositive
+                                      ? theme.positive
+                                      : theme.negative,
+                                  }}
+                                >
+                                  {change >= 0 ? "+" : ""}
+                                  {change.toFixed(2)}%
+                                </Text>
+                              </View>
+                            </View>
+                            <Text
+                              style={{
+                                fontSize: 12,
+                                color: theme.secondary,
+                                marginTop: 2,
+                              }}
+                              numberOfLines={1}
+                            >
+                              {item?.description || ""}
+                            </Text>
+                          </View>
+                        </View>
+                        <View style={{ alignItems: "flex-end" }}>
+                          <Text
+                            style={{
+                              fontSize: 16,
+                              fontWeight: "800",
+                              color: theme.text,
+                              marginBottom: 4,
+                            }}
+                          >
+                            {a}
                           </Text>
-                        </TouchableOpacity>
+                          <Text
+                            style={{ fontSize: 11, color: theme.secondary }}
+                          >
+                            Bid: {b}
+                          </Text>
+                        </View>
                       </View>
-                    )}
-                  </View>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
 
-                  <View style={{ flex: 1 }}>
-                    <View
-                      style={{
-                        flexDirection: "row",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                        marginBottom: 8,
-                      }}
-                    >
-                      <Text
-                        style={{
-                          fontSize: 14,
-                          fontWeight: "700",
-                          color: theme.text,
-                        }}
-                      >
-                        Stop Loss
-                      </Text>
-                      <Switch
-                        value={slEnabled}
-                        onValueChange={setSlEnabled}
-                        trackColor={{
-                          false: theme.border,
-                          true: theme.negative,
-                        }}
-                        thumbColor="#FFFFFF"
-                      />
-                    </View>
-                    {slEnabled && (
-                      <View
-                        style={{
-                          flexDirection: "row",
-                          alignItems: "center",
-                          gap: 8,
-                        }}
-                      >
-                        <TouchableOpacity
-                          onPress={() => adjustField(setSl, sl, -1)}
-                          style={{
-                            width: 44,
-                            height: 44,
-                            borderRadius: 10,
-                            backgroundColor: `${theme.secondary}10`,
-                            alignItems: "center",
-                            justifyContent: "center",
-                          }}
-                        >
-                          <Text
-                            style={{
-                              fontSize: 20,
-                              color: theme.secondary,
-                              fontWeight: "700",
-                            }}
-                          >
-                            −
-                          </Text>
-                        </TouchableOpacity>
+        {/* Trading Modal (extracted) */}
+        <TradingModal
+          isVisible={isTradingModalVisible}
+          onClose={() => setTradingModalVisible(false)}
+          modalSide={modalSide}
+          theme={theme}
+          symbol={symbol}
+          modalSidePriceStr={modalSidePriceStr}
+          tradeTab={tradeTab}
+          handleTradeTabPress={handleTradeTabPress}
+          pendingOrderOptions={pendingOrderOptions}
+          pendingOrderTypeKey={pendingOrderTypeKey}
+          setPendingOrderTypeKey={setPendingOrderTypeKey}
+          pendingEntryPrice={pendingEntryPrice}
+          setPendingEntryPrice={setPendingEntryPrice}
+          adjustFieldWithBase={adjustFieldWithBase}
+          currentMarketMid={currentMarketMid}
+          shiftPendingExpiration={shiftPendingExpiration}
+          pendingExpirationEnabled={pendingExpirationEnabled}
+          setPendingExpirationEnabled={setPendingExpirationEnabled}
+          pendingExpirationTimeIso={pendingExpirationTimeIso}
+          lotMin={lotMin}
+          lotMax={lotMax}
+          lotStep={lotStep}
+          adjustLotBySteps={adjustLotBySteps}
+          normalizeLot={normalizeLot}
+          lot={lot}
+          setLot={setLot}
+          tpEnabled={tpEnabled}
+          setTpEnabled={setTpEnabled}
+          tp={tp}
+          setTp={setTp}
+          handleTpFocus={handleTpFocus}
+          slEnabled={slEnabled}
+          setSlEnabled={setSlEnabled}
+          sl={sl}
+          setSl={setSl}
+          handleSlFocus={handleSlFocus}
+          digits={digits}
+          getReferencePrice={getReferencePrice}
+          executeOrder={executeOrder}
+          pendingPriceNumber={pendingPriceNumber}
+        />
 
-                        <TextInput
-                          value={sl}
-                          onChangeText={setSl}
-                          onFocus={() => {
-                            try {
-                              const ref = getReferencePrice();
-                              if (
-                                ref != null &&
-                                (!sl || String(sl).trim() === "")
-                              ) {
-                                setSl(formatPrice(ref, digits));
-                              }
-                            } catch (_) {}
-                          }}
-                          placeholder="SL Price"
-                          placeholderTextColor={theme.secondary}
-                          style={{
-                            flex: 1,
-                            minWidth: 90,
-                            backgroundColor: theme.card,
-                            paddingHorizontal: 8,
-                            paddingVertical: 12,
-                            borderRadius: 12,
-                            fontSize: 16,
-                            fontWeight: "600",
-                            color: theme.text,
-                            borderWidth: 1,
-                            borderColor: theme.border,
-                            textAlign: "center",
-                          }}
-                          keyboardType="decimal-pad"
-                        />
-
-                        <TouchableOpacity
-                          onPress={() => adjustField(setSl, sl, 1)}
-                          style={{
-                            width: 44,
-                            height: 44,
-                            borderRadius: 10,
-                            backgroundColor: `${theme.primary}15`,
-                            alignItems: "center",
-                            justifyContent: "center",
-                          }}
-                        >
-                          <Text
-                            style={{
-                              fontSize: 20,
-                              color: theme.primary,
-                              fontWeight: "700",
-                            }}
-                          >
-                            +
-                          </Text>
-                        </TouchableOpacity>
-                      </View>
-                    )}
-                  </View>
-                </View>
-              </View>
-
-              {/* Margin Info */}
+        {/* Enhanced Bottom Trading Bar */}
+        <View
+          style={{
+            backgroundColor: theme.background,
+            paddingHorizontal: 20,
+            paddingVertical: 16,
+            borderTopWidth: 1,
+            borderTopColor: `${theme.border}30`,
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: -4 },
+            shadowOpacity: 0.1,
+            shadowRadius: 8,
+            elevation: 10,
+          }}
+        >
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 12,
+            }}
+          >
+            {/* SELL Button */}
+            <TouchableOpacity
+              onPress={() => {
+                setOrderType("SELL");
+                setTradingModalVisible(true);
+              }}
+              style={{
+                flex: 1,
+                backgroundColor: theme.negative,
+                borderRadius: 14,
+                paddingVertical: 16,
+                alignItems: "center",
+                justifyContent: "center",
+                shadowColor: theme.negative,
+                shadowOffset: { width: 0, height: 4 },
+                shadowOpacity: 0.3,
+                shadowRadius: 8,
+                elevation: 6,
+                borderWidth: 2,
+                borderColor: `${theme.negative}80`,
+              }}
+            >
               <View
                 style={{
-                  backgroundColor: theme.card,
-                  padding: 16,
-                  borderRadius: 16,
-                  marginBottom: 24,
-                  borderWidth: 1,
-                  borderColor: theme.border,
-                }}
-              >
-                <Text
-                  style={{
-                    fontSize: 12,
-                    color: theme.secondary,
-                    marginBottom: 8,
-                  }}
-                >
-                  MARGIN REQUIRED
-                </Text>
-                <View
-                  style={{
-                    flexDirection: "row",
-                    justifyContent: "space-between",
-                  }}
-                >
-                  <View>
-                    <Text
-                      style={{
-                        fontSize: 20,
-                        fontWeight: "900",
-                        color: theme.text,
-                      }}
-                    >
-                      $
-                      {summary?.margin != null
-                        ? Number(summary.margin).toFixed(2)
-                        : "--"}
-                    </Text>
-                    <Text
-                      style={{
-                        fontSize: 11,
-                        color: theme.secondary,
-                        marginTop: 4,
-                      }}
-                    >
-                      Required
-                    </Text>
-                  </View>
-                  <View style={{ width: 1, backgroundColor: theme.border }} />
-                  <View>
-                    <Text
-                      style={{
-                        fontSize: 20,
-                        fontWeight: "900",
-                        color: theme.positive,
-                      }}
-                    >
-                      $
-                      {summary?.freeMargin != null
-                        ? Number(summary.freeMargin).toFixed(2)
-                        : "--"}
-                    </Text>
-                    <Text
-                      style={{
-                        fontSize: 11,
-                        color: theme.secondary,
-                        marginTop: 4,
-                      }}
-                    >
-                      Free
-                    </Text>
-                  </View>
-                </View>
-              </View>
-
-              {/* Confirm Button */}
-              <TouchableOpacity
-                onPress={() => executeOrder(orderType)}
-                style={{
-                  backgroundColor:
-                    orderType === "BUY" ? theme.positive : theme.negative,
-                  paddingVertical: 18,
-                  borderRadius: 16,
+                  flexDirection: "row",
                   alignItems: "center",
-                  shadowColor:
-                    orderType === "BUY" ? theme.positive : theme.negative,
-                  shadowOffset: { width: 0, height: 4 },
-                  shadowOpacity: 0.3,
-                  shadowRadius: 8,
-                  elevation: 6,
+                  marginBottom: 6,
                 }}
               >
+                <AppIcon name="trending-down" size={16} color="#FFFFFF" />
                 <Text
                   style={{
                     color: "white",
-                    fontSize: 18,
+                    fontSize: 12,
                     fontWeight: "900",
+                    marginLeft: 6,
                     letterSpacing: 0.5,
                   }}
                 >
-                  CONFIRM {orderType}
+                  SELL
                 </Text>
+              </View>
+              <Text
+                style={{
+                  color: "white",
+                  fontSize: 22,
+                  fontWeight: "900",
+                  letterSpacing: 0.3,
+                }}
+              >
+                {bidStr}
+              </Text>
+            </TouchableOpacity>
+
+            {/* LOT Display */}
+            <TouchableOpacity
+              onPress={() => setTradingModalVisible(true)}
+              style={{
+                width: 80,
+                backgroundColor: theme.card,
+                borderRadius: 14,
+                paddingVertical: 12,
+                alignItems: "center",
+                justifyContent: "center",
+                borderWidth: 2,
+                borderColor: theme.border,
+              }}
+            >
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  marginBottom: 4,
+                }}
+              >
+                <AppIcon name="layers" size={12} color={theme.secondary} />
+                <Text
+                  style={{
+                    fontSize: 10,
+                    color: theme.secondary,
+                    fontWeight: "700",
+                    marginLeft: 4,
+                  }}
+                >
+                  LOT
+                </Text>
+              </View>
+              <Text
+                style={{ fontSize: 18, fontWeight: "900", color: theme.text }}
+              >
+                {Number(lot).toFixed(lotDecimals)}
+              </Text>
+            </TouchableOpacity>
+
+            {/* BUY Button */}
+            <TouchableOpacity
+              onPress={() => {
+                setOrderType("BUY");
+                setTradingModalVisible(true);
+              }}
+              style={{
+                flex: 1,
+                backgroundColor: theme.positive,
+                borderRadius: 14,
+                paddingVertical: 16,
+                alignItems: "center",
+                justifyContent: "center",
+                shadowColor: theme.positive,
+                shadowOffset: { width: 0, height: 4 },
+                shadowOpacity: 0.3,
+                shadowRadius: 8,
+                elevation: 6,
+                borderWidth: 2,
+                borderColor: `${theme.positive}80`,
+              }}
+            >
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  marginBottom: 6,
+                }}
+              >
+                <AppIcon name="trending-up" size={16} color="#FFFFFF" />
                 <Text
                   style={{
                     color: "white",
-                    fontSize: 14,
-                    fontWeight: "600",
-                    marginTop: 4,
-                    opacity: 0.9,
+                    fontSize: 12,
+                    fontWeight: "900",
+                    marginLeft: 6,
+                    letterSpacing: 0.5,
                   }}
                 >
-                  {symbol} • {lot.toFixed(lotDecimals)} lot
+                  BUY
                 </Text>
-              </TouchableOpacity>
+              </View>
+              <Text
+                style={{
+                  color: "white",
+                  fontSize: 22,
+                  fontWeight: "900",
+                  letterSpacing: 0.3,
+                }}
+              >
+                {askStr}
+              </Text>
             </TouchableOpacity>
-          </Animated.View>
-        </TouchableOpacity>
-      </Modal>
+          </View>
 
-      {/* Enhanced Bottom Trading Bar */}
-      <View
-        style={{
-          backgroundColor: theme.background,
-          borderTopWidth: 1,
-          borderTopColor: theme.border,
-          paddingHorizontal: 16,
-          paddingVertical: 12,
-        }}
-      >
-        <View
-          style={{
-            flexDirection: "row",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: 12,
-          }}
-        >
-          {/* SELL Button */}
-          <TouchableOpacity
-            onPress={() => {
-              setOrderType("SELL");
-              setTradingModalVisible(true);
-            }}
+          {/* Market Stats Bar */}
+          <View
             style={{
-              flex: 1,
-              backgroundColor: theme.negative,
-              borderRadius: 14,
-              paddingVertical: 14,
-              alignItems: "center",
-              justifyContent: "center",
-              shadowColor: theme.negative,
-              shadowOffset: { width: 0, height: 4 },
-              shadowOpacity: 0.2,
-              shadowRadius: 6,
-              elevation: 4,
+              flexDirection: "row",
+              justifyContent: "space-around",
+              marginTop: 12,
+              paddingTop: 12,
+              borderTopWidth: 1,
+              borderTopColor: `${theme.border}20`,
             }}
           >
-            <View
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                marginBottom: 4,
-              }}
-            >
-              <AppIcon name="trending-down" size={14} color="#FFFFFF" />
+            <View style={{ alignItems: "center" }}>
               <Text
-                style={{
-                  color: "white",
-                  fontSize: 12,
-                  fontWeight: "900",
-                  marginLeft: 6,
-                }}
+                style={{ fontSize: 10, color: theme.secondary, opacity: 0.7 }}
               >
-                SELL
+                VOLUME
+              </Text>
+              <Text
+                style={{ fontSize: 12, fontWeight: "700", color: theme.text }}
+              >
+                --
               </Text>
             </View>
-            <Text style={{ color: "white", fontSize: 20, fontWeight: "900" }}>
-              {bidStr}
-            </Text>
-          </TouchableOpacity>
-
-          {/* LOT Display */}
-          <TouchableOpacity
-            onPress={() => setTradingModalVisible(true)}
-            style={{
-              width: 100,
-              backgroundColor: theme.card,
-              borderRadius: 14,
-              paddingVertical: 12,
-              alignItems: "center",
-              justifyContent: "center",
-              borderWidth: 2,
-              borderColor: theme.border,
-            }}
-          >
-            <Text
-              style={{
-                fontSize: 11,
-                color: theme.secondary,
-                fontWeight: "700",
-                marginBottom: 4,
-              }}
-            >
-              LOT
-            </Text>
-            <Text
-              style={{ fontSize: 20, fontWeight: "900", color: theme.text }}
-            >
-              {Number(lot).toFixed(lotDecimals)}
-            </Text>
-          </TouchableOpacity>
-
-          {/* BUY Button */}
-          <TouchableOpacity
-            onPress={() => {
-              setOrderType("BUY");
-              setTradingModalVisible(true);
-            }}
-            style={{
-              flex: 1,
-              backgroundColor: theme.positive,
-              borderRadius: 14,
-              paddingVertical: 14,
-              alignItems: "center",
-              justifyContent: "center",
-              shadowColor: theme.positive,
-              shadowOffset: { width: 0, height: 4 },
-              shadowOpacity: 0.2,
-              shadowRadius: 6,
-              elevation: 4,
-            }}
-          >
-            <View
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                marginBottom: 4,
-              }}
-            >
-              <AppIcon name="trending-up" size={14} color="#FFFFFF" />
+            <View style={{ alignItems: "center" }}>
               <Text
-                style={{
-                  color: "white",
-                  fontSize: 12,
-                  fontWeight: "900",
-                  marginLeft: 6,
-                }}
+                style={{ fontSize: 10, color: theme.secondary, opacity: 0.7 }}
               >
-                BUY
+                SPREAD
+              </Text>
+              <Text
+                style={{ fontSize: 12, fontWeight: "700", color: theme.text }}
+              >
+                {(Number(askStr) - Number(bidStr) || 0).toFixed(digits)}
               </Text>
             </View>
-            <Text style={{ color: "white", fontSize: 20, fontWeight: "900" }}>
-              {askStr}
-            </Text>
-          </TouchableOpacity>
+            <View style={{ alignItems: "center" }}>
+              <Text
+                style={{ fontSize: 10, color: theme.secondary, opacity: 0.7 }}
+              >
+                SWAP
+              </Text>
+              <Text
+                style={{ fontSize: 12, fontWeight: "700", color: theme.text }}
+              >
+                --
+              </Text>
+            </View>
+          </View>
         </View>
-      </View>
 
-      <AccountSelectorModal
-        visible={isAccountModalVisible}
-        onClose={() => setAccountModalVisible(false)}
-        accounts={accounts}
-        sharedAccounts={sharedAccounts}
-        fullName={fullName || ""}
-        selectedAccountId={
-          currentAccount
-            ? (currentAccount.accountId ?? currentAccount.id)
-            : selectedAccountId
-        }
-        onSelectAccount={(a) => {
-          setSelectedAccount?.(a);
-          setAccountModalVisible(false);
-        }}
-        onRefresh={() => {}}
-      />
-    </SafeAreaView>
+        <AccountSelectorModal
+          visible={isAccountModalVisible}
+          onClose={() => setAccountModalVisible(false)}
+          accounts={accounts}
+          sharedAccounts={sharedAccounts}
+          fullName={fullName || ""}
+          selectedAccountId={
+            currentAccount
+              ? (currentAccount.accountId ?? currentAccount.id)
+              : selectedAccountId
+          }
+          onSelectAccount={(a) => {
+            setSelectedAccount?.(a);
+            setAccountModalVisible(false);
+          }}
+          onRefresh={() => {}}
+        />
+      </SafeAreaView>
+    </Animated.View>
   );
 }

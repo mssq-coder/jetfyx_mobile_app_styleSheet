@@ -1,9 +1,10 @@
 import { router } from "expo-router";
-import * as WebBrowser from "expo-web-browser";
 import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Animated,
+  Dimensions,
   Image,
   KeyboardAvoidingView,
   Platform,
@@ -13,18 +14,21 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  View,
-  Dimensions,
-  Animated,
+  View
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { getFinanceOptions, previewFile } from "../../api/getServices";
+import {
+  getDetailsByAmountAndCategory,
+  getFinanceOptions,
+  previewFile,
+} from "../../api/getServices";
 import AccountSelectorModal from "../../components/Accounts/AccountSelectorModal";
 import AppIcon from "../../components/AppIcon";
+import DepositDetailsModal from "../../components/DepositDetailsModal";
 import { useAppTheme } from "../../contexts/ThemeContext";
 import { useAuthStore } from "../../store/authStore";
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const MODE = "deposit";
 
 function toPreviewPath(urlOrPath) {
@@ -58,7 +62,12 @@ function toPreviewPath(urlOrPath) {
   return raw;
 }
 
-function PreviewedImage({ uriOrPath, style, theme, fallbackIcon = "payments" }) {
+function PreviewedImage({
+  uriOrPath,
+  style,
+  theme,
+  fallbackIcon = "payments",
+}) {
   const [uri, setUri] = useState(null);
 
   useEffect(() => {
@@ -141,6 +150,9 @@ export default function DepositScreen() {
   const [selectedCurrency, setSelectedCurrency] = useState(null);
   const [amount, setAmount] = useState("");
   const [buttonScale] = useState(new Animated.Value(1));
+  const [detailsModalVisible, setDetailsModalVisible] = useState(false);
+  const [additionalNotes, setAdditionalNotes] = useState("");
+  const [currentFields, setCurrentFields] = useState({});
 
   const accountLabel = useMemo(() => {
     if (!selectedAccount) return "Select account";
@@ -183,20 +195,31 @@ export default function DepositScreen() {
     const methods = selectedCategory?.methods || [];
     const all = methods.flatMap((m) => {
       const csv = m?.currenciesCsv || "";
-      return csv.split(",").map((s) => s.trim()).filter(Boolean);
+      return csv
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
     });
     return Array.from(new Set(all));
   }, [selectedCategory]);
 
   const currencyLimits = useMemo(() => {
-    if (!selectedCurrency || !selectedCategory) return { min: null, max: null, method: null };
+    if (!selectedCurrency || !selectedCategory)
+      return { min: null, max: null, method: null };
     const methods = (selectedCategory?.methods || []).filter((m) => {
       const csv = m?.currenciesCsv || "";
-      return csv.split(",").map((s) => s.trim()).includes(selectedCurrency);
+      return csv
+        .split(",")
+        .map((s) => s.trim())
+        .includes(selectedCurrency);
     });
     if (!methods.length) return { min: null, max: null, method: null };
-    const mins = methods.map((m) => Number(m.amountMin || 0)).filter((v) => !Number.isNaN(v));
-    const maxs = methods.map((m) => Number(m.amountMax || 0)).filter((v) => !Number.isNaN(v));
+    const mins = methods
+      .map((m) => Number(m.amountMin || 0))
+      .filter((v) => !Number.isNaN(v));
+    const maxs = methods
+      .map((m) => Number(m.amountMax || 0))
+      .filter((v) => !Number.isNaN(v));
     const min = mins.length ? Math.min(...mins) : null;
     const max = maxs.length ? Math.max(...maxs) : null;
     return { min, max, method: methods[0] };
@@ -258,7 +281,7 @@ export default function DepositScreen() {
 
   const validateAndProceed = async () => {
     animateButton();
-    
+
     if (!selectedAccount) {
       Alert.alert(
         "Select Account",
@@ -278,53 +301,63 @@ export default function DepositScreen() {
       return;
     }
 
-    // const min = Number(selectedMethod.amountMin);
-    // const max = Number(selectedMethod.amountMax);
-    // if (!Number.isNaN(min) && amt < min) {
-    //   Alert.alert("Amount Too Low", `Minimum amount is ${min}.`);
-    //   return;
-    // }
-    // if (!Number.isNaN(max) && amt > max) {
-    //   Alert.alert("Amount Too High", `Maximum amount is ${max}.`);
-    //   return;
-    // }
-
-    const settings = parseSettings(selectedMethod.settingsJson);
-    const fields = settings?.fields || {};
     const kind = String(selectedMethod.kind || "").toLowerCase();
-
-    if (kind.includes("stripe")) {
-      const link = fields?.paymentLink;
-      if (!link) {
-        Alert.alert("Payment Link Missing", "No payment link found.");
-        return;
-      }
-      await WebBrowser.openBrowserAsync(String(link));
-      return;
-    }
-
-    if (kind.includes("upi")) {
-      Alert.alert(
-        "UPI Deposit",
-        `Amount: ${amt}\nUPI ID: ${fields?.upiId || "—"}\nProcessing: ${selectedCategory?.processingTime || "—"}`,
+    try {
+      const response = await getDetailsByAmountAndCategory(
+        selectedCategory?.name,
+        amt,
+        MODE,
+        selectedCurrency,
       );
-      return;
+      const data = response?.data?.category.methods || {};
+      const firstItem = data[0] || {};
+      const settings = parseSettings(firstItem.settingsJson);
+      const fields = settings?.fields || {};
+      setCurrentFields(fields);
+      console.log("DepositScreen - Bank details settings:", settings);
+      console.log("DepositScreen - Bank details response data:", firstItem);
+      console.log("DepositScreen - Bank details fields:", fields);
+      setDetailsModalVisible(true);
+    } catch (_e) {
+      Alert.alert("Error", "Failed to retrieve deposit details.");
     }
 
-    if (kind.includes("bank")) {
-      const lines = [
-        `Amount: ${amt}`,
-        `Selected Category: ${selectedCategory?.name || "—"}`,
-        `Branch: ${fields?.branchName || "—"}`,
-        fields?.ifscCode ? `IFSC: ${fields.ifscCode}` : null,
-        `Mode: ${MODE}`,
-        `Curency: ${selectedCurrency || "—"}`,
-        `userEmail: ${userEmail || "—"}`,
-        `Processing: ${selectedCategory?.processingTime || "—"}`,
-      ].filter(Boolean);
-      Alert.alert("Bank Deposit", lines.join("\n"));
-      return;
-    }
+    // if (kind.includes("stripe")) {
+    //   const link = fields?.paymentLink;
+    //   if (!link) {
+    //     Alert.alert("Payment Link Missing", "No payment link found.");
+    //     return;
+    //   }
+    //   await WebBrowser.openBrowserAsync(String(link));
+    //   return;
+    // }
+
+    // if (kind.includes("upi")) {
+    //   Alert.alert(
+    //     "UPI Deposit",
+    //     `Amount: ${amt}\nUPI ID: ${fields?.upiId || "—"}\nProcessing: ${selectedCategory?.processingTime || "—"}`,
+    //   );
+    //   return;
+    // }
+
+    // if (kind.includes("bank")) {
+    //   const lines = [
+    //     `Amount: ${amt}`,
+    //     `Selected Category: ${selectedCategory?.name || "—"}`,
+    //     `Branch: ${fields?.branchName || "—"}`,
+    //     fields?.ifscCode ? `IFSC: ${fields.ifscCode}` : null,
+    //     `Mode: ${MODE}`,
+    //     `Curency: ${selectedCurrency || "—"}`,
+    //     `userEmail: ${userEmail || "—"}`,
+    //     `Processing: ${selectedCategory?.processingTime || "—"}`,
+    //   ].filter(Boolean);
+
+    //   Alert.alert(
+    //     "Bank Transfer Details",
+    //     lines.join("\n"),
+    //   );
+    //   return;
+    // }
 
     Alert.alert(
       "Proceed",
@@ -341,29 +374,44 @@ export default function DepositScreen() {
       <StatusBar backgroundColor={theme.primary} barStyle="light-content" />
 
       {/* Enhanced Header */}
-      <View style={[styles.header, { 
-        backgroundColor: theme.primary,
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.15,
-        shadowRadius: 12,
-        elevation: 8,
-      }]}>
+      <View
+        style={[
+          styles.header,
+          {
+            backgroundColor: theme.primary,
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: 4 },
+            shadowOpacity: 0.15,
+            shadowRadius: 12,
+            elevation: 8,
+          },
+        ]}
+      >
         <TouchableOpacity
           onPress={() => router.back()}
-          style={[styles.backButton, { 
-            backgroundColor: 'rgba(255,255,255,0.2)',
-          }]}
+          style={[
+            styles.backButton,
+            {
+              backgroundColor: "rgba(255,255,255,0.2)",
+            },
+          ]}
         >
           <AppIcon name="arrow-back" color="#fff" size={22} />
         </TouchableOpacity>
-        <View style={{ flex: 1, alignItems: 'center' }}>
+        <View style={{ flex: 1, alignItems: "center" }}>
           <Text style={styles.headerTitle}>Deposit Funds</Text>
-          <Text style={styles.headerSubtitle}>Add funds to your trading account</Text>
+          <Text style={styles.headerSubtitle}>
+            Add funds to your trading account
+          </Text>
         </View>
-        <TouchableOpacity style={[styles.headerButton, { 
-          backgroundColor: 'rgba(255,255,255,0.2)',
-        }]}>
+        <TouchableOpacity
+          style={[
+            styles.headerButton,
+            {
+              backgroundColor: "rgba(255,255,255,0.2)",
+            },
+          ]}
+        >
           <AppIcon name="help-outline" color="#fff" size={20} />
         </TouchableOpacity>
       </View>
@@ -382,7 +430,7 @@ export default function DepositScreen() {
             onPress={() => setAccountModalOpen(true)}
             style={[
               styles.accountCard,
-              { 
+              {
                 backgroundColor: theme.card,
                 borderWidth: 1,
                 borderColor: theme.border,
@@ -391,23 +439,41 @@ export default function DepositScreen() {
                 shadowOpacity: 0.08,
                 shadowRadius: 8,
                 elevation: 4,
-              }
+              },
             ]}
             activeOpacity={0.7}
           >
             <View style={styles.accountCardContent}>
-              <View style={[styles.accountIcon, { backgroundColor: `${theme.primary}15` }]}>
-                <AppIcon name="account-balance" color={theme.primary} size={24} />
+              <View
+                style={[
+                  styles.accountIcon,
+                  { backgroundColor: `${theme.primary}15` },
+                ]}
+              >
+                <AppIcon
+                  name="account-balance"
+                  color={theme.primary}
+                  size={24}
+                />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={[styles.accountTitle, { color: theme.text }]}>
                   Deposit to Account
                 </Text>
-                <Text style={[styles.accountLabel, { color: theme.text }]} numberOfLines={1}>
+                <Text
+                  style={[styles.accountLabel, { color: theme.text }]}
+                  numberOfLines={1}
+                >
                   {accountLabel}
                 </Text>
-                <Text style={[styles.accountBalance, { color: theme.secondary }]}>
-                  Balance: {selectedAccount?.balance ? `$${selectedAccount.balance}` : "$0.00"} • {selectedAccount?.currency || "USD"}
+                <Text
+                  style={[styles.accountBalance, { color: theme.secondary }]}
+                >
+                  Balance:{" "}
+                  {selectedAccount?.balance
+                    ? `$${selectedAccount.balance}`
+                    : "$0.00"}{" "}
+                  • {selectedAccount?.currency || "USD"}
                 </Text>
               </View>
               <AppIcon name="chevron-right" color={theme.secondary} size={22} />
@@ -420,13 +486,17 @@ export default function DepositScreen() {
               <Text style={[styles.sectionTitle, { color: theme.text }]}>
                 Payment Method
               </Text>
-              <Text style={[styles.sectionSubtitle, { color: theme.secondary }]}>
+              <Text
+                style={[styles.sectionSubtitle, { color: theme.secondary }]}
+              >
                 Choose how you want to deposit
               </Text>
             </View>
 
             {loadingOptions ? (
-              <View style={[styles.loadingCard, { backgroundColor: theme.card }]}>
+              <View
+                style={[styles.loadingCard, { backgroundColor: theme.card }]}
+              >
                 <ActivityIndicator color={theme.primary} size="large" />
                 <Text style={[styles.loadingText, { color: theme.secondary }]}>
                   Loading deposit options...
@@ -434,7 +504,12 @@ export default function DepositScreen() {
               </View>
             ) : optionsError ? (
               <View style={[styles.errorCard, { backgroundColor: theme.card }]}>
-                <View style={[styles.errorIcon, { backgroundColor: `${theme.negative}15` }]}>
+                <View
+                  style={[
+                    styles.errorIcon,
+                    { backgroundColor: `${theme.negative}15` },
+                  ]}
+                >
                   <AppIcon name="error" color={theme.negative} size={24} />
                 </View>
                 <Text style={[styles.errorTitle, { color: theme.text }]}>
@@ -453,23 +528,32 @@ export default function DepositScreen() {
                   contentContainerStyle={styles.categoryContainer}
                 >
                   {categories.map((cat) => {
-                    const active = String(cat.id) === String(selectedCategoryId);
+                    const active =
+                      String(cat.id) === String(selectedCategoryId);
                     return (
                       <TouchableOpacity
                         key={String(cat.id)}
                         onPress={() => {
                           setSelectedCategoryId(cat.id);
-                          setSelectedMethodName(cat?.methods?.[0]?.name ?? null);
-                          const firstCsv = cat?.methods?.[0]?.currenciesCsv || "";
-                          const firstCurrency = (firstCsv.split(",").map((s) => s.trim()).filter(Boolean) || [null])[0];
+                          setSelectedMethodName(
+                            cat?.methods?.[0]?.name ?? null,
+                          );
+                          const firstCsv =
+                            cat?.methods?.[0]?.currenciesCsv || "";
+                          const firstCurrency = (firstCsv
+                            .split(",")
+                            .map((s) => s.trim())
+                            .filter(Boolean) || [null])[0];
                           setSelectedCurrency(firstCurrency ?? null);
                         }}
                         style={[
                           styles.categoryCard,
-                          { 
-                            backgroundColor: active ? theme.card : `${theme.card}80`,
+                          {
+                            backgroundColor: active
+                              ? theme.card
+                              : `${theme.card}80`,
                             borderColor: active ? theme.primary : theme.border,
-                          }
+                          },
                         ]}
                         activeOpacity={0.7}
                       >
@@ -479,13 +563,23 @@ export default function DepositScreen() {
                           theme={theme}
                           fallbackIcon="payments"
                         />
-                        <Text style={[styles.categoryName, { 
-                          color: active ? theme.text : theme.secondary,
-                          fontWeight: active ? "700" : "600",
-                        }]}>
+                        <Text
+                          style={[
+                            styles.categoryName,
+                            {
+                              color: active ? theme.text : theme.secondary,
+                              fontWeight: active ? "700" : "600",
+                            },
+                          ]}
+                        >
                           {cat.name}
                         </Text>
-                        <Text style={[styles.categoryProcessing, { color: theme.secondary }]}>
+                        <Text
+                          style={[
+                            styles.categoryProcessing,
+                            { color: theme.secondary },
+                          ]}
+                        >
                           {cat.processingTime || "Instant"}
                         </Text>
                       </TouchableOpacity>
@@ -506,46 +600,74 @@ export default function DepositScreen() {
                     {currencyList.length ? (
                       currencyList.map((c) => {
                         const active = String(c) === String(selectedCurrency);
-                        const limits = currencyList.includes(c) ? currencyLimits : { min: null, max: null };
+                        const limits = currencyList.includes(c)
+                          ? currencyLimits
+                          : { min: null, max: null };
                         return (
                           <TouchableOpacity
                             key={c}
                             onPress={() => setSelectedCurrency(c)}
                             style={[
                               styles.currencyCard,
-                              { 
-                                backgroundColor: active ? `${theme.primary}15` : theme.card,
-                                borderColor: active ? theme.primary : theme.border,
-                              }
+                              {
+                                backgroundColor: active
+                                  ? `${theme.primary}15`
+                                  : theme.card,
+                                borderColor: active
+                                  ? theme.primary
+                                  : theme.border,
+                              },
                             ]}
                             activeOpacity={0.7}
                           >
-                            <Text style={[styles.currencySymbol, { 
-                              color: active ? theme.primary : theme.text,
-                              fontWeight: "800",
-                            }]}>
+                            <Text
+                              style={[
+                                styles.currencySymbol,
+                                {
+                                  color: active ? theme.primary : theme.text,
+                                  fontWeight: "800",
+                                },
+                              ]}
+                            >
                               {c}
                             </Text>
-                            <Text style={[styles.currencyLimits, { color: theme.secondary }]}>
-                              Min: {limits.min || "—"} • Max: {limits.max || "—"}
+                            <Text
+                              style={[
+                                styles.currencyLimits,
+                                { color: theme.secondary },
+                              ]}
+                            >
+                              Min: {limits.min || "—"} • Max:{" "}
+                              {limits.max || "—"}
                             </Text>
                           </TouchableOpacity>
                         );
                       })
                     ) : (
-                      <View style={[styles.emptyCurrencies, { backgroundColor: theme.card }]}>
-                        <Text style={[styles.emptyText, { color: theme.secondary }]}>
+                      <View
+                        style={[
+                          styles.emptyCurrencies,
+                          { backgroundColor: theme.card },
+                        ]}
+                      >
+                        <Text
+                          style={[styles.emptyText, { color: theme.secondary }]}
+                        >
                           No currencies available for this method
                         </Text>
                       </View>
                     )}
                   </ScrollView>
                 </View>
-
               </>
             ) : (
               <View style={[styles.emptyCard, { backgroundColor: theme.card }]}>
-                <View style={[styles.emptyIcon, { backgroundColor: `${theme.secondary}15` }]}>
+                <View
+                  style={[
+                    styles.emptyIcon,
+                    { backgroundColor: `${theme.secondary}15` },
+                  ]}
+                >
                   <AppIcon name="payment" color={theme.secondary} size={32} />
                 </View>
                 <Text style={[styles.emptyTitle, { color: theme.text }]}>
@@ -564,7 +686,9 @@ export default function DepositScreen() {
               <Text style={[styles.sectionTitle, { color: theme.text }]}>
                 Deposit Amount
               </Text>
-              <Text style={[styles.sectionSubtitle, { color: theme.secondary }]}>
+              <Text
+                style={[styles.sectionSubtitle, { color: theme.secondary }]}
+              >
                 Enter the amount you wish to deposit
               </Text>
             </View>
@@ -577,27 +701,26 @@ export default function DepositScreen() {
                   onPress={() => setAmount(amt.toString())}
                   style={[
                     styles.quickAmountButton,
-                    { 
-                      backgroundColor: amount === amt.toString() 
-                        ? theme.primary 
-                        : theme.card,
-                      borderColor: amount === amt.toString() 
-                        ? theme.primary 
-                        : theme.border,
-                    }
+                    {
+                      backgroundColor:
+                        amount === amt.toString() ? theme.primary : theme.card,
+                      borderColor:
+                        amount === amt.toString()
+                          ? theme.primary
+                          : theme.border,
+                    },
                   ]}
                 >
-                  <Text style={[
-                    styles.quickAmountText,
-                    { 
-                      color: amount === amt.toString() 
-                        ? "#FFFFFF" 
-                        : theme.text,
-                      fontWeight: amount === amt.toString() 
-                        ? "700" 
-                        : "600",
-                    }
-                  ]}>
+                  <Text
+                    style={[
+                      styles.quickAmountText,
+                      {
+                        color:
+                          amount === amt.toString() ? "#FFFFFF" : theme.text,
+                        fontWeight: amount === amt.toString() ? "700" : "600",
+                      },
+                    ]}
+                  >
                     ${amt}
                   </Text>
                 </TouchableOpacity>
@@ -605,30 +728,40 @@ export default function DepositScreen() {
             </View>
 
             {/* Amount Input */}
-            <View style={[
-              styles.amountInputContainer,
-              { 
-                backgroundColor: theme.card,
-                borderColor: theme.border,
-                shadowColor: "#000",
-                shadowOffset: { width: 0, height: 2 },
-                shadowOpacity: 0.08,
-                shadowRadius: 8,
-                elevation: 4,
-              }
-            ]}>
+            <View
+              style={[
+                styles.amountInputContainer,
+                {
+                  backgroundColor: theme.card,
+                  borderColor: theme.border,
+                  shadowColor: "#000",
+                  shadowOffset: { width: 0, height: 2 },
+                  shadowOpacity: 0.08,
+                  shadowRadius: 8,
+                  elevation: 4,
+                },
+              ]}
+            >
               <View style={styles.amountInputHeader}>
                 <Text style={[styles.amountLabel, { color: theme.secondary }]}>
                   Enter Amount
                 </Text>
                 {currencyLimits.min && (
-                  <Text style={[styles.amountLimits, { color: theme.secondary }]}>
-                    Min: {currencyLimits.min} • Max: {currencyLimits.max || "No limit"}
+                  <Text
+                    style={[styles.amountLimits, { color: theme.secondary }]}
+                  >
+                    Min: {currencyLimits.min} • Max:{" "}
+                    {currencyLimits.max || "No limit"}
                   </Text>
                 )}
               </View>
               <View style={styles.amountInputWrapper}>
-                <Text style={[styles.currencySymbol, { color: theme.secondary, fontSize: 28 }]}>
+                <Text
+                  style={[
+                    styles.currencySymbol,
+                    { color: theme.secondary, fontSize: 28 },
+                  ]}
+                >
                   $
                 </Text>
                 <TextInput
@@ -646,12 +779,22 @@ export default function DepositScreen() {
             </View>
 
             {/* Amount Summary */}
-            <View style={[styles.amountSummary, { backgroundColor: `${theme.primary}10` }]}>
+            <View
+              style={[
+                styles.amountSummary,
+                { backgroundColor: `${theme.primary}10` },
+              ]}
+            >
               <View style={styles.summaryRow}>
                 <Text style={[styles.summaryLabel, { color: theme.text }]}>
                   Amount to Deposit
                 </Text>
-                <Text style={[styles.summaryValue, { color: theme.text, fontWeight: "700" }]}>
+                <Text
+                  style={[
+                    styles.summaryValue,
+                    { color: theme.text, fontWeight: "700" },
+                  ]}
+                >
                   ${amount || "0.00"}
                 </Text>
               </View>
@@ -680,22 +823,20 @@ export default function DepositScreen() {
               onPress={validateAndProceed}
               style={[
                 styles.proceedButton,
-                { 
+                {
                   backgroundColor: theme.primary,
                   shadowColor: theme.primary,
                   shadowOffset: { width: 0, height: 4 },
                   shadowOpacity: 0.3,
                   shadowRadius: 8,
                   elevation: 6,
-                }
+                },
               ]}
               activeOpacity={0.8}
             >
               <View style={styles.buttonContent}>
                 <AppIcon name="payment" color="#FFFFFF" size={20} />
-                <Text style={styles.proceedButtonText}>
-                  Proceed to Deposit
-                </Text>
+                <Text style={styles.proceedButtonText}>Proceed to Deposit</Text>
               </View>
               <Text style={styles.proceedButtonSubtext}>
                 Deposit ${amount || "0.00"} to your account
@@ -704,7 +845,12 @@ export default function DepositScreen() {
           </Animated.View>
 
           {/* Security Notice */}
-          <View style={[styles.securityNotice, { backgroundColor: `${theme.primary}10` }]}>
+          <View
+            style={[
+              styles.securityNotice,
+              { backgroundColor: `${theme.primary}10` },
+            ]}
+          >
             <AppIcon name="security" color={theme.primary} size={16} />
             <Text style={[styles.securityText, { color: theme.secondary }]}>
               Your payment is secured with 256-bit encryption
@@ -712,6 +858,20 @@ export default function DepositScreen() {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      <DepositDetailsModal
+        visible={detailsModalVisible}
+        onClose={() => setDetailsModalVisible(false)}
+        fields={currentFields}
+        additionalNotes={additionalNotes}
+        setAdditionalNotes={setAdditionalNotes}
+        onProceed={() => {
+          setDetailsModalVisible(false);
+          // Proceed with deposit logic here
+          console.log("Additional Notes:", additionalNotes);
+        }}
+        theme={theme}
+      />
 
       <AccountSelectorModal
         visible={accountModalOpen}
@@ -786,7 +946,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "600",
     marginBottom: 2,
-    textTransform: 'uppercase',
+    textTransform: "uppercase",
     letterSpacing: 0.5,
   },
   accountLabel: {
@@ -947,7 +1107,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: 8,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0,0,0,0.05)',
+    borderBottomColor: "rgba(0,0,0,0.05)",
   },
   infoLabel: {
     fontSize: 13,

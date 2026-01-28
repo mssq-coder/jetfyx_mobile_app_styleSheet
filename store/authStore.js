@@ -17,6 +17,7 @@ export const useAuthStore = create(
       error: null,
       hasHydrated: false,
       userId: null,
+      userEmail: null,
 
       // Mark that persisted state has finished hydrating
       setHasHydrated: (value) => set({ hasHydrated: Boolean(value) }),
@@ -37,6 +38,7 @@ export const useAuthStore = create(
           const sharedAccounts = data?.data?.sharedAccounts || [];
           const fullName = data?.data?.fullName || null;
           const userId = data?.data?.userId || null;
+          const userEmail = data?.data?.email || email || null;
 
           const firstId = accounts.length
             ? (accounts[0].accountId ?? accounts[0].id)
@@ -49,6 +51,7 @@ export const useAuthStore = create(
             fullName,
             selectedAccountId: get().selectedAccountId ?? firstId,
             userId,
+            userEmail,
             loading: false,
           });
 
@@ -93,6 +96,7 @@ export const useAuthStore = create(
           fullName: null,
           selectedAccountId: null,
           userId: null,
+          userEmail: null,
           error: null,
         });
       },
@@ -119,7 +123,7 @@ export const useAuthStore = create(
             : get().sharedAccounts;
           const fullName = root?.fullName ?? root?.name ?? get().fullName;
           const userId = root?.userId ?? root?.id ?? get().userId;
-
+          const userEmail = root?.email ?? get().userEmail ?? null;
           const firstId = nextAccounts.length
             ? (nextAccounts[0].accountId ?? nextAccounts[0].id)
             : null;
@@ -135,6 +139,7 @@ export const useAuthStore = create(
             fullName,
             userId,
             selectedAccountId: selectedStillExists ? prevSelected : firstId,
+            userEmail,
             loading: false,
           });
 
@@ -158,6 +163,7 @@ export const useAuthStore = create(
         fullName: state.fullName,
         selectedAccountId: state.selectedAccountId,
         userId: state.userId,
+        userEmail: state.userEmail,
       }),
 
       onRehydrateStorage: () => (state) => {

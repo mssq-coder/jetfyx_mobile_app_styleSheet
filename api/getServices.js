@@ -73,24 +73,92 @@ export async function updateUser(userId, payload) {
     throw new Error("userId is required");
   }
 
+  const isFileLike = (v) =>
+    v && typeof v === "object" && typeof v.uri === "string";
+
+  const toFormData = (obj) => {
+    const fd = new FormData();
+    Object.entries(obj || {}).forEach(([key, value]) => {
+      if (value === undefined || value === null) return;
+
+      // Intrest: backend expects repeated key entries (like form-data multi)
+      if (key === "Intrest" && Array.isArray(value)) {
+        value.filter(Boolean).forEach((v) => fd.append(key, String(v)));
+        return;
+      }
+
+      // Files: allow single file or array of files
+      if (Array.isArray(value) && value.length > 0 && value.every(isFileLike)) {
+        value.forEach((file) => {
+          fd.append(key, {
+            uri: file.uri,
+            name: file.name || `upload_${Date.now()}`,
+            type: file.mimeType || file.type || "application/octet-stream",
+          });
+        });
+        return;
+      }
+
+      if (isFileLike(value)) {
+        fd.append(key, {
+          uri: value.uri,
+          name: value.name || `upload_${Date.now()}`,
+          type: value.mimeType || value.type || "application/octet-stream",
+        });
+        return;
+      }
+
+      // Arrays (non-file): append as repeated entries
+      if (Array.isArray(value)) {
+        value.filter(Boolean).forEach((v) => fd.append(key, String(v)));
+        return;
+      }
+
+      fd.append(key, String(value));
+    });
+    return fd;
+  };
+
+  const shouldSendMultipart =
+    payload &&
+    Object.values(payload).some(
+      (v) =>
+        isFileLike(v) ||
+        (Array.isArray(v) && v.length > 0 && v.some(isFileLike)),
+    );
+
+  const body = shouldSendMultipart ? toFormData(payload) : payload;
+  const config = shouldSendMultipart
+    ? {
+        headers: {
+          // Let axios set boundary; just override JSON default.
+          "Content-Type": "multipart/form-data",
+        },
+      }
+    : undefined;
+
   // Backend routes in this project are mostly under `/Users/...`.
   // Some environments/docs mention `/User/...` (singular). Try plural first,
   // then fall back to singular on 404.
   try {
-    const response = await api.put(`/Users/${userId}`, payload);
+    const response = await api.put(`/Users/${userId}`, body, config);
     return response.data;
   } catch (err) {
     const status = err?.response?.status;
     if (status === 404) {
-      const response = await api.put(`/User/${userId}`, payload);
+      const response = await api.put(`/User/${userId}`, body, config);
       return response.data;
     }
     throw err;
   }
 }
 
-
-export async function getDetailsByAmountAndCategory( category , amount, mode , currencyCode) {
+export async function getDetailsByAmountAndCategory(
+  category,
+  amount,
+  mode,
+  currencyCode,
+) {
   if (!category) {
     throw new Error("category is required");
   }
@@ -102,10 +170,13 @@ export async function getDetailsByAmountAndCategory( category , amount, mode , c
   }
   if (!currencyCode) {
     throw new Error("currencyCode is required");
-  } 
-  const response = await api.get(`/FinanceOptions/GetDetailsByAmountAndCategory`, {
-    params: { category, amount, mode, currencyCode },
-  });
+  }
+  const response = await api.get(
+    `/FinanceOptions/GetDetailsByAmountAndCategory`,
+    {
+      params: { category, amount, mode, currencyCode },
+    },
+  );
   return response.data;
 }
 

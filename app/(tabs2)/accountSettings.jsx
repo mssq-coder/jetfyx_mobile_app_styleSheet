@@ -1,11 +1,11 @@
 import * as DocumentPicker from "expo-document-picker";
-import * as FileSystem from "expo-file-system/legacy";
 import * as LocalAuthentication from "expo-local-authentication";
 import { router } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Dimensions,
   Image,
   Modal,
   ScrollView,
@@ -16,7 +16,6 @@ import {
   TextInput,
   TouchableOpacity,
   View,
-  Dimensions,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { getCountries, previewFile, updateUser } from "../../api/getServices";
@@ -27,7 +26,7 @@ import { useSettingsStore } from "../../store/settingsStore";
 import { useUserStore } from "../../store/userStore";
 import { clearBiometricCredentials } from "../../utils/secureAuth";
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 // Enhanced Row Component
 function Row({
@@ -51,22 +50,22 @@ function Row({
       onPress={canPress ? onPress : undefined}
       style={[
         styles.row,
-        { 
-          borderBottomColor: isLast ? 'transparent' : theme.border,
+        {
+          borderBottomColor: isLast ? "transparent" : theme.border,
           backgroundColor: theme.card,
-        }
+        },
       ]}
     >
       <View style={styles.rowLeft}>
         {icon && (
-          <View style={[styles.rowIcon, { backgroundColor: `${theme.primary}15` }]}>
+          <View
+            style={[styles.rowIcon, { backgroundColor: `${theme.primary}15` }]}
+          >
             <AppIcon name={icon} color={theme.primary} size={16} />
           </View>
         )}
         <View style={{ flex: 1 }}>
-          <Text style={[styles.rowLabel, { color: theme.text }]}>
-            {label}
-          </Text>
+          <Text style={[styles.rowLabel, { color: theme.text }]}>{label}</Text>
           {helperText ? (
             <Text style={[styles.rowHelper, { color: theme.secondary }]}>
               {helperText}
@@ -80,7 +79,7 @@ function Row({
           <Text
             style={[
               styles.rowValue,
-              { 
+              {
                 color: locked ? theme.secondary : theme.text,
                 fontWeight: locked ? "500" : "600",
               },
@@ -94,7 +93,12 @@ function Row({
         {right ? right : null}
 
         {locked ? (
-          <View style={[styles.lockIcon, { backgroundColor: `${theme.secondary}15` }]}>
+          <View
+            style={[
+              styles.lockIcon,
+              { backgroundColor: `${theme.secondary}15` },
+            ]}
+          >
             <AppIcon name="lock" color={theme.secondary} size={14} />
           </View>
         ) : showChevron && canPress ? (
@@ -116,20 +120,25 @@ function ToggleRow({
   icon,
 }) {
   return (
-    <View style={[styles.row, { 
-      backgroundColor: theme.card,
-      borderBottomColor: theme.border,
-    }]}>
+    <View
+      style={[
+        styles.row,
+        {
+          backgroundColor: theme.card,
+          borderBottomColor: theme.border,
+        },
+      ]}
+    >
       <View style={styles.rowLeft}>
         {icon && (
-          <View style={[styles.rowIcon, { backgroundColor: `${theme.primary}15` }]}>
+          <View
+            style={[styles.rowIcon, { backgroundColor: `${theme.primary}15` }]}
+          >
             <AppIcon name={icon} color={theme.primary} size={16} />
           </View>
         )}
         <View style={{ flex: 1 }}>
-          <Text style={[styles.rowLabel, { color: theme.text }]}>
-            {label}
-          </Text>
+          <Text style={[styles.rowLabel, { color: theme.text }]}>{label}</Text>
           {helperText ? (
             <Text style={[styles.rowHelper, { color: theme.secondary }]}>
               {helperText}
@@ -137,9 +146,9 @@ function ToggleRow({
           ) : null}
         </View>
       </View>
-      <Switch 
-        value={value} 
-        onValueChange={onValueChange} 
+      <Switch
+        value={value}
+        onValueChange={onValueChange}
         disabled={disabled}
         trackColor={{ false: theme.border, true: theme.primary }}
         thumbColor="#FFFFFF"
@@ -162,20 +171,25 @@ function InputRow({
   icon,
 }) {
   return (
-    <View style={[styles.row, { 
-      backgroundColor: theme.card,
-      borderBottomColor: theme.border,
-    }]}>
+    <View
+      style={[
+        styles.row,
+        {
+          backgroundColor: theme.card,
+          borderBottomColor: theme.border,
+        },
+      ]}
+    >
       <View style={styles.rowLeft}>
         {icon && (
-          <View style={[styles.rowIcon, { backgroundColor: `${theme.primary}15` }]}>
+          <View
+            style={[styles.rowIcon, { backgroundColor: `${theme.primary}15` }]}
+          >
             <AppIcon name={icon} color={theme.primary} size={16} />
           </View>
         )}
         <View style={{ flex: 1 }}>
-          <Text style={[styles.rowLabel, { color: theme.text }]}>
-            {label}
-          </Text>
+          <Text style={[styles.rowLabel, { color: theme.text }]}>{label}</Text>
           {helperText ? (
             <Text style={[styles.rowHelper, { color: theme.secondary }]}>
               {helperText}
@@ -184,11 +198,16 @@ function InputRow({
         </View>
       </View>
 
-      <View style={[styles.inputContainer, { 
-        backgroundColor: editable ? `${theme.background}80` : 'transparent',
-        borderWidth: editable ? 1 : 0,
-        borderColor: theme.border,
-      }]}>
+      <View
+        style={[
+          styles.inputContainer,
+          {
+            backgroundColor: editable ? `${theme.background}80` : "transparent",
+            borderWidth: editable ? 1 : 0,
+            borderColor: theme.border,
+          },
+        ]}
+      >
         <TextInput
           value={value}
           onChangeText={onChangeText}
@@ -216,21 +235,28 @@ function Section({ title, children, theme, subtitle }) {
   return (
     <View style={styles.section}>
       <View style={styles.sectionHeader}>
-        <Text style={[styles.sectionTitle, { color: theme.text }]}>{title}</Text>
+        <Text style={[styles.sectionTitle, { color: theme.text }]}>
+          {title}
+        </Text>
         {subtitle && (
           <Text style={[styles.sectionSubtitle, { color: theme.secondary }]}>
             {subtitle}
           </Text>
         )}
       </View>
-      <View style={[styles.card, { 
-        backgroundColor: theme.card,
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 8,
-        elevation: 3,
-      }]}>
+      <View
+        style={[
+          styles.card,
+          {
+            backgroundColor: theme.card,
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.05,
+            shadowRadius: 8,
+            elevation: 3,
+          },
+        ]}
+      >
         {children}
       </View>
     </View>
@@ -240,10 +266,10 @@ function Section({ title, children, theme, subtitle }) {
 // Status Badge Component
 function StatusBadge({ status, theme }) {
   const statusLower = String(status || "").toLowerCase();
-  
+
   let backgroundColor = theme.secondary;
   let textColor = "#FFFFFF";
-  
+
   if (statusLower === "approved") {
     backgroundColor = theme.positive;
   } else if (statusLower === "pending" || statusLower === "processing") {
@@ -279,7 +305,7 @@ function DocumentPreview({ paths, title, onPreview, theme }) {
   };
 
   const documents = parsePaths(paths);
-  
+
   if (documents.length === 0) {
     return (
       <View style={[styles.emptyDocuments, { borderColor: theme.border }]}>
@@ -299,15 +325,25 @@ function DocumentPreview({ paths, title, onPreview, theme }) {
           onPress={() => onPreview?.(path)}
           style={styles.documentItem}
         >
-          <View style={[styles.documentThumbnail, { backgroundColor: `${theme.primary}10` }]}>
-            <AppIcon 
-              name={path.toLowerCase().endsWith('.pdf') ? "picture-as-pdf" : "image"} 
-              color={theme.primary} 
-              size={24} 
+          <View
+            style={[
+              styles.documentThumbnail,
+              { backgroundColor: `${theme.primary}10` },
+            ]}
+          >
+            <AppIcon
+              name={
+                path.toLowerCase().endsWith(".pdf") ? "picture-as-pdf" : "image"
+              }
+              color={theme.primary}
+              size={24}
             />
           </View>
-          <Text style={[styles.documentName, { color: theme.secondary }]} numberOfLines={1}>
-            {path.split('/').pop()}
+          <Text
+            style={[styles.documentName, { color: theme.secondary }]}
+            numberOfLines={1}
+          >
+            {path.split("/").pop()}
           </Text>
         </TouchableOpacity>
       ))}
@@ -331,8 +367,10 @@ export default function AccountSettingsScreen() {
   const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
   const [marginCallAlerts, setMarginCallAlerts] = useState(true);
 
-  const avatarUri = user?.avatarUrl || user?.profilePhotoUrl || user?.photoUrl || null;
-  const isKycApproved = String(user?.overallStatus || "").toLowerCase() === "approved";
+  const avatarUri =
+    user?.avatarUrl || user?.profilePhotoUrl || user?.photoUrl || null;
+  const isKycApproved =
+    String(user?.overallStatus || "").toLowerCase() === "approved";
   const canEditProfile = !isKycApproved;
 
   const [saving, setSaving] = useState(false);
@@ -341,7 +379,8 @@ export default function AccountSettingsScreen() {
   const [countryModalOpen, setCountryModalOpen] = useState(false);
 
   const [formInitialized, setFormInitialized] = useState(false);
-  const [fullName, setFullName] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [mobileNumber, setMobileNumber] = useState("");
   const [dobText, setDobText] = useState("");
   const [street, setStreet] = useState("");
@@ -349,6 +388,13 @@ export default function AccountSettingsScreen() {
   const [stateProv, setStateProv] = useState("");
   const [zip, setZip] = useState("");
   const [country, setCountry] = useState("");
+  const [gender, setGender] = useState("");
+  const [income, setIncome] = useState("");
+  const [interests, setInterests] = useState([]);
+  const [comment, setComment] = useState("");
+  const [genderModalOpen, setGenderModalOpen] = useState(false);
+  const [incomeModalOpen, setIncomeModalOpen] = useState(false);
+  const [interestsModalOpen, setInterestsModalOpen] = useState(false);
 
   const [idProofUploads, setIdProofUploads] = useState([]);
   const [addressProofUploads, setAddressProofUploads] = useState([]);
@@ -412,8 +458,8 @@ export default function AccountSettingsScreen() {
 
     const first = user?.firstName || user?.FirstName || "";
     const last = user?.lastName || user?.LastName || "";
-    const full = `${first}${first && last ? " " : ""}${last}`.trim();
-    const mobile = user?.mobile || user?.mobileNumber || user?.phone || user?.Mobile || "";
+    const mobile =
+      user?.mobile || user?.mobileNumber || user?.phone || user?.Mobile || "";
 
     const street0 = user?.street || user?.Street || "";
     const city0 = user?.city || user?.City || "";
@@ -435,7 +481,8 @@ export default function AccountSettingsScreen() {
       }
     }
 
-    setFullName(full);
+    setFirstName(String(first || ""));
+    setLastName(String(last || ""));
     setMobileNumber(String(mobile || ""));
     setDobText(dobStr);
     setStreet(String(street0 || ""));
@@ -444,19 +491,59 @@ export default function AccountSettingsScreen() {
     setZip(String(zip0 || ""));
     setCountry(String(country0 || ""));
 
+    const gender0 = user?.gender || user?.Gender || "";
+    const income0 = user?.income || user?.Income || "";
+
+    const parseInterests = (raw) => {
+      if (!raw) return [];
+      try {
+        if (Array.isArray(raw)) return raw;
+        if (typeof raw === "string") {
+          const s = raw.trim();
+          if (!s) return [];
+          if (s.startsWith("[")) {
+            const parsed = JSON.parse(s);
+            return Array.isArray(parsed) ? parsed : [];
+          }
+          // comma separated
+          if (s.includes(",")) return s.split(",");
+          return [s];
+        }
+      } catch (_e) {}
+      return [];
+    };
+
+    const interestsRaw =
+      user?.Intrest ||
+      user?.intrest ||
+      user?.Interest ||
+      user?.interest ||
+      user?.Interests ||
+      user?.interests ||
+      [];
+
+    const interests0 = parseInterests(interestsRaw)
+      .map((x) =>
+        String(x || "")
+          .trim()
+          .toLowerCase(),
+      )
+      .filter(Boolean);
+
+    const comment0 =
+      user?.Comment || user?.comment || user?.Comments || user?.comments || "";
+
+    setGender(
+      String(gender0 || "")
+        .trim()
+        .toLowerCase(),
+    );
+    setIncome(String(income0 || "").trim());
+    setInterests(Array.from(new Set(interests0)));
+    setComment(String(comment0 || ""));
+
     setFormInitialized(true);
   }, [formInitialized, user]);
-
-  const splitName = (name) => {
-    const raw = String(name || "").trim();
-    if (!raw) return { firstName: "", lastName: "" };
-    const parts = raw.split(/\s+/);
-    if (parts.length === 1) return { firstName: parts[0], lastName: "" };
-    return {
-      firstName: parts.slice(0, -1).join(" "),
-      lastName: parts.slice(-1).join(" "),
-    };
-  };
 
   const parseDobToObject = (text) => {
     const raw = String(text || "").trim();
@@ -499,24 +586,6 @@ export default function AccountSettingsScreen() {
     }));
   };
 
-  const mimeFromName = (name) => {
-    const n = String(name || "").toLowerCase();
-    if (n.endsWith(".png")) return "image/png";
-    if (n.endsWith(".jpg") || n.endsWith(".jpeg")) return "image/jpeg";
-    if (n.endsWith(".webp")) return "image/webp";
-    if (n.endsWith(".gif")) return "image/gif";
-    if (n.endsWith(".pdf")) return "application/pdf";
-    return "application/octet-stream";
-  };
-
-  const assetToDataUri = async (asset) => {
-    const base64 = await FileSystem.readAsStringAsync(asset.uri, {
-      encoding: FileSystem.EncodingType.Base64,
-    });
-    const mime = asset.mimeType || mimeFromName(asset.name);
-    return `data:${mime};base64,${base64}`;
-  };
-
   const handleSave = async () => {
     if (saving) return;
     if (!userId) {
@@ -543,52 +612,34 @@ export default function AccountSettingsScreen() {
     try {
       setSaving(true);
 
-      const nameParts = splitName(fullName);
-
-      const existingIdProofs = parsePaths(
-        user?.IdProofs || user?.idProofs || user?.idProofPath,
-      );
-      const existingAddressProofs = parsePaths(
-        user?.AddressProofs || user?.addressProofs || user?.addressProofPath,
-      );
-
-      const uploadedIdProofs = await Promise.all(
-        idProofUploads.map((a) => assetToDataUri(a)),
-      );
-      const uploadedAddressProofs = await Promise.all(
-        addressProofUploads.map((a) => assetToDataUri(a)),
-      );
+      // NOTE: Files must be sent as multipart/form-data (binary). We pass
+      // picked assets (uri/name/mimeType) to `updateUser`, which converts to FormData.
 
       const payload = {
         Id: user?.id ?? user?.Id ?? 0,
-        FirstName: nameParts.firstName || "",
-        LastName: nameParts.lastName || "",
-        IsActive: user?.isActive ?? user?.IsActive ?? true,
-        DateOfBirth: dobObj ?? null,
+        FirstName: (firstName || "").trim(),
+        LastName: (lastName || "").trim(),
+        Email: user?.email || user?.Email || "",
+        DateOfBirth: dobText || "",
+        Phone: mobileNumber || "",
         Street: street || "",
         City: city || "",
         State: stateProv || "",
         Zip: zip || "",
         Country: country || "",
-        Gender: user?.gender || user?.Gender || "",
-        Occupation: user?.occupation || user?.Occupation || "",
-        Income: user?.income || user?.Income || "",
-        Interests: Array.isArray(user?.interests || user?.Interests)
-          ? user?.interests || user?.Interests
-          : [],
-        Comments: user?.comments || user?.Comments || "",
-        MobileNumber: mobileNumber || "",
-        Mobile: mobileNumber || "",
-        IdProofs:
-          uploadedIdProofs.length > 0 ? uploadedIdProofs : existingIdProofs,
-        AddressProofs:
-          uploadedAddressProofs.length > 0
-            ? uploadedAddressProofs
-            : existingAddressProofs,
-        RoleName: user?.roleName || user?.RoleName || "",
+        Gender: gender || "",
+        Income: income || "",
+        Intrest: interests && interests.length > 0 ? interests : [],
+        Comment: comment || "",
+        ...(idProofUploads.length > 0 ? { IdProof: idProofUploads } : {}),
+        ...(addressProofUploads.length > 0
+          ? { AdressProof: addressProofUploads }
+          : {}),
       };
+      console.log("Updating profile with payload:", payload);
 
       const updated = await updateUser(userId, payload);
+      console.log("Profile updated:", updated);
       setUserData(updated);
       setIdProofUploads([]);
       setAddressProofUploads([]);
@@ -664,24 +715,31 @@ export default function AccountSettingsScreen() {
       <StatusBar backgroundColor={theme.primary} barStyle="light-content" />
 
       {/* Enhanced Header */}
-      <View style={[styles.header, { 
-        backgroundColor: theme.primary,
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.1,
-        shadowRadius: 12,
-        elevation: 8,
-      }]}>
+      <View
+        style={[
+          styles.header,
+          {
+            backgroundColor: theme.primary,
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: 4 },
+            shadowOpacity: 0.1,
+            shadowRadius: 12,
+            elevation: 8,
+          },
+        ]}
+      >
         <TouchableOpacity
           onPress={() => router.back()}
           style={styles.backButton}
         >
           <AppIcon name="arrow-back" color="#fff" size={24} />
         </TouchableOpacity>
-        
-        <View style={{ flex: 1, alignItems: 'center' }}>
+
+        <View style={{ flex: 1, alignItems: "center" }}>
           <Text style={styles.headerTitle}>Account Settings</Text>
-          <Text style={styles.headerSubtitle}>Manage your profile & security</Text>
+          <Text style={styles.headerSubtitle}>
+            Manage your profile & security
+          </Text>
         </View>
 
         <TouchableOpacity
@@ -689,10 +747,12 @@ export default function AccountSettingsScreen() {
           disabled={!canEditProfile || saving}
           style={[
             styles.saveButton,
-            { 
-              backgroundColor: canEditProfile ? "rgba(255,255,255,0.25)" : "rgba(255,255,255,0.1)",
-              opacity: (!canEditProfile || saving) ? 0.6 : 1,
-            }
+            {
+              backgroundColor: canEditProfile
+                ? "rgba(255,255,255,0.25)"
+                : "rgba(255,255,255,0.1)",
+              opacity: !canEditProfile || saving ? 0.6 : 1,
+            },
           ]}
         >
           {saving ? (
@@ -706,17 +766,22 @@ export default function AccountSettingsScreen() {
         </TouchableOpacity>
       </View>
 
-      <ScrollView 
+      <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
         {/* Profile Section */}
-        <Section 
-          title="Profile Information" 
+        <Section
+          title="Profile Information"
           theme={theme}
           subtitle="Update your personal details"
         >
-          <View style={[styles.profileHeader, { borderBottomColor: `${theme.border}80` }]}>
+          <View
+            style={[
+              styles.profileHeader,
+              { borderBottomColor: `${theme.border}80` },
+            ]}
+          >
             <View style={styles.avatarSection}>
               {avatarUri ? (
                 <Image source={{ uri: avatarUri }} style={styles.avatar} />
@@ -733,13 +798,23 @@ export default function AccountSettingsScreen() {
                 </View>
               )}
               <View style={styles.profileInfo}>
-                <Text style={[styles.profileName, { color: theme.text }]} numberOfLines={1}>
+                <Text
+                  style={[styles.profileName, { color: theme.text }]}
+                  numberOfLines={1}
+                >
                   {user?.firstName + " " + (user?.lastName || "") || "—"}
                 </Text>
                 <View style={styles.profileMeta}>
-                  <View style={[styles.verifiedBadge, { backgroundColor: `${theme.positive}20` }]}>
+                  <View
+                    style={[
+                      styles.verifiedBadge,
+                      { backgroundColor: `${theme.positive}20` },
+                    ]}
+                  >
                     <AppIcon name="verified" color={theme.positive} size={12} />
-                    <Text style={[styles.verifiedText, { color: theme.positive }]}>
+                    <Text
+                      style={[styles.verifiedText, { color: theme.positive }]}
+                    >
                       Verified Account
                     </Text>
                   </View>
@@ -752,14 +827,33 @@ export default function AccountSettingsScreen() {
           </View>
 
           <InputRow
-            label="Full Name"
-            value={fullName}
-            onChangeText={setFullName}
+            label="First Name"
+            value={firstName}
+            onChangeText={setFirstName}
             theme={theme}
-            placeholder="Enter your full name"
+            placeholder="Enter first name"
             editable={canEditProfile}
-            helperText={isKycApproved ? "Locked (KYC approved)" : "Editable until verification"}
+            helperText={
+              isKycApproved
+                ? "Locked (KYC approved)"
+                : "Editable until verification"
+            }
             icon="person"
+          />
+
+          <InputRow
+            label="Last Name"
+            value={lastName}
+            onChangeText={setLastName}
+            theme={theme}
+            placeholder="Enter last name"
+            editable={canEditProfile}
+            helperText={
+              isKycApproved
+                ? "Locked (KYC approved)"
+                : "Editable until verification"
+            }
+            icon="person-outline"
           />
 
           <Row
@@ -789,7 +883,9 @@ export default function AccountSettingsScreen() {
             placeholder="Enter mobile number"
             editable={canEditProfile}
             keyboardType="phone-pad"
-            helperText={canEditProfile ? "Editable" : "Locked after verification"}
+            helperText={
+              canEditProfile ? "Editable" : "Locked after verification"
+            }
             icon="phone"
           />
 
@@ -814,7 +910,9 @@ export default function AccountSettingsScreen() {
             icon="public"
           />
 
-          <Text style={[styles.sectionLabel, { color: theme.text, marginTop: 16 }]}>
+          <Text
+            style={[styles.sectionLabel, { color: theme.text, marginTop: 16 }]}
+          >
             Address Information
           </Text>
 
@@ -854,13 +952,66 @@ export default function AccountSettingsScreen() {
             editable={canEditProfile}
             keyboardType="number-pad"
             icon="pin-drop"
-            isLast={true}
+            isLast={false}
+          />
+
+          <Text
+            style={[styles.sectionLabel, { color: theme.text, marginTop: 16 }]}
+          >
+            Additional Information
+          </Text>
+
+          <Row
+            label="Gender"
+            value={gender || "Select gender"}
+            theme={theme}
+            locked={!canEditProfile}
+            onPress={() => setGenderModalOpen(true)}
+            helperText="Select your gender"
+            icon="wc"
+          />
+
+          <Row
+            label="Income"
+            value={income || "Select income range"}
+            theme={theme}
+            locked={!canEditProfile}
+            onPress={() => setIncomeModalOpen(true)}
+            helperText="Select your income range"
+            icon="attach-money"
+          />
+
+          <Row
+            label="Interests"
+            value={
+              interests.length > 0
+                ? `${interests.length} selected`
+                : "Select interests"
+            }
+            theme={theme}
+            locked={!canEditProfile}
+            onPress={() => setInterestsModalOpen(true)}
+            helperText="Select your interests"
+            icon="favorite"
+            isLast={false}
+          />
+
+          <InputRow
+            label="Comment"
+            value={comment}
+            onChangeText={setComment}
+            theme={theme}
+            placeholder="Add a comment"
+            editable={canEditProfile}
+            helperText="Optional"
+            multiline={true}
+            icon="comment"
           />
         </Section>
 
         {/* Security Section */}
-        <Section 
-          title="Security & Access" 
+        <Section
+          title="Security & Access"
           theme={theme}
           subtitle="Manage your account security"
         >
@@ -871,7 +1022,7 @@ export default function AccountSettingsScreen() {
             onPress={() => {}}
             icon="lock"
           />
-          
+
           <ToggleRow
             label="Biometric Login"
             value={biometricEnabled}
@@ -893,12 +1044,17 @@ export default function AccountSettingsScreen() {
         </Section>
 
         {/* KYC Section */}
-        <Section 
-          title="KYC Verification" 
+        <Section
+          title="KYC Verification"
           theme={theme}
           subtitle="Complete your identity verification"
         >
-          <View style={[styles.kycHeader, { borderBottomColor: `${theme.border}80` }]}>
+          <View
+            style={[
+              styles.kycHeader,
+              { borderBottomColor: `${theme.border}80` },
+            ]}
+          >
             <View style={styles.kycStatus}>
               <Text style={[styles.kycTitle, { color: theme.text }]}>
                 Verification Status
@@ -906,7 +1062,7 @@ export default function AccountSettingsScreen() {
               <StatusBadge status={user?.overallStatus} theme={theme} />
             </View>
             <Text style={[styles.kycDescription, { color: theme.secondary }]}>
-              {isKycApproved 
+              {isKycApproved
                 ? "Your account is fully verified and secure"
                 : "Complete KYC verification to unlock all features"}
             </Text>
@@ -922,10 +1078,17 @@ export default function AccountSettingsScreen() {
           />
 
           {user?.idProofRejectionReason && (
-            <View style={[styles.rejectionBox, { backgroundColor: `${theme.negative}10` }]}>
+            <View
+              style={[
+                styles.rejectionBox,
+                { backgroundColor: `${theme.negative}10` },
+              ]}
+            >
               <View style={styles.rejectionHeader}>
                 <AppIcon name="error" color={theme.negative} size={16} />
-                <Text style={[styles.rejectionTitle, { color: theme.negative }]}>
+                <Text
+                  style={[styles.rejectionTitle, { color: theme.negative }]}
+                >
                   Rejection Reason
                 </Text>
               </View>
@@ -935,11 +1098,13 @@ export default function AccountSettingsScreen() {
             </View>
           )}
 
-          <Text style={[styles.documentTitle, { color: theme.text, marginTop: 16 }]}>
+          <Text
+            style={[styles.documentTitle, { color: theme.text, marginTop: 16 }]}
+          >
             Uploaded ID Documents
           </Text>
-          <DocumentPreview 
-            paths={user?.idProofPath} 
+          <DocumentPreview
+            paths={user?.idProofPath}
             title="ID Proof"
             onPreview={async (path) => {
               try {
@@ -966,14 +1131,21 @@ export default function AccountSettingsScreen() {
               }}
               style={[styles.uploadButton, { borderColor: theme.border }]}
             >
-              <View style={[styles.uploadIcon, { backgroundColor: `${theme.primary}15` }]}>
+              <View
+                style={[
+                  styles.uploadIcon,
+                  { backgroundColor: `${theme.primary}15` },
+                ]}
+              >
                 <AppIcon name="cloud-upload" color={theme.primary} size={20} />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={[styles.uploadTitle, { color: theme.text }]}>
                   Upload ID Proof
                 </Text>
-                <Text style={[styles.uploadSubtitle, { color: theme.secondary }]}>
+                <Text
+                  style={[styles.uploadSubtitle, { color: theme.secondary }]}
+                >
                   Upload passport, driver's license or national ID
                 </Text>
               </View>
@@ -987,20 +1159,34 @@ export default function AccountSettingsScreen() {
                 Selected Files ({idProofUploads.length})
               </Text>
               {idProofUploads.map((file, index) => (
-                <View key={index} style={[styles.fileItem, { borderColor: theme.border }]}>
+                <View
+                  key={index}
+                  style={[styles.fileItem, { borderColor: theme.border }]}
+                >
                   <View style={styles.fileInfo}>
-                    <AppIcon 
-                      name={file.name?.toLowerCase().endsWith('.pdf') ? "picture-as-pdf" : "image"} 
-                      color={theme.primary} 
-                      size={18} 
+                    <AppIcon
+                      name={
+                        file.name?.toLowerCase().endsWith(".pdf")
+                          ? "picture-as-pdf"
+                          : "image"
+                      }
+                      color={theme.primary}
+                      size={18}
                     />
-                    <Text style={[styles.fileName, { color: theme.text }]} numberOfLines={1}>
+                    <Text
+                      style={[styles.fileName, { color: theme.text }]}
+                      numberOfLines={1}
+                    >
                       {file.name}
                     </Text>
                   </View>
-                  <TouchableOpacity onPress={() => {
-                    setIdProofUploads(prev => prev.filter((_, i) => i !== index));
-                  }}>
+                  <TouchableOpacity
+                    onPress={() => {
+                      setIdProofUploads((prev) =>
+                        prev.filter((_, i) => i !== index),
+                      );
+                    }}
+                  >
                     <AppIcon name="close" color={theme.secondary} size={18} />
                   </TouchableOpacity>
                 </View>
@@ -1014,14 +1200,23 @@ export default function AccountSettingsScreen() {
             theme={theme}
             locked={isKycApproved}
             icon="home"
-            right={<StatusBadge status={user?.addressProofStatus} theme={theme} />}
+            right={
+              <StatusBadge status={user?.addressProofStatus} theme={theme} />
+            }
           />
 
           {user?.addressProofRejectionReason && (
-            <View style={[styles.rejectionBox, { backgroundColor: `${theme.negative}10` }]}>
+            <View
+              style={[
+                styles.rejectionBox,
+                { backgroundColor: `${theme.negative}10` },
+              ]}
+            >
               <View style={styles.rejectionHeader}>
                 <AppIcon name="error" color={theme.negative} size={16} />
-                <Text style={[styles.rejectionTitle, { color: theme.negative }]}>
+                <Text
+                  style={[styles.rejectionTitle, { color: theme.negative }]}
+                >
                   Rejection Reason
                 </Text>
               </View>
@@ -1031,11 +1226,13 @@ export default function AccountSettingsScreen() {
             </View>
           )}
 
-          <Text style={[styles.documentTitle, { color: theme.text, marginTop: 16 }]}>
+          <Text
+            style={[styles.documentTitle, { color: theme.text, marginTop: 16 }]}
+          >
             Uploaded Address Documents
           </Text>
-          <DocumentPreview 
-            paths={user?.addressProofPath} 
+          <DocumentPreview
+            paths={user?.addressProofPath}
             title="Address Proof"
             onPreview={async (path) => {
               try {
@@ -1062,14 +1259,21 @@ export default function AccountSettingsScreen() {
               }}
               style={[styles.uploadButton, { borderColor: theme.border }]}
             >
-              <View style={[styles.uploadIcon, { backgroundColor: `${theme.primary}15` }]}>
+              <View
+                style={[
+                  styles.uploadIcon,
+                  { backgroundColor: `${theme.primary}15` },
+                ]}
+              >
                 <AppIcon name="cloud-upload" color={theme.primary} size={20} />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={[styles.uploadTitle, { color: theme.text }]}>
                   Upload Address Proof
                 </Text>
-                <Text style={[styles.uploadSubtitle, { color: theme.secondary }]}>
+                <Text
+                  style={[styles.uploadSubtitle, { color: theme.secondary }]}
+                >
                   Upload utility bill, bank statement or tax document
                 </Text>
               </View>
@@ -1083,20 +1287,34 @@ export default function AccountSettingsScreen() {
                 Selected Files ({addressProofUploads.length})
               </Text>
               {addressProofUploads.map((file, index) => (
-                <View key={index} style={[styles.fileItem, { borderColor: theme.border }]}>
+                <View
+                  key={index}
+                  style={[styles.fileItem, { borderColor: theme.border }]}
+                >
                   <View style={styles.fileInfo}>
-                    <AppIcon 
-                      name={file.name?.toLowerCase().endsWith('.pdf') ? "picture-as-pdf" : "image"} 
-                      color={theme.primary} 
-                      size={18} 
+                    <AppIcon
+                      name={
+                        file.name?.toLowerCase().endsWith(".pdf")
+                          ? "picture-as-pdf"
+                          : "image"
+                      }
+                      color={theme.primary}
+                      size={18}
                     />
-                    <Text style={[styles.fileName, { color: theme.text }]} numberOfLines={1}>
+                    <Text
+                      style={[styles.fileName, { color: theme.text }]}
+                      numberOfLines={1}
+                    >
                       {file.name}
                     </Text>
                   </View>
-                  <TouchableOpacity onPress={() => {
-                    setAddressProofUploads(prev => prev.filter((_, i) => i !== index));
-                  }}>
+                  <TouchableOpacity
+                    onPress={() => {
+                      setAddressProofUploads((prev) =>
+                        prev.filter((_, i) => i !== index),
+                      );
+                    }}
+                  >
                     <AppIcon name="close" color={theme.secondary} size={18} />
                   </TouchableOpacity>
                 </View>
@@ -1106,19 +1324,23 @@ export default function AccountSettingsScreen() {
         </Section>
 
         {/* Trading Preferences */}
-        <Section 
-          title="Trading Preferences" 
+        <Section
+          title="Trading Preferences"
           theme={theme}
           subtitle="Customize your trading experience"
         >
           <Row
             label="Default Trade Size"
-            value={user?.defaultTradeSize ? `${user.defaultTradeSize} lots` : "Not set"}
+            value={
+              user?.defaultTradeSize
+                ? `${user.defaultTradeSize} lots`
+                : "Not set"
+            }
             theme={theme}
             onPress={() => {}}
             icon="trending-up"
           />
-          
+
           <ToggleRow
             label="Order Confirmation"
             value={orderConfirmation}
@@ -1127,7 +1349,7 @@ export default function AccountSettingsScreen() {
             helperText="Show confirmation before placing orders"
             icon="check-circle"
           />
-          
+
           <ToggleRow
             label="One-Tap Trading"
             value={quickTradeEnabled}
@@ -1146,21 +1368,29 @@ export default function AccountSettingsScreen() {
             activeOpacity={1}
             onPress={() => setCountryModalOpen(false)}
           >
-            <View style={[styles.modalContent, { 
-              backgroundColor: theme.card,
-              shadowColor: "#000",
-              shadowOffset: { width: 0, height: 4 },
-              shadowOpacity: 0.3,
-              shadowRadius: 20,
-              elevation: 10,
-            }]}>
+            <View
+              style={[
+                styles.modalContent,
+                {
+                  backgroundColor: theme.card,
+                  shadowColor: "#000",
+                  shadowOffset: { width: 0, height: 4 },
+                  shadowOpacity: 0.3,
+                  shadowRadius: 20,
+                  elevation: 10,
+                },
+              ]}
+            >
               <View style={styles.modalHeader}>
                 <Text style={[styles.modalTitle, { color: theme.text }]}>
                   Select Country
                 </Text>
                 <TouchableOpacity
                   onPress={() => setCountryModalOpen(false)}
-                  style={[styles.modalClose, { backgroundColor: `${theme.border}50` }]}
+                  style={[
+                    styles.modalClose,
+                    { backgroundColor: `${theme.border}50` },
+                  ]}
                 >
                   <AppIcon name="close" color={theme.secondary} size={18} />
                 </TouchableOpacity>
@@ -1169,7 +1399,12 @@ export default function AccountSettingsScreen() {
               {countriesLoading ? (
                 <View style={styles.modalLoading}>
                   <ActivityIndicator color={theme.primary} size="large" />
-                  <Text style={[styles.modalLoadingText, { color: theme.secondary }]}>
+                  <Text
+                    style={[
+                      styles.modalLoadingText,
+                      { color: theme.secondary },
+                    ]}
+                  >
                     Loading countries...
                   </Text>
                 </View>
@@ -1182,9 +1417,14 @@ export default function AccountSettingsScreen() {
                         setCountry(c);
                         setCountryModalOpen(false);
                       }}
-                      style={[styles.modalItem, { borderBottomColor: theme.border }]}
+                      style={[
+                        styles.modalItem,
+                        { borderBottomColor: theme.border },
+                      ]}
                     >
-                      <Text style={[styles.modalItemText, { color: theme.text }]}>
+                      <Text
+                        style={[styles.modalItemText, { color: theme.text }]}
+                      >
                         {c}
                       </Text>
                       {country === c && (
@@ -1195,12 +1435,214 @@ export default function AccountSettingsScreen() {
                 </ScrollView>
               ) : (
                 <View style={styles.modalEmpty}>
-                  <AppIcon name="search-off" color={theme.secondary} size={40} />
-                  <Text style={[styles.modalEmptyText, { color: theme.secondary }]}>
+                  <AppIcon
+                    name="search-off"
+                    color={theme.secondary}
+                    size={40}
+                  />
+                  <Text
+                    style={[styles.modalEmptyText, { color: theme.secondary }]}
+                  >
                     No countries available
                   </Text>
                 </View>
               )}
+            </View>
+          </TouchableOpacity>
+        </Modal>
+
+        {/* Gender Modal */}
+        <Modal visible={genderModalOpen} transparent animationType="fade">
+          <TouchableOpacity
+            style={styles.modalOverlay}
+            activeOpacity={1}
+            onPress={() => setGenderModalOpen(false)}
+          >
+            <View
+              style={[
+                styles.modalContent,
+                {
+                  backgroundColor: theme.card,
+                  shadowColor: "#000",
+                  shadowOffset: { width: 0, height: 4 },
+                  shadowOpacity: 0.3,
+                  shadowRadius: 20,
+                  elevation: 10,
+                },
+              ]}
+            >
+              <View style={styles.modalHeader}>
+                <Text style={[styles.modalTitle, { color: theme.text }]}>
+                  Select Gender
+                </Text>
+                <TouchableOpacity
+                  onPress={() => setGenderModalOpen(false)}
+                  style={[
+                    styles.modalClose,
+                    { backgroundColor: `${theme.border}50` },
+                  ]}
+                >
+                  <AppIcon name="close" color={theme.secondary} size={18} />
+                </TouchableOpacity>
+              </View>
+              <ScrollView style={styles.modalList}>
+                {["male", "female", "other"].map((g) => (
+                  <TouchableOpacity
+                    key={g}
+                    onPress={() => {
+                      setGender(g);
+                      setGenderModalOpen(false);
+                    }}
+                    style={[
+                      styles.modalItem,
+                      { borderBottomColor: theme.border },
+                    ]}
+                  >
+                    <Text style={[styles.modalItemText, { color: theme.text }]}>
+                      {g.charAt(0).toUpperCase() + g.slice(1)}
+                    </Text>
+                    {gender === g && (
+                      <AppIcon name="check" color={theme.primary} size={20} />
+                    )}
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+          </TouchableOpacity>
+        </Modal>
+
+        {/* Income Modal */}
+        <Modal visible={incomeModalOpen} transparent animationType="fade">
+          <TouchableOpacity
+            style={styles.modalOverlay}
+            activeOpacity={1}
+            onPress={() => setIncomeModalOpen(false)}
+          >
+            <View
+              style={[
+                styles.modalContent,
+                {
+                  backgroundColor: theme.card,
+                  shadowColor: "#000",
+                  shadowOffset: { width: 0, height: 4 },
+                  shadowOpacity: 0.3,
+                  shadowRadius: 20,
+                  elevation: 10,
+                },
+              ]}
+            >
+              <View style={styles.modalHeader}>
+                <Text style={[styles.modalTitle, { color: theme.text }]}>
+                  Select Income Range
+                </Text>
+                <TouchableOpacity
+                  onPress={() => setIncomeModalOpen(false)}
+                  style={[
+                    styles.modalClose,
+                    { backgroundColor: `${theme.border}50` },
+                  ]}
+                >
+                  <AppIcon name="close" color={theme.secondary} size={18} />
+                </TouchableOpacity>
+              </View>
+              <ScrollView style={styles.modalList}>
+                {[
+                  "0-25000",
+                  "25000-50000",
+                  "50000-100000",
+                  "100000-250000",
+                  "250000+",
+                ].map((inc) => (
+                  <TouchableOpacity
+                    key={inc}
+                    onPress={() => {
+                      setIncome(inc);
+                      setIncomeModalOpen(false);
+                    }}
+                    style={[
+                      styles.modalItem,
+                      { borderBottomColor: theme.border },
+                    ]}
+                  >
+                    <Text style={[styles.modalItemText, { color: theme.text }]}>
+                      {inc}
+                    </Text>
+                    {income === inc && (
+                      <AppIcon name="check" color={theme.primary} size={20} />
+                    )}
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+          </TouchableOpacity>
+        </Modal>
+
+        {/* Interests Modal */}
+        <Modal visible={interestsModalOpen} transparent animationType="fade">
+          <TouchableOpacity
+            style={styles.modalOverlay}
+            activeOpacity={1}
+            onPress={() => setInterestsModalOpen(false)}
+          >
+            <View
+              style={[
+                styles.modalContent,
+                {
+                  backgroundColor: theme.card,
+                  shadowColor: "#000",
+                  shadowOffset: { width: 0, height: 4 },
+                  shadowOpacity: 0.3,
+                  shadowRadius: 20,
+                  elevation: 10,
+                },
+              ]}
+            >
+              <View style={styles.modalHeader}>
+                <Text style={[styles.modalTitle, { color: theme.text }]}>
+                  Select Interests
+                </Text>
+                <TouchableOpacity
+                  onPress={() => setInterestsModalOpen(false)}
+                  style={[
+                    styles.modalClose,
+                    { backgroundColor: `${theme.border}50` },
+                  ]}
+                >
+                  <AppIcon name="close" color={theme.secondary} size={18} />
+                </TouchableOpacity>
+              </View>
+              <ScrollView style={styles.modalList}>
+                {[
+                  { label: "Technology", value: "technology" },
+                  { label: "Sports", value: "sports" },
+                  { label: "Reading", value: "reading" },
+                  { label: "Travel", value: "travel" },
+                  { label: "Music", value: "music" },
+                  { label: "Cooking", value: "cooking" },
+                ].map(({ label, value }) => (
+                  <TouchableOpacity
+                    key={value}
+                    onPress={() => {
+                      if (interests.includes(value)) {
+                        setInterests(interests.filter((i) => i !== value));
+                      } else {
+                        setInterests([...interests, value]);
+                      }
+                    }}
+                    style={[
+                      styles.modalItem,
+                      { borderBottomColor: theme.border },
+                    ]}
+                  >
+                    <Text style={[styles.modalItemText, { color: theme.text }]}>
+                      {label}
+                    </Text>
+                    {interests.includes(value) && (
+                      <AppIcon name="check" color={theme.primary} size={20} />
+                    )}
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
             </View>
           </TouchableOpacity>
         </Modal>
@@ -1215,7 +1657,10 @@ export default function AccountSettingsScreen() {
             <View style={styles.previewContainer}>
               <TouchableOpacity
                 onPress={() => setPreviewImage(null)}
-                style={[styles.previewClose, { backgroundColor: "rgba(0,0,0,0.5)" }]}
+                style={[
+                  styles.previewClose,
+                  { backgroundColor: "rgba(0,0,0,0.5)" },
+                ]}
               >
                 <AppIcon name="close" color="#fff" size={24} />
               </TouchableOpacity>
@@ -1340,7 +1785,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 12,
-    alignSelf: 'flex-start',
+    alignSelf: "flex-start",
   },
   verifiedText: {
     fontSize: 11,

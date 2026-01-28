@@ -43,7 +43,7 @@ export default function Login() {
 
   const onSubmit = async () => {
     const result = await login({ email: username, password });
-    // console.log("Login result:", result);
+    console.log("Login result:", result);
     if (result.success) {
       // If user enabled biometrics OR opted to remember, store creds securely
       // so biometric login can re-auth even after logout/fresh install.

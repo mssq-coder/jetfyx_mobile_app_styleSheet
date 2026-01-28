@@ -5,13 +5,11 @@ import { useEffect, useRef, useState } from "react";
 import {
   Alert,
   LayoutAnimation,
-  Modal,
-  ScrollView,
   StatusBar,
   StyleSheet,
   Text,
   TouchableOpacity,
-  View,
+  View
 } from "react-native";
 import DraggableFlatList, {
   ScaleDecorator,
@@ -22,6 +20,7 @@ import { getFavouriteWatchlistSymbols } from "../../api/auth";
 import { getAllCurrencyListFromDB } from "../../api/getServices";
 import { createOrder } from "../../api/orders";
 import AppIcon from "../../components/AppIcon";
+import InstrumentInfoModal from "../../components/InstrumentInfoModal";
 import AllSymbolsSectionList from "../../components/MarketViewComponents/AllSymbolsSectionList";
 import ExpandedRow from "../../components/MarketViewComponents/expandedRow";
 import { useAppTheme } from "../../contexts/ThemeContext";
@@ -39,6 +38,7 @@ export default function Trade() {
   const [placingOrderForId, setPlacingOrderForId] = useState(null);
   const [infoVisible, setInfoVisible] = useState(false);
   const [infoItem, setInfoItem] = useState(null);
+  // console.log("Info Item:", infoItem);
   const selectedAccountId = useAuthStore((state) => state.selectedAccountId);
 
   // Keep last rows reachable above the absolute tab bar + FAB
@@ -73,61 +73,48 @@ export default function Trade() {
   const HUB_BASE_URL = API_BASE_URL.replace(/\/api\/?$/i, "");
 
   // ============================
-  // ✅ WATCHLIST LOAD
+  // ✅ LOAD DATA
   // ============================
   useEffect(() => {
     if (!selectedAccountId) return;
 
-    const loadWatchlist = async () => {
+    const loadData = async () => {
       try {
+        // Always load currency list
+        const currencyData = await getAllCurrencyListFromDB(selectedAccountId);
+        const allMapped = mapCurrencyListToInstruments(currencyData);
+        setAllSymbols(allMapped);
+        setAllSymbolsCount(allMapped.length);
+
         if (activeTab === "Favourites") {
-          // console.log(
-          //   "📊 Market - Loading favourites for account:",
-          //   selectedAccountId,
-          // );
-          const data = await getFavouriteWatchlistSymbols(selectedAccountId);
+          const watchlistData =
+            await getFavouriteWatchlistSymbols(selectedAccountId);
+          const watchlistSymbols = new Set(
+            watchlistData.map((item) => item.symbol),
+          );
+          const sortOrderMap = new Map(
+            watchlistData.map((item) => [item.symbol, item.sortOrderId || 0]),
+          );
 
-          // Try to fetch currency list once so we can enrich favourites with metadata
-          let currencyList = [];
-          try {
-            currencyList = await getAllCurrencyListFromDB(selectedAccountId);
-          } catch (e) {
-            // not fatal — favourites will still show basic info
-            console.warn(
-              "Could not fetch currency list to enrich favourites",
-              e,
-            );
-          }
+          const favouritesMapped = allMapped
+            .filter((item) => watchlistSymbols.has(item.symbol))
+            .sort((a, b) => {
+              const aOrder = sortOrderMap.get(a.symbol) || 0;
+              const bOrder = sortOrderMap.get(b.symbol) || 0;
+              return aOrder - bOrder;
+            });
 
-          // Build lookup by symbol for quick merge
-          const lookup = (
-            Array.isArray(currencyList) ? currencyList : []
-          ).reduce((acc, cur) => {
-            if (cur && cur.symbol) acc[String(cur.symbol)] = cur;
-            return acc;
-          }, {});
-
-          const mapped = mapWatchlistToInstruments(data, lookup);
-          setInstruments(mapped);
-          setFavouritesCount(Array.isArray(mapped) ? mapped.length : 0);
+          setInstruments(favouritesMapped);
+          setFavouritesCount(favouritesMapped.length);
         } else if (activeTab === "All Symbols") {
-          // console.log(
-          //   "📊 Market - Loading all symbols for account:",
-          //   selectedAccountId,
-          // );
-          const data = await getAllCurrencyListFromDB(selectedAccountId);
-          const mapped = mapCurrencyListToInstruments(data);
-          // console.log(`📈 Loaded ${mapped.length} symbols from CurrencyPair`);
-          setAllSymbols(mapped);
-          setInstruments(mapped);
-          setAllSymbolsCount(Array.isArray(mapped) ? mapped.length : 0);
+          setInstruments(allMapped);
         }
       } catch (error) {
         console.error("API error:", error);
       }
     };
 
-    loadWatchlist();
+    loadData();
   }, [selectedAccountId, activeTab]);
 
   // ============================
@@ -359,55 +346,6 @@ export default function Trade() {
 
   const tabs = ["Favourites", "All Symbols"];
   // ============================
-  // ✅ MAP WATCHLIST TO INSTRUMENTS
-  // ============================
-  const mapWatchlistToInstruments = (watchlist = [], currencyLookup = {}) => {
-    return (Array.isArray(watchlist) ? watchlist.slice() : [])
-      .sort((a, b) => (a.sortOrderId || 0) - (b.sortOrderId || 0))
-      .map((item) => {
-        const symbol = String(item.symbol || "");
-        const meta = currencyLookup[symbol] || {};
-
-        return {
-          id: String(item.id),
-          symbol,
-
-          // Merge useful metadata from currency list when available
-          description: meta.description ?? item.description ?? null,
-          digits: Number.isFinite(Number(meta.digits ?? item.digits))
-            ? parseInt(meta.digits ?? item.digits, 10)
-            : 5,
-          minLotSize: meta.minLotSize ?? item.minLotSize ?? null,
-          maxLotSize: meta.maxLotSize ?? item.maxLotSize ?? null,
-          lotStepSize: meta.lotStepSize ?? item.lotStepSize ?? null,
-          contractSize: meta.contractSize ?? item.contractSize ?? null,
-          contractValue: meta.contractValue ?? item.contractValue ?? null,
-          buySpread: meta.buySpread ?? item.buySpread ?? null,
-          sellSpread: meta.sellSpread ?? item.sellSpread ?? null,
-          commission: meta.commission ?? item.commission ?? null,
-          swapLong: meta.swapLong ?? item.swapLong ?? null,
-          swapShort: meta.swapShort ?? item.swapShort ?? null,
-          sessionQuotes: meta.sessionQuotes ?? item.sessionQuotes ?? null,
-
-          // Initial values — will update live from SignalR
-          price: null,
-          bid: null,
-          ask: null,
-          _rawPrice: null,
-          _rawBid: null,
-          _rawAsk: null,
-          change: null,
-          time: null,
-          high: null,
-          low: null,
-          highValue: null,
-          isPositive: true,
-          spread: null,
-        };
-      });
-  };
-
-  // ============================
   // ✅ MAP ALL SYMBOLS (CurrencyPair) TO INSTRUMENTS
   // ============================
   const mapCurrencyListToInstruments = (list = []) => {
@@ -436,6 +374,7 @@ export default function Trade() {
         executionType: item.executionType ?? null,
         tradeAccess: item.tradeAccess ?? null,
         spreadType: item.spreadType ?? null,
+        hedgeMargin: item.marginHedge ?? null,
         fixedSpread: item.fixedSpread ?? null,
         buySpread: item.buySpread ?? null,
         sellSpread: item.sellSpread ?? null,
@@ -451,6 +390,7 @@ export default function Trade() {
         limitAndStopLevelPoints: item.limitAndStopLevelPoints ?? null,
         orderType: item.orderType ?? null,
         sessionQuotes: item.sessionQuotes ?? null,
+        threeDaySwapDay: item.threeDaySwapDay ?? null,
 
         // Initial values — will update live from SignalR
         price: null,
@@ -493,190 +433,12 @@ export default function Trade() {
       <StatusBar backgroundColor={theme.primary} barStyle="light-content" />
 
       {/* Instrument Info Modal */}
-      <Modal
+      <InstrumentInfoModal
         visible={infoVisible}
-        transparent
-        animationType="slide"
-        onRequestClose={closeInfo}
-      >
-        <View
-          style={{
-            flex: 1,
-            backgroundColor: "rgba(0,0,0,0.55)",
-            justifyContent: "flex-end",
-          }}
-        >
-          <View
-            style={{
-              backgroundColor: theme.card,
-              borderTopLeftRadius: 18,
-              borderTopRightRadius: 18,
-              paddingHorizontal: 16,
-              paddingTop: 14,
-              paddingBottom: 18,
-              maxHeight: "80%",
-              borderWidth: 1,
-              borderColor: theme.border,
-            }}
-          >
-            <View
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                justifyContent: "space-between",
-                marginBottom: 10,
-              }}
-            >
-              <View style={{ flex: 1, paddingRight: 10 }}>
-                <Text
-                  style={{ color: theme.text, fontSize: 18, fontWeight: "800" }}
-                >
-                  {infoItem?.symbol
-                    ? String(infoItem.symbol)
-                    : "Instrument Info"}
-                </Text>
-                {infoItem?.description ? (
-                  <Text
-                    style={{ color: theme.secondary, marginTop: 2 }}
-                    numberOfLines={2}
-                  >
-                    {String(infoItem.description)}
-                  </Text>
-                ) : null}
-              </View>
-
-              <TouchableOpacity
-                onPress={closeInfo}
-                style={{
-                  width: 36,
-                  height: 36,
-                  borderRadius: 10,
-                  alignItems: "center",
-                  justifyContent: "center",
-                  backgroundColor: theme.background,
-                  borderWidth: 1,
-                  borderColor: theme.border,
-                }}
-                accessibilityRole="button"
-                accessibilityLabel="Close instrument info"
-              >
-                <AppIcon name="close" size={18} color={theme.secondary} />
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView showsVerticalScrollIndicator={false}>
-              {(() => {
-                const rows = [
-                  ["Group", infoItem?.currencyGroupName],
-                  ["Category", infoItem?.categoryName],
-                  ["Sector", infoItem?.sectorName],
-                  ["Digits", infoItem?.digits],
-                  ["Min Lot", infoItem?.minLotSize],
-                  ["Max Lot", infoItem?.maxLotSize],
-                  ["Lot Step", infoItem?.lotStepSize],
-                  ["Contract Size", infoItem?.contractSize],
-                  ["Contract Value", infoItem?.contractValue],
-                  ["Contract Units", infoItem?.contractUnits],
-                  ["Execution", infoItem?.executionType],
-                  ["Trade Access", infoItem?.tradeAccess],
-                  ["Spread Type", infoItem?.spreadType],
-                  ["Fixed Spread", infoItem?.fixedSpread],
-                  ["Buy Spread", infoItem?.buySpread],
-                  ["Sell Spread", infoItem?.sellSpread],
-                  ["Commission", infoItem?.commission],
-                  ["Swap Long", infoItem?.swapLong],
-                  ["Swap Short", infoItem?.swapShort],
-                  ["Base Currency", infoItem?.baseCurrency],
-                  ["Margin Currency", infoItem?.marginCurrency],
-                  ["Profit Currency", infoItem?.profitCurrency],
-                  ["Margin Type", infoItem?.marginCalculationType],
-                  ["Margin %", infoItem?.marginPercentage],
-                  ["Limit/Stop Level", infoItem?.limitAndStopLevelPoints],
-                ];
-
-                return rows.map(([label, value]) => (
-                  <View
-                    key={label}
-                    style={{
-                      flexDirection: "row",
-                      justifyContent: "space-between",
-                      paddingVertical: 10,
-                      borderBottomWidth: 1,
-                      borderBottomColor: theme.border,
-                    }}
-                  >
-                    <Text
-                      style={{
-                        color: theme.secondary,
-                        fontSize: 13,
-                        fontWeight: "600",
-                      }}
-                    >
-                      {label}
-                    </Text>
-                    <Text
-                      style={{
-                        color: theme.text,
-                        fontSize: 13,
-                        fontWeight: "700",
-                        marginLeft: 12,
-                        flex: 1,
-                        textAlign: "right",
-                      }}
-                      numberOfLines={2}
-                    >
-                      {value == null || value === "" ? "--" : String(value)}
-                    </Text>
-                  </View>
-                ));
-              })()}
-
-              {Array.isArray(infoItem?.orderType) &&
-              infoItem.orderType.length ? (
-                <View style={{ paddingVertical: 12 }}>
-                  <Text
-                    style={{
-                      color: theme.secondary,
-                      fontSize: 13,
-                      fontWeight: "700",
-                      marginBottom: 8,
-                    }}
-                  >
-                    Order Types
-                  </Text>
-                  <View
-                    style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}
-                  >
-                    {infoItem.orderType.map((t) => (
-                      <View
-                        key={String(t)}
-                        style={{
-                          paddingHorizontal: 10,
-                          paddingVertical: 6,
-                          borderRadius: 999,
-                          backgroundColor: theme.primary + "15",
-                          borderWidth: 1,
-                          borderColor: theme.primary + "35",
-                        }}
-                      >
-                        <Text
-                          style={{
-                            color: theme.text,
-                            fontWeight: "700",
-                            fontSize: 12,
-                          }}
-                        >
-                          {String(t)}
-                        </Text>
-                      </View>
-                    ))}
-                  </View>
-                </View>
-              ) : null}
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
+        item={infoItem}
+        onClose={closeInfo}
+        theme={theme}
+      />
 
       {/* Header with Tabs */}
       <View

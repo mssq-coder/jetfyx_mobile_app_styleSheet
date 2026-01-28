@@ -98,7 +98,7 @@ const ExpandedRow = ({
               opacity: onInfo ? 1 : 0.5,
             }}
           >
-            <AppIcon name="info-outline" size={14} color={theme.secondary} />
+            <AppIcon name="info" size={14} color={theme.secondary} />
           </TouchableOpacity>
 
           <TouchableOpacity

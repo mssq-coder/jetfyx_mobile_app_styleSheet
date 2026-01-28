@@ -15,6 +15,22 @@ export const themes = {
     tabActive: "#4285F4",
     tabInactive: "#9E9E9E",
   },
+  lightgreen: {
+    name: "light",
+    background: "white",
+    text: "black",
+    primary: "#6df77b", // red
+    card: "#f2f2f2",
+    icon: "#1c9fa5",
+    // Trading specific colors
+    positive: "#004bff",
+    negative: "#FF4444",
+    border: "#E0E0E0",
+    secondary: "#6C757D",
+    headerBlue: "#4285F4",
+    tabActive: "#4285F4",
+    tabInactive: "#9E9E9E",
+  },
 
   dark: {
     name: "dark",
@@ -35,14 +51,14 @@ export const themes = {
 
   green: {
     name: "green",
-    background: "#062B1A",
-    text: "#EAFBF3",
+    background: "#e8fef4",
+    text: "#070000",
     primary: "#16A34A",
-    card: "#0B3A25",
+    card: "#039151",
     icon: "#86EFAC",
     // Trading specific colors
-    positive: "#22C55E",
-    negative: "#FF4444",
+    positive: "#e7ff89",
+    negative: "#fc8080",
     border: "#14532D",
     secondary: "#BBF7D0",
     headerBlue: "#16A34A",
