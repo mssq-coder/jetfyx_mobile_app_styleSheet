@@ -51,13 +51,13 @@ export const themes = {
 
   green: {
     name: "green",
-    background: "#e8fef4",
+    background: "#f7f7f7",
     text: "#070000",
     primary: "#16A34A",
-    card: "#039151",
-    icon: "#86EFAC",
+    card: "#d7ffed",
+    icon: "#b0f7ca",
     // Trading specific colors
-    positive: "#e7ff89",
+    positive: "#18fbe0",
     negative: "#fc8080",
     border: "#14532D",
     secondary: "#BBF7D0",

@@ -41,6 +41,7 @@ export async function updateOrder(orderId, payload) {
   };
 
   const response = await api.put(`/Orders/${orderId}`, normalizedPayload);
+  console.log("updateOrder response:", response.data);
   return response.data;
 }
 
