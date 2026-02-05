@@ -10,9 +10,11 @@ import * as SplashScreen from "expo-splash-screen";
 import { useEffect } from "react";
 import "react-native-gesture-handler";
 import "react-native-reanimated";
+import Toast from "react-native-toast-message";
 
 import { useColorScheme } from "@/components/useColorScheme";
 import CustomDrawerContent from "../components/CustomDrawerContent";
+import { toastConfig } from "../components/ToastConfig";
 import { ThemeProvider as AppThemeProvider } from "../contexts/ThemeContext";
 
 export {
@@ -79,6 +81,7 @@ function RootLayoutNav() {
             options={{ drawerItemStyle: { display: "none" } }}
           />
         </Drawer>
+        <Toast config={toastConfig} />
       </ThemeProvider>
     </AppThemeProvider>
   );

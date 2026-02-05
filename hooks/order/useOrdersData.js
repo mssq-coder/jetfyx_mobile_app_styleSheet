@@ -105,6 +105,34 @@ export const useOrdersData = ({ tab }) => {
     [],
   );
 
+  const patchOrderInLists = useCallback(
+    (orderIdToPatch, patch) => {
+      if (orderIdToPatch == null || !patch || typeof patch !== "object") return;
+      const key = String(orderIdToPatch);
+
+      const patchOne = (o) => {
+        const oid = getOrderId(o);
+        if (oid == null) return o;
+        return String(oid) === key ? { ...o, ...patch } : o;
+      };
+
+      setOrders((prev) => (prev || []).map(patchOne));
+      setPendingOrders((prev) => (prev || []).map(patchOne));
+    },
+    [getOrderId],
+  );
+
+  const removeOrderFromLists = useCallback(
+    (orderIdToRemove) => {
+      if (orderIdToRemove == null) return;
+      const key = String(orderIdToRemove);
+      const keep = (o) => String(getOrderId(o)) !== key;
+      setOrders((prev) => (prev || []).filter(keep));
+      setPendingOrders((prev) => (prev || []).filter(keep));
+    },
+    [getOrderId],
+  );
+
   const toNumberOrZero = useCallback((value) => {
     if (value == null || value === "") return 0;
     const n = Number(value);
@@ -351,5 +379,7 @@ export const useOrdersData = ({ tab }) => {
     formatWithDecimals,
     adjustNumberInputByStep,
     validateSlTp,
+    patchOrderInLists,
+    removeOrderFromLists,
   };
 };

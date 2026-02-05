@@ -3,13 +3,12 @@ import { useRouter } from "expo-router";
 import * as SecureStore from "expo-secure-store";
 import { useEffect, useRef, useState } from "react";
 import {
-  Alert,
   LayoutAnimation,
   StatusBar,
   StyleSheet,
   Text,
   TouchableOpacity,
-  View
+  View,
 } from "react-native";
 import DraggableFlatList, {
   ScaleDecorator,
@@ -24,6 +23,11 @@ import InstrumentInfoModal from "../../components/InstrumentInfoModal";
 import AllSymbolsSectionList from "../../components/MarketViewComponents/AllSymbolsSectionList";
 import ExpandedRow from "../../components/MarketViewComponents/expandedRow";
 import { useAppTheme } from "../../contexts/ThemeContext";
+import {
+  showErrorToast,
+  showInfoToast,
+  showSuccessToast,
+} from "../../utils/toast";
 
 // ✅ SignalR client
 import * as signalR from "@microsoft/signalr";
@@ -237,7 +241,10 @@ export default function Trade() {
               // ============================
               // ✅ CHANGE CALCULATION
               // ============================
-              change: payload.changePercent.toFixed(2),
+              change:
+                payload?.changePercent != null
+                  ? Number(payload.changePercent).toFixed(2)
+                  : item.change ?? null,
 
               // ============================
               // ✅ POSITIVE / NEGATIVE FLAG
@@ -303,11 +310,11 @@ export default function Trade() {
 
   const placeOrder = async ({ instrumentId, symbol, lotSize, side }) => {
     if (!selectedAccountId) {
-      Alert.alert("Account missing", "Please select an account first.");
+      showInfoToast("Please select an account first.", "Account missing");
       return;
     }
     if (!symbol) {
-      Alert.alert("Symbol missing", "Please select a symbol first.");
+      showInfoToast("Please select a symbol first.", "Symbol missing");
       return;
     }
 
@@ -330,7 +337,7 @@ export default function Trade() {
 
       const response = await createOrder(payload);
       // console.log("✅ Order created:", response);
-      Alert.alert("Order placed", `${side} ${symbol} ${payload.lotSize}`);
+      showSuccessToast(`${side} ${symbol} ${payload.lotSize}`, "Order placed");
       setExpandedId(null);
     } catch (error) {
       console.error("❌ Create order failed:", error?.response?.data ?? error);
@@ -338,7 +345,7 @@ export default function Trade() {
         error?.response?.data?.message ||
         error?.response?.data?.error ||
         "Failed to create order. Please try again.";
-      Alert.alert("Order failed", String(message));
+      showErrorToast(String(message), "Order failed");
     } finally {
       setPlacingOrderForId(null);
     }
@@ -753,7 +760,7 @@ export default function Trade() {
         style={{
           position: "absolute",
           right: 18,
-          bottom: insets.bottom + 90,
+          bottom: insets.bottom + 50,
           width: 60,
           height: 60,
           borderRadius: 30,

@@ -1,6 +1,7 @@
 import { useCallback } from "react";
-import { Alert, TouchableOpacity, View } from "react-native";
+import { TouchableOpacity, View } from "react-native";
 import { Swipeable } from "react-native-gesture-handler";
+import { showInfoToast } from "../../utils/toast";
 import AppIcon from "../AppIcon";
 import OrderCollapsedView from "./OrderCollapsedView";
 import OrderExpandedView from "./OrderExpandedView";
@@ -63,9 +64,9 @@ const OrderCard = ({
         onPress={() => {
           closeSwipe();
           if (!multiTargetEnabled) {
-            Alert.alert(
-              "Multi target",
+            showInfoToast(
               `Multi target is only available when order lot is greater than the minimum lot.\n\nOrder lot: ${orderLot}\nMin lot: ${minLot || "—"}`,
+              "Multi target",
             );
             return;
           }

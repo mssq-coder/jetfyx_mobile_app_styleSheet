@@ -10,6 +10,7 @@ import UpdateSlTpModal from "../../components/OrderComponents/UpdateSlTpModal";
 import { useAppTheme } from "../../contexts/ThemeContext";
 
 import AccountHeader from "../../components/OrderComponents/AccountHeader";
+import BulkCloseModal from "../../components/OrderComponents/BulkCloseModal";
 import EmptyState from "../../components/OrderComponents/EmptyState";
 import FloatingHistoryButton from "../../components/OrderComponents/FloatingHistoryButton";
 import OrderCard from "../../components/OrderComponents/OrderCard";
@@ -36,6 +37,7 @@ const OrderListScreen = () => {
   const [bulkMode, setBulkMode] = useState(false);
   const [selectedOrderIds, setSelectedOrderIds] = useState({});
   const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [bulkCloseModalOpen, setBulkCloseModalOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [editOrder, setEditOrder] = useState(null);
   const [targetsOpen, setTargetsOpen] = useState(false);
@@ -69,6 +71,7 @@ const OrderListScreen = () => {
   useEffect(() => {
     if (!bulkMode) {
       setSelectedOrderIds({});
+      setBulkCloseModalOpen(false);
     }
   }, [bulkMode]);
 
@@ -83,13 +86,38 @@ const OrderListScreen = () => {
     }
   };
 
-  // These functions need to be defined or passed from hooks
-  const patchOrderInLists = (orderIdToPatch, patch) => {
-    // Implementation from original code
+  const getOrderProfit = (order) => {
+    const v =
+      order?.profitOrLoss ??
+      order?.pl ??
+      order?.profit ??
+      order?.unrealizedPnL ??
+      order?.pnl ??
+      0;
+    const n = Number(v);
+    return Number.isFinite(n) ? n : 0;
   };
 
-  const removeOrderFromLists = (orderIdToRemove) => {
-    // Implementation from original code
+  const selectOrdersByPredicate = (predicate) => {
+    const next = {};
+    for (const o of listOrders || []) {
+      const oid = getOrderId(o);
+      if (oid == null) continue;
+      if (!predicate || predicate(o)) next[String(oid)] = true;
+    }
+    setSelectedOrderIds(next);
+  };
+
+  const selectAllOrders = () => selectOrdersByPredicate(() => true);
+  const selectProfitOrders = () =>
+    selectOrdersByPredicate((o) => getOrderProfit(o) > 0);
+  const selectLossOrders = () =>
+    selectOrdersByPredicate((o) => getOrderProfit(o) < 0);
+  const clearSelection = () => setSelectedOrderIds({});
+
+  const cancelBulkModeAndCloseModal = () => {
+    setBulkCloseModalOpen(false);
+    cancelBulkMode();
   };
 
   const {
@@ -117,6 +145,8 @@ const OrderListScreen = () => {
     formatWithDecimals,
     adjustNumberInputByStep,
     validateSlTp,
+    patchOrderInLists,
+    removeOrderFromLists,
   } = useOrdersData({
     tab,
   });
@@ -248,10 +278,11 @@ const OrderListScreen = () => {
                 setSelectedOrderIds={setSelectedOrderIds}
                 setExpandedOrderId={setExpandedOrderId}
                 openSwipeRef={openSwipeRef}
-                cancelBulkMode={cancelBulkMode}
+                cancelBulkMode={cancelBulkModeAndCloseModal}
                 submitBulkDelete={submitBulkDelete}
                 selectedCount={selectedCount}
                 bulkDeleting={bulkDeleting}
+                onOpenBulkCloseModal={() => setBulkCloseModalOpen(true)}
               />
             </>
           )}
@@ -286,6 +317,21 @@ const OrderListScreen = () => {
         />
 
         <FloatingHistoryButton router={router} theme={theme} />
+
+        <BulkCloseModal
+          visible={bulkCloseModalOpen}
+          theme={theme}
+          totalCount={(listOrders || []).length}
+          selectedCount={selectedCount}
+          bulkDeleting={bulkDeleting}
+          onClose={() => setBulkCloseModalOpen(false)}
+          onCancelBulkMode={cancelBulkModeAndCloseModal}
+          onSelectAll={selectAllOrders}
+          onSelectProfit={selectProfitOrders}
+          onSelectLoss={selectLossOrders}
+          onClearSelection={clearSelection}
+          onSubmitClose={submitBulkDelete}
+        />
 
         <AccountSummaryModal
           visible={summaryOpen}

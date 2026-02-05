@@ -1,8 +1,8 @@
 import {
-  HubConnectionBuilder,
-  LogLevel,
   HttpTransportType,
+  HubConnectionBuilder,
   HubConnectionState,
+  LogLevel,
 } from "@microsoft/signalr";
 
 import * as SecureStore from "expo-secure-store";
@@ -16,7 +16,7 @@ export function createOrderHubConnection(
   baseURL,
   accountId,
   onOrderUpdate,
-  onOrderRemoved
+  onOrderRemoved,
 ) {
   let isDisposed = false;
   let isStarting = false;
@@ -63,15 +63,38 @@ export function createOrderHubConnection(
     }
   });
 
+  // Some backends broadcast closes via a dedicated event instead of RemoveOrder.
+  // Support common payload shapes: id | [ids] | { orderId/OrderId }.
+  connection.on("OrderClosed", (closedOrderData) => {
+    if (isDisposed || !onOrderRemoved) return;
+
+    try {
+      if (Array.isArray(closedOrderData)) {
+        for (const id of closedOrderData) onOrderRemoved(id);
+        return;
+      }
+
+      if (closedOrderData && typeof closedOrderData === "object") {
+        const id =
+          closedOrderData?.OrderId ??
+          closedOrderData?.orderId ??
+          closedOrderData?.id;
+        if (id != null) onOrderRemoved(id);
+        return;
+      }
+
+      onOrderRemoved(closedOrderData);
+    } catch (_) {
+      // ignore
+    }
+  });
+
   connection.onreconnected(() => {
     if (isDisposed) return;
 
     connection._subscribedAccounts.clear();
 
-    if (
-      accountId &&
-      connection.state === HubConnectionState.Connected
-    ) {
+    if (accountId && connection.state === HubConnectionState.Connected) {
       connection
         .invoke("SubscribeToAccount", accountId)
         .then(() => connection._subscribedAccounts.add(accountId))
@@ -116,9 +139,7 @@ export function createOrderHubConnection(
         isStarting = false;
 
         if (retry < 3 && !isDisposed) {
-          await new Promise((r) =>
-            setTimeout(r, 2 ** retry * 1000)
-          );
+          await new Promise((r) => setTimeout(r, 2 ** retry * 1000));
           return startConnection(retry + 1);
         }
 
@@ -140,10 +161,7 @@ export function createOrderHubConnection(
     isDisposed = true;
 
     try {
-      if (
-        accountId &&
-        connection.state === HubConnectionState.Connected
-      ) {
+      if (accountId && connection.state === HubConnectionState.Connected) {
         await connection.invoke("UnsubscribeFromAccount", accountId);
       }
       await connection.stop();

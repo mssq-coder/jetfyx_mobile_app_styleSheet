@@ -1,12 +1,12 @@
 import { useAuthStore } from "@/store/authStore";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
-	Modal,
-	ScrollView,
-	Text,
-	TextInput,
-	TouchableOpacity,
-	View,
+  Modal,
+  ScrollView,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { getAllCurrencyListFromDB } from "../../api/getServices";
 import TradingViewChart from "../../components/TradingViewChart";
@@ -14,6 +14,7 @@ import { useAppTheme } from "../../contexts/ThemeContext";
 
 export default function ChartScreen() {
   const { theme } = useAppTheme();
+  const chartRef = useRef(null);
   const selectedAccountId = useAuthStore((state) => state.selectedAccountId);
   const accounts = useAuthStore((state) => state.accounts);
   const currentAccount = useMemo(() => {
@@ -100,6 +101,26 @@ export default function ChartScreen() {
 
   const accent = theme.tabActive || theme.headerBlue || theme.primary;
 
+  const HeaderToolButton = ({ label, onPress }) => (
+    <TouchableOpacity
+      onPress={onPress}
+      style={{
+        paddingHorizontal: 10,
+        paddingVertical: 6,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: theme.border,
+        marginRight: 8,
+        minWidth: 38,
+        alignItems: "center",
+      }}
+    >
+      <Text style={{ fontSize: 12, fontWeight: "900", color: theme.text }}>
+        {label}
+      </Text>
+    </TouchableOpacity>
+  );
+
   return (
     <View style={{ flex: 1, backgroundColor: theme.background }}>
       {/* Header with symbol changer */}
@@ -173,6 +194,19 @@ export default function ChartScreen() {
             </Text>
           </TouchableOpacity>
 
+          <HeaderToolButton
+            label="Fit"
+            onPress={() => chartRef.current?.fit?.()}
+          />
+          <HeaderToolButton
+            label="+"
+            onPress={() => chartRef.current?.zoomIn?.()}
+          />
+          <HeaderToolButton
+            label="−"
+            onPress={() => chartRef.current?.zoomOut?.()}
+          />
+
           {/* <Text style={{ fontSize: 12, fontWeight: '700', color: '#64748b' }}>
 						{String(currentAccount?.accountNumber ?? currentAccount?.id ?? selectedAccountId ?? '--')}
 					</Text> */}
@@ -180,12 +214,14 @@ export default function ChartScreen() {
       </View>
 
       <TradingViewChart
+        ref={chartRef}
         symbol={symbol}
         accountId={selectedAccountId}
         resolution={resolution}
-        showSideToolbar
+        showSideToolbar={false}
         drawMode={drawMode}
         clearDrawingsToken={clearDrawingsToken}
+        initialBarSpacing={14}
       />
 
       {/* Timeframe modal */}

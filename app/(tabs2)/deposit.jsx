@@ -1,8 +1,8 @@
 import { router } from "expo-router";
+import * as WebBrowser from "expo-web-browser";
 import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Animated,
   Dimensions,
   Image,
@@ -14,7 +14,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  View
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
@@ -22,11 +22,20 @@ import {
   getFinanceOptions,
   previewFile,
 } from "../../api/getServices";
+import {
+  createCoinsPayment,
+  createStripePaymentIntent,
+} from "../../api/Services";
 import AccountSelectorModal from "../../components/Accounts/AccountSelectorModal";
 import AppIcon from "../../components/AppIcon";
 import DepositDetailsModal from "../../components/DepositDetailsModal";
 import { useAppTheme } from "../../contexts/ThemeContext";
 import { useAuthStore } from "../../store/authStore";
+import {
+  showErrorToast,
+  showInfoToast,
+  showSuccessToast,
+} from "../../utils/toast";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const MODE = "deposit";
@@ -153,6 +162,16 @@ export default function DepositScreen() {
   const [detailsModalVisible, setDetailsModalVisible] = useState(false);
   const [additionalNotes, setAdditionalNotes] = useState("");
   const [currentFields, setCurrentFields] = useState({});
+  const [currentReferenceNumber, setCurrentReferenceNumber] = useState(null);
+  const [currentImageUrl, setCurrentImageUrl] = useState(null);
+  const [currentPaymentName, setCurrentPaymentName] = useState(null);
+  const [xeRate, setXeRate] = useState(null);
+  const [depositMarkupFee, setDepositMarkupFee] = useState(null);
+  const [depositMarkupType, setDepositMarkupType] = useState(null);
+  const [currencyRate, setCurrencyRate] = useState(null);
+
+  const [stripeContext, setStripeContext] = useState(null);
+  const [coinsContext, setCoinsContext] = useState(null);
 
   const accountLabel = useMemo(() => {
     if (!selectedAccount) return "Select account";
@@ -174,6 +193,31 @@ export default function DepositScreen() {
     } catch (_e) {
       return {};
     }
+  };
+
+  const buildDetailsJson = ({
+    paymentCategory,
+    paymentMethod,
+    depositAmount,
+    xeRateValue,
+    markupRate,
+    depositRate,
+    transferredAmount,
+    markupFee,
+    markupType,
+  }) => {
+    return {
+      PaymentCategory: paymentCategory ?? "",
+      PaymentMethod: paymentMethod ?? "",
+      Portal: "client",
+      DepositAmount: depositAmount ?? "",
+      XeRate: xeRateValue ?? null,
+      MarkupRate: markupRate ?? null,
+      DepositRate: depositRate ?? null,
+      TransferedAmount: transferredAmount ?? "",
+      depositMarkupFee: markupFee ?? null,
+      depositMarkupType: markupType ?? null,
+    };
   };
 
   const selectedCategory = useMemo(() => {
@@ -279,29 +323,218 @@ export default function DepositScreen() {
     ]).start();
   };
 
+  const isCardMethod = (method, category) => {
+    const kind = String(method?.kind || "").toLowerCase();
+    if (kind === "card") return true;
+    const catName = String(category?.name || "").toLowerCase();
+    return catName.includes("card");
+  };
+
+  const isCoinsMethod = (method, category, currencyCode) => {
+    const kind = String(method?.kind || "").toLowerCase();
+    if (kind === "coins" || kind === "coin" || kind === "crypto") return true;
+
+    const catName = String(category?.name || "").toLowerCase();
+    if (catName.includes("crypto") || catName.includes("coin")) return true;
+
+    const c = String(currencyCode || "").toUpperCase();
+    return ["USDT.TRC20", "USDT", "BTC", "ETH", "LTC", "USDC"].includes(c);
+  };
+
+  const startStripeCheckout = async ({ accountId, amount, currency }) => {
+    const amt = Number(amount);
+    if (!accountId) {
+      showInfoToast("Please select an account.", "Select Account");
+      return;
+    }
+    if (!amt || Number.isNaN(amt) || amt <= 0) {
+      showInfoToast("Please enter a valid amount.", "Invalid Amount");
+      return;
+    }
+    if (!userEmail) {
+      showInfoToast("Email is required for card payments.", "Missing Email");
+      return;
+    }
+
+    try {
+      showSuccessToast("Redirecting to Stripe Checkout...", "Stripe");
+
+      const session = await createStripePaymentIntent({
+        accountId: String(accountId),
+        amount: amt,
+        currency: String(currency || "USD").toLowerCase(),
+        cardholderName: String(fullName || "Account Holder"),
+        email: String(userEmail),
+      });
+
+      const data = session?.data ?? session;
+      const checkoutUrl =
+        data?.checkoutUrl || data?.sessionUrl || data?.url || null;
+      const sessionId = data?.sessionId || null;
+
+      if (!checkoutUrl) {
+        showErrorToast("Checkout URL not received from server.", "Stripe");
+        return;
+      }
+
+      await WebBrowser.openBrowserAsync(checkoutUrl);
+
+      // Open proof-upload modal for Stripe so user can upload payment screenshot.
+      if (!sessionId) {
+        showInfoToast(
+          "Payment opened. Please upload a screenshot to submit your deposit.",
+          "Stripe",
+        );
+      }
+
+      setStripeContext({
+        sessionId: sessionId || null,
+        accountId: String(accountId),
+        amount: amt,
+        currency: String(currency || "USD").toUpperCase(),
+        providerAmount: data?.amount ?? null,
+        providerCurrency: data?.currency ?? null,
+      });
+      setCoinsContext(null);
+      setDetailsModalVisible(true);
+    } catch (e) {
+      showErrorToast(
+        e?.response?.data?.message ||
+          e?.message ||
+          "Failed to start Stripe payment.",
+        "Stripe",
+      );
+      console.error("[Stripe] create-payment-intent failed:", {
+        message: e?.message,
+        status: e?.response?.status,
+        data: e?.response?.data,
+      });
+    }
+  };
+
+  const startCoinsCheckout = async ({ accountId, amount, coinType }) => {
+    const amt = Number(amount);
+    const ct = String(coinType || "USDT.TRC20").trim();
+
+    if (!accountId) {
+      showInfoToast("Please select an account.", "Select Account");
+      return;
+    }
+    if (!amt || Number.isNaN(amt) || amt <= 0) {
+      showInfoToast("Please enter a valid amount.", "Invalid Amount");
+      return;
+    }
+    if (!ct) {
+      showInfoToast("Please select a crypto currency.", "Missing Coin");
+      return;
+    }
+
+    try {
+      showSuccessToast("Redirecting to Crypto Gateway...", "Coins");
+
+      const session = await createCoinsPayment({
+        accountId: String(accountId),
+        amount: amt,
+        // Backend typically expects fiat currency here and coinType separately.
+        currency: "USD",
+        coinType: ct,
+      });
+
+      const data = session?.data ?? session;
+      const gatewayUrl =
+        data?.paymentUrl ||
+        data?.checkoutUrl ||
+        data?.gatewayUrl ||
+        data?.url ||
+        null;
+      const transactionId =
+        data?.transactionId || data?.txnId || data?.id || null;
+
+      if (!gatewayUrl) {
+        showErrorToast("Gateway URL not received from server.", "Coins");
+        return;
+      }
+
+      await WebBrowser.openBrowserAsync(String(gatewayUrl));
+
+      setCoinsContext({
+        transactionId: transactionId || null,
+        accountId: String(accountId),
+        amount: amt,
+        coinType: ct,
+        coinAmount: data?.coinAmount ?? null,
+        walletAddress: data?.walletAddress ?? null,
+      });
+      setStripeContext(null);
+      setDetailsModalVisible(true);
+    } catch (e) {
+      showErrorToast(
+        e?.response?.data?.message ||
+          e?.response?.data?.title ||
+          e?.message ||
+          "Failed to start crypto payment.",
+        "Coins",
+      );
+      console.error("[Coins] create-payment failed:", {
+        message: e?.message,
+        status: e?.response?.status,
+        data: e?.response?.data,
+        dataText:
+          e?.response?.data && typeof e.response.data === "object"
+            ? JSON.stringify(e.response.data)
+            : String(e?.response?.data || ""),
+      });
+    }
+  };
+
   const validateAndProceed = async () => {
     animateButton();
 
     if (!selectedAccount) {
-      Alert.alert(
-        "Select Account",
+      showInfoToast(
         "Please select an account to deposit into.",
+        "Select Account",
       );
       return;
     }
 
     if (!selectedMethod) {
-      Alert.alert("Select Method", "Please select a deposit method.");
+      showInfoToast("Please select a deposit method.", "Select Method");
       return;
     }
 
     const amt = Number(amount);
     if (!amount || Number.isNaN(amt) || amt <= 0) {
-      Alert.alert("Invalid Amount", "Please enter a valid deposit amount.");
+      showInfoToast("Please enter a valid deposit amount.", "Invalid Amount");
       return;
     }
 
     const kind = String(selectedMethod.kind || "").toLowerCase();
+
+    // Card payments go through Stripe (Checkout redirect)
+    if (isCardMethod(selectedMethod, selectedCategory)) {
+      const accountId =
+        selectedAccount?.accountId ?? selectedAccount?.id ?? null;
+      await startStripeCheckout({
+        accountId,
+        amount: amt,
+        currency: selectedCurrency || "USD",
+      });
+      return;
+    }
+
+    // Crypto gateway payments (ex: USDT.TRC20) go through Coins
+    if (isCoinsMethod(selectedMethod, selectedCategory, selectedCurrency)) {
+      const accountId =
+        selectedAccount?.accountId ?? selectedAccount?.id ?? null;
+      await startCoinsCheckout({
+        accountId,
+        amount: amt,
+        coinType: selectedCurrency || "USDT.TRC20",
+      });
+      return;
+    }
+
     try {
       const response = await getDetailsByAmountAndCategory(
         selectedCategory?.name,
@@ -310,59 +543,36 @@ export default function DepositScreen() {
         selectedCurrency,
       );
       const data = response?.data?.category.methods || {};
+      const convertedAmount = data[0]?.convertedAmountFormatted || null;
+      const currency = data[0]?.currenciesCsv;
+      const referenceNumber = response?.data?.referenceNumber || "N/A";
+      const imageUrl = data[0]?.imageUrl || null;
+      const paymentName = data[0]?.name || "Selected Method";
       const firstItem = data[0] || {};
       const settings = parseSettings(firstItem.settingsJson);
+      const xeRate = response?.data?.xeRate || null;
+      const depositMarkupFee = data[0]?.depositMarkupFee || null;
+      const depositMarkupType = data[0]?.depositMarkupType || null;
+      const currencyRate = response?.data?.currencyRate || null;
       const fields = settings?.fields || {};
-      setCurrentFields(fields);
-      console.log("DepositScreen - Bank details settings:", settings);
-      console.log("DepositScreen - Bank details response data:", firstItem);
-      console.log("DepositScreen - Bank details fields:", fields);
+      setCurrentFields({
+        ...fields,
+        referenceNumber,
+        amount: convertedAmount,
+        currency,
+      });
+      setCurrentReferenceNumber(referenceNumber);
+      setCurrentImageUrl(imageUrl);
+      setCurrentPaymentName(paymentName);
+      setXeRate(xeRate);
+      setDepositMarkupFee(depositMarkupFee);
+      setDepositMarkupType(depositMarkupType);
+      setCurrencyRate(currencyRate);
+
       setDetailsModalVisible(true);
     } catch (_e) {
-      Alert.alert("Error", "Failed to retrieve deposit details.");
+      showErrorToast("Failed to retrieve deposit details.");
     }
-
-    // if (kind.includes("stripe")) {
-    //   const link = fields?.paymentLink;
-    //   if (!link) {
-    //     Alert.alert("Payment Link Missing", "No payment link found.");
-    //     return;
-    //   }
-    //   await WebBrowser.openBrowserAsync(String(link));
-    //   return;
-    // }
-
-    // if (kind.includes("upi")) {
-    //   Alert.alert(
-    //     "UPI Deposit",
-    //     `Amount: ${amt}\nUPI ID: ${fields?.upiId || "—"}\nProcessing: ${selectedCategory?.processingTime || "—"}`,
-    //   );
-    //   return;
-    // }
-
-    // if (kind.includes("bank")) {
-    //   const lines = [
-    //     `Amount: ${amt}`,
-    //     `Selected Category: ${selectedCategory?.name || "—"}`,
-    //     `Branch: ${fields?.branchName || "—"}`,
-    //     fields?.ifscCode ? `IFSC: ${fields.ifscCode}` : null,
-    //     `Mode: ${MODE}`,
-    //     `Curency: ${selectedCurrency || "—"}`,
-    //     `userEmail: ${userEmail || "—"}`,
-    //     `Processing: ${selectedCategory?.processingTime || "—"}`,
-    //   ].filter(Boolean);
-
-    //   Alert.alert(
-    //     "Bank Transfer Details",
-    //     lines.join("\n"),
-    //   );
-    //   return;
-    // }
-
-    Alert.alert(
-      "Proceed",
-      `Selected: ${selectedMethod.name}\nAmount: ${amt}\nThis method is not wired yet.`,
-    );
   };
 
   const quickAmounts = [100, 500, 1000, 5000];
@@ -861,15 +1071,149 @@ export default function DepositScreen() {
 
       <DepositDetailsModal
         visible={detailsModalVisible}
-        onClose={() => setDetailsModalVisible(false)}
-        fields={currentFields}
+        onClose={() => {
+          setDetailsModalVisible(false);
+          setStripeContext(null);
+          setCoinsContext(null);
+        }}
+        fields={
+          coinsContext
+            ? {
+                Provider: "Coins",
+                CoinType: coinsContext.coinType,
+                Amount: coinsContext.amount,
+                TransactionId: coinsContext.transactionId || "—",
+              }
+            : stripeContext
+              ? {
+                  Provider: "Stripe",
+                  Amount: stripeContext.amount,
+                  Currency: stripeContext.currency,
+                  SessionId: stripeContext.sessionId || "—",
+                }
+              : currentFields
+        }
+        referenceNumber={
+          coinsContext?.transactionId ??
+          stripeContext?.sessionId ??
+          currentReferenceNumber
+        }
+        imageUrl={stripeContext || coinsContext ? null : currentImageUrl}
         additionalNotes={additionalNotes}
         setAdditionalNotes={setAdditionalNotes}
-        onProceed={() => {
+        depositPayload={(() => {
+          const accountId =
+            selectedAccount?.accountId ?? selectedAccount?.id ?? null;
+          const accountNumber =
+            selectedAccount?.accountNumber ?? selectedAccount?.id ?? null;
+
+          // Manual flow uses backend-calculated converted amount.
+          const convertedAmount = currentFields?.amount ?? null;
+
+          // Stripe flow (post-checkout) submits using confirmDeposit too.
+          if (stripeContext) {
+            const stripeAmount = stripeContext?.amount ?? null;
+            const stripeCurrency = stripeContext?.currency ?? selectedCurrency;
+
+            const detailsJson = {
+              ...buildDetailsJson({
+                paymentCategory: selectedCategory?.name ?? "Card",
+                paymentMethod: selectedMethodName ?? "Card",
+                depositAmount: stripeAmount ?? amount,
+                xeRateValue: null,
+                markupRate: null,
+                depositRate: null,
+                transferredAmount:
+                  `${stripeAmount ?? ""} ${stripeCurrency ?? ""}`.trim(),
+                markupFee: null,
+                markupType: null,
+              }),
+              Provider: "Stripe",
+              StripeSessionId: stripeContext?.sessionId ?? null,
+            };
+
+            return {
+              AccountId: accountId,
+              AccountNumber: accountNumber,
+              Amount: stripeAmount ?? amount,
+              Currency: stripeCurrency,
+              PaymentMethod: selectedMethodName ?? "Card",
+              OriginalAmount: amount,
+              OriginalCurrency: "USD",
+              DetailsJson: detailsJson,
+            };
+          }
+
+          // Coins flow (post-gateway) submits using confirmDeposit too.
+          if (coinsContext) {
+            const coinsAmount = coinsContext?.amount ?? null;
+            const coinType = coinsContext?.coinType ?? selectedCurrency;
+
+            const detailsJson = {
+              ...buildDetailsJson({
+                paymentCategory: selectedCategory?.name ?? "Crypto",
+                paymentMethod: selectedMethodName ?? "Coins",
+                depositAmount: coinsAmount ?? amount,
+                xeRateValue: null,
+                markupRate: null,
+                depositRate: null,
+                transferredAmount: `${coinsAmount ?? ""}`.trim(),
+                markupFee: null,
+                markupType: null,
+              }),
+              Provider: "Coins",
+              CoinType: coinType ?? null,
+              CoinsTransactionId: coinsContext?.transactionId ?? null,
+              WalletAddress: coinsContext?.walletAddress ?? null,
+              CoinAmount: coinsContext?.coinAmount ?? null,
+            };
+
+            return {
+              AccountId: accountId,
+              AccountNumber: accountNumber,
+              Amount: coinsAmount ?? amount,
+              Currency: String(coinType || "USDT.TRC20"),
+              PaymentMethod:
+                selectedMethodName ?? String(coinType || "USDT.TRC20"),
+              OriginalAmount: amount,
+              OriginalCurrency: "USD",
+              DetailsJson: detailsJson,
+            };
+          }
+
+          const detailsJson = buildDetailsJson({
+            paymentCategory: currentPaymentName ?? selectedMethodName ?? "",
+            paymentMethod: currentPaymentName ?? "",
+            depositAmount: amount,
+            xeRateValue: xeRate,
+            markupRate: depositMarkupFee,
+            depositRate: currencyRate,
+            transferredAmount:
+              `${convertedAmount ?? ""} ${selectedCurrency ?? ""}`.trim(),
+            markupFee: depositMarkupFee,
+            markupType: depositMarkupType,
+          });
+
+          return {
+            AccountId: accountId,
+            AccountNumber: accountNumber,
+            Amount: convertedAmount ?? amount,
+            Currency: selectedCurrency,
+            PaymentMethod: currentPaymentName ?? "",
+            OriginalAmount: amount,
+            OriginalCurrency: "USD",
+            DetailsJson: detailsJson,
+          };
+        })()}
+        onProceed={(res) => {
           setDetailsModalVisible(false);
-          // Proceed with deposit logic here
-          console.log("Additional Notes:", additionalNotes);
+          setStripeContext(null);
+          setCoinsContext(null);
+          setAdditionalNotes("");
         }}
+        paymentMode={
+          coinsContext ? "coins" : stripeContext ? "stripe" : "manual"
+        }
         theme={theme}
       />
 

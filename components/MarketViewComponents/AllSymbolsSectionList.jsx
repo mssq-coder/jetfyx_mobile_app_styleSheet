@@ -2,13 +2,21 @@ import { useAuthStore } from "@/store/authStore";
 import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   SectionList,
   Text,
   TouchableOpacity,
   View,
 } from "react-native";
-import { addSymbolToFavouriteWatchlist, getFavouriteWatchlistSymbols, removeSymbolFromFavouriteWatchlist } from "../../api/auth";
+import {
+  addSymbolToFavouriteWatchlist,
+  getFavouriteWatchlistSymbols,
+  removeSymbolFromFavouriteWatchlist,
+} from "../../api/auth";
+import {
+  showErrorToast,
+  showInfoToast,
+  showSuccessToast,
+} from "../../utils/toast";
 import AppIcon from "../AppIcon";
 import ExpandedRow from "./expandedRow";
 
@@ -135,16 +143,17 @@ export default function AllSymbolsSectionList({
   const handleFavouritePress = async (item) => {
     const aid = Number(accountId);
     if (!Number.isFinite(aid) || aid <= 0) {
-      Alert.alert("No account", "Please select a valid account first.");
+      showInfoToast("Please select a valid account first.", "No account");
       return;
     }
-    
-    const symbolRaw = item?.symbol || item?.symbolName || item?.instrument || "";
+
+    const symbolRaw =
+      item?.symbol || item?.symbolName || item?.instrument || "";
     const symbol = String(symbolRaw).trim();
     const symbolKey = symbol ? symbol.toUpperCase() : "";
-    
+
     if (!symbol) {
-      Alert.alert("No symbol", "This symbol is invalid.");
+      showInfoToast("This symbol is invalid.", "No symbol");
       return;
     }
 
@@ -160,10 +169,10 @@ export default function AllSymbolsSectionList({
 
       if (isFavourite) {
         await removeSymbolFromFavouriteWatchlist(favouriteId);
-        Alert.alert("Removed", `${symbol} removed from favourites.`);
+        showSuccessToast(`${symbol} removed from favourites.`, "Removed");
       } else {
         await addSymbolToFavouriteWatchlist(aid, symbol);
-        Alert.alert("Saved", `${symbol} added to favourites.`);
+        showSuccessToast(`${symbol} added to favourites.`, "Saved");
       }
 
       await refreshFavourites(aid);
@@ -175,7 +184,7 @@ export default function AllSymbolsSectionList({
         resp?.data?.error ||
         resp?.message ||
         String(err);
-      Alert.alert("Error", msg);
+      showErrorToast(String(msg));
     } finally {
       setPendingSymbols((prev) => {
         const next = new Set(prev);
@@ -186,24 +195,32 @@ export default function AllSymbolsSectionList({
   };
 
   const renderItem = ({ item }) => {
-    const symbolRaw = item?.symbol || item?.symbolName || item?.instrument || "";
+    const symbolRaw =
+      item?.symbol || item?.symbolName || item?.instrument || "";
     const symbol = String(symbolRaw).trim();
     const symbolKey = symbol ? symbol.toUpperCase() : "";
-    const favouriteId = symbolKey ? favouritesBySymbol.get(symbolKey) : undefined;
+    const favouriteId = symbolKey
+      ? favouritesBySymbol.get(symbolKey)
+      : undefined;
     const isFavourite = Boolean(favouriteId);
     const isPending = symbolKey ? pendingSymbols.has(symbolKey) : false;
 
     // Calculate change percentage if available
     const changePercentage = item.changePercent || "";
-    const isPositive = item.isPositive !== undefined ? item.isPositive : (parseFloat(changePercentage) >= 0);
+    const isPositive =
+      item.isPositive !== undefined
+        ? item.isPositive
+        : parseFloat(changePercentage) >= 0;
 
     return (
-      <View style={{ 
-        flexDirection: 'row', 
-        alignItems: 'center',
-        paddingHorizontal: 8,
-        paddingVertical: 2,
-      }}>
+      <View
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          paddingHorizontal: 8,
+          paddingVertical: 2,
+        }}
+      >
         {/* Favorite button - now on the left side */}
         <TouchableOpacity
           onPress={() => handleFavouritePress(item)}
@@ -211,25 +228,29 @@ export default function AllSymbolsSectionList({
           style={{
             width: 44,
             height: 44,
-            justifyContent: 'center',
-            alignItems: 'center',
+            justifyContent: "center",
+            alignItems: "center",
             marginRight: 8,
-            backgroundColor: 'transparent',
+            backgroundColor: "transparent",
           }}
           accessibilityRole="button"
-          accessibilityLabel={`${isFavourite ? 'Remove' : 'Add'} ${item.symbol} to favourites`}
+          accessibilityLabel={`${isFavourite ? "Remove" : "Add"} ${item.symbol} to favourites`}
         >
           {isPending ? (
             <ActivityIndicator size="small" color={theme.primary} />
           ) : (
-            <View style={{
-              width: 32,
-              height: 32,
-              borderRadius: 16,
-              backgroundColor: isFavourite ? `${theme.primary}15` : `${theme.secondary}10`,
-              justifyContent: 'center',
-              alignItems: 'center',
-            }}>
+            <View
+              style={{
+                width: 32,
+                height: 32,
+                borderRadius: 16,
+                backgroundColor: isFavourite
+                  ? `${theme.primary}15`
+                  : `${theme.secondary}10`,
+                justifyContent: "center",
+                alignItems: "center",
+              }}
+            >
               <AppIcon
                 name={isFavourite ? "favorite" : "favorite-border"}
                 size={20}
@@ -238,7 +259,7 @@ export default function AllSymbolsSectionList({
             </View>
           )}
         </TouchableOpacity>
-        
+
         {/* Main content container */}
         <TouchableOpacity
           onPress={() => onToggleExpand(item.id)}
@@ -247,7 +268,8 @@ export default function AllSymbolsSectionList({
             flex: 1,
             marginVertical: 4,
             borderRadius: 16,
-            backgroundColor: expandedId === item.id ? `${theme.card}EE` : theme.card,
+            backgroundColor:
+              expandedId === item.id ? `${theme.card}EE` : theme.card,
             borderWidth: expandedId === item.id ? 1.5 : 1,
             borderColor: expandedId === item.id ? theme.primary : theme.border,
             overflow: "hidden",
@@ -318,14 +340,24 @@ export default function AllSymbolsSectionList({
             >
               {/* Left: Symbol & Meta Info */}
               <View style={{ flex: 1.8 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
-                  <View style={{
-                    width: 6,
-                    height: 6,
-                    borderRadius: 3,
-                    backgroundColor: isPositive ? theme.positive : theme.negative,
-                    marginRight: 6,
-                  }} />
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    marginBottom: 4,
+                  }}
+                >
+                  <View
+                    style={{
+                      width: 6,
+                      height: 6,
+                      borderRadius: 3,
+                      backgroundColor: isPositive
+                        ? theme.positive
+                        : theme.negative,
+                      marginRight: 6,
+                    }}
+                  />
                   <Text
                     style={{
                       color: theme.secondary,
@@ -337,7 +369,7 @@ export default function AllSymbolsSectionList({
                     {item.time || "--:--"}
                   </Text>
                 </View>
-                
+
                 <Text
                   style={{
                     color: theme.text,
@@ -345,21 +377,25 @@ export default function AllSymbolsSectionList({
                     fontWeight: "800",
                     letterSpacing: 0.5,
                     marginBottom: 6,
-                    fontFamily: 'System',
+                    fontFamily: "System",
                   }}
                 >
                   {item.symbol}
                 </Text>
-                
-                <View style={{ 
-                  flexDirection: "row", 
-                  alignItems: "center",
-                  backgroundColor: isPositive ? `${theme.positive}15` : `${theme.negative}15`,
-                  paddingHorizontal: 10,
-                  paddingVertical: 4,
-                  borderRadius: 12,
-                  alignSelf: 'flex-start',
-                }}>
+
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    backgroundColor: isPositive
+                      ? `${theme.positive}15`
+                      : `${theme.negative}15`,
+                    paddingHorizontal: 10,
+                    paddingVertical: 4,
+                    borderRadius: 12,
+                    alignSelf: "flex-start",
+                  }}
+                >
                   <Text
                     style={{
                       color: isPositive ? theme.positive : theme.negative,
@@ -412,7 +448,7 @@ export default function AllSymbolsSectionList({
                       marginBottom: 6,
                       fontWeight: "600",
                       letterSpacing: 0.5,
-                      textTransform: 'uppercase',
+                      textTransform: "uppercase",
                     }}
                   >
                     Sell
@@ -436,14 +472,14 @@ export default function AllSymbolsSectionList({
                         fontWeight: "800",
                         letterSpacing: 0.3,
                         textAlign: "right",
-                        fontFamily: 'System',
+                        fontFamily: "System",
                       }}
                     >
                       {item.bid || "--"}
                     </Text>
                   </View>
                 </View>
-                
+
                 <View style={{ alignItems: "flex-end" }}>
                   <Text
                     style={{
@@ -452,7 +488,7 @@ export default function AllSymbolsSectionList({
                       marginBottom: 6,
                       fontWeight: "600",
                       letterSpacing: 0.5,
-                      textTransform: 'uppercase',
+                      textTransform: "uppercase",
                     }}
                   >
                     Buy
@@ -476,7 +512,7 @@ export default function AllSymbolsSectionList({
                         fontWeight: "800",
                         letterSpacing: 0.3,
                         textAlign: "right",
-                        fontFamily: 'System',
+                        fontFamily: "System",
                       }}
                     >
                       {item.ask || "--"}
@@ -497,7 +533,7 @@ export default function AllSymbolsSectionList({
       keyExtractor={(item) => String(item.id)}
       stickySectionHeadersEnabled={true}
       showsVerticalScrollIndicator={false}
-      contentContainerStyle={{ 
+      contentContainerStyle={{
         paddingBottom: bottomPadding,
         paddingHorizontal: 4,
       }}
@@ -519,12 +555,14 @@ export default function AllSymbolsSectionList({
           }}
         >
           <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-            <View style={{
-              width: 4,
-              height: 20,
-              borderRadius: 2,
-              backgroundColor: theme.primary,
-            }} />
+            <View
+              style={{
+                width: 4,
+                height: 20,
+                borderRadius: 2,
+                backgroundColor: theme.primary,
+              }}
+            />
             <View>
               <Text
                 style={{
@@ -549,18 +587,20 @@ export default function AllSymbolsSectionList({
             </View>
           </View>
 
-          <View style={{
-            width: 30,
-            height: 30,
-            borderRadius: 15,
-            backgroundColor: `${theme.primary}20`,
-            justifyContent: 'center',
-            alignItems: 'center',
-          }}>
+          <View
+            style={{
+              width: 30,
+              height: 30,
+              borderRadius: 15,
+              backgroundColor: `${theme.primary}20`,
+              justifyContent: "center",
+              alignItems: "center",
+            }}
+          >
             <Text
-              style={{ 
-                color: theme.primary, 
-                fontSize: 16, 
+              style={{
+                color: theme.primary,
+                fontSize: 16,
                 fontWeight: "700",
                 marginTop: openGroups.has(section.title) ? 0 : -1,
               }}
@@ -572,21 +612,25 @@ export default function AllSymbolsSectionList({
       )}
       renderItem={renderItem}
       ListEmptyComponent={
-        <View style={{ 
-          padding: 40, 
-          alignItems: "center",
-          justifyContent: 'center',
-          minHeight: 300,
-        }}>
-          <View style={{
-            width: 80,
-            height: 80,
-            borderRadius: 40,
-            backgroundColor: `${theme.primary}15`,
-            justifyContent: 'center',
-            alignItems: 'center',
-            marginBottom: 20,
-          }}>
+        <View
+          style={{
+            padding: 40,
+            alignItems: "center",
+            justifyContent: "center",
+            minHeight: 300,
+          }}
+        >
+          <View
+            style={{
+              width: 80,
+              height: 80,
+              borderRadius: 40,
+              backgroundColor: `${theme.primary}15`,
+              justifyContent: "center",
+              alignItems: "center",
+              marginBottom: 20,
+            }}
+          >
             <AppIcon
               name="currency-exchange"
               size={40}

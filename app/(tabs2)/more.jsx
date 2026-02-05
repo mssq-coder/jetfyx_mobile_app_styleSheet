@@ -1,14 +1,15 @@
+import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
+  Animated,
+  Dimensions,
   ScrollView,
   StatusBar,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
-  Dimensions,
-  Animated,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { getUserDetails } from "../../api/getServices";
@@ -16,9 +17,10 @@ import AppIcon from "../../components/AppIcon";
 import { useAppTheme } from "../../contexts/ThemeContext";
 import { useAuthStore } from "../../store/authStore";
 import { useUserStore } from "../../store/userStore";
-import { LinearGradient } from 'expo-linear-gradient';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
+const CARD_WIDTH = SCREEN_WIDTH - 40;
+const ACTION_CARD_WIDTH = (SCREEN_WIDTH - 48) / 2;
 
 export default function RealAccountsScreen() {
   const { theme } = useAppTheme();
@@ -26,9 +28,6 @@ export default function RealAccountsScreen() {
   const balanceScale = useRef(new Animated.Value(1)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(50)).current;
-  const statsAnimations = useRef(
-    Array(4).fill(0).map(() => new Animated.Value(0))
-  ).current;
 
   const { accounts, selectedAccountId, userId } = useAuthStore();
   const selectedAccount =
@@ -54,14 +53,62 @@ export default function RealAccountsScreen() {
   };
 
   const actionItems = [
-    { id: 1, icon: "account-balance", title: "Deposit", color: "#00D9A3", gradient: ["#00D9A3", "#00B87C"] },
-    { id: 2, icon: "trending-up", title: "Trade", color: "#4C6EF5", gradient: ["#4C6EF5", "#3B5BDB"] },
-    { id: 3, icon: "account-balance-wallet", title: "Withdrawal", color: "#FF6B9D", gradient: ["#FF6B9D", "#F06595"] },
-    { id: 4, icon: "swap-horiz", title: "Internal Transfer", color: "#FAB005", gradient: ["#FAB005", "#F59F00"] },
-    { id: 5, icon: "history", title: "History", color: "#7950F2", gradient: ["#7950F2", "#6741D9"] },
-    { id: 6, icon: "settings", title: "Settings", color: "#868E96", gradient: ["#868E96", "#495057"] },
-    { id: 7, icon: "receipt", title: "Statements", color: "#FF8787", gradient: ["#FF8787", "#FA5252"] },
-    { id: 8, icon: "support-agent", title: "Support", color: "#20C997", gradient: ["#20C997", "#12B886"] },
+    {
+      id: 1,
+      icon: "account-balance",
+      title: "Deposit",
+      color: "#00D9A3",
+      gradient: ["#00D9A3", "#00B87C"],
+    },
+    {
+      id: 2,
+      icon: "trending-up",
+      title: "Trade",
+      color: "#4C6EF5",
+      gradient: ["#4C6EF5", "#3B5BDB"],
+    },
+    {
+      id: 3,
+      icon: "account-balance-wallet",
+      title: "Withdrawal",
+      color: "#FF6B9D",
+      gradient: ["#FF6B9D", "#F06595"],
+    },
+    {
+      id: 4,
+      icon: "swap-horiz",
+      title: "Internal Transfer",
+      color: "#FAB005",
+      gradient: ["#FAB005", "#F59F00"],
+    },
+    {
+      id: 5,
+      icon: "history",
+      title: "History",
+      color: "#7950F2",
+      gradient: ["#7950F2", "#6741D9"],
+    },
+    {
+      id: 6,
+      icon: "settings",
+      title: "Settings",
+      color: "#868E96",
+      gradient: ["#868E96", "#495057"],
+    },
+    {
+      id: 7,
+      icon: "receipt",
+      title: "Statements",
+      color: "#FF8787",
+      gradient: ["#FF8787", "#FA5252"],
+    },
+    {
+      id: 8,
+      icon: "support-agent",
+      title: "Support",
+      color: "#20C997",
+      gradient: ["#20C997", "#12B886"],
+    },
   ];
 
   const handleActionPress = (item) => {
@@ -155,10 +202,34 @@ export default function RealAccountsScreen() {
   ];
 
   const statsItems = [
-    { label: "Total Trades", value: "47", change: "+12%", icon: "bar-chart", color: "#4C6EF5" },
-    { label: "Win Rate", value: "78%", change: "+5%", icon: "trending-up", color: "#00D9A3" },
-    { label: "Avg. Profit", value: "$128", change: "+8%", icon: "attach-money", color: "#FAB005" },
-    { label: "Active Trades", value: "8", change: "-2", icon: "show-chart", color: "#FF6B9D" },
+    {
+      label: "Total Trades",
+      value: "47",
+      change: "+12%",
+      icon: "bar-chart",
+      color: "#4C6EF5",
+    },
+    {
+      label: "Win Rate",
+      value: "78%",
+      change: "+5%",
+      icon: "trending-up",
+      color: "#00D9A3",
+    },
+    {
+      label: "Avg. Profit",
+      value: "$128",
+      change: "+8%",
+      icon: "attach-money",
+      color: "#FAB005",
+    },
+    {
+      label: "Active Trades",
+      value: "8",
+      change: "-2",
+      icon: "show-chart",
+      color: "#FF6B9D",
+    },
   ];
 
   useEffect(() => {
@@ -178,29 +249,16 @@ export default function RealAccountsScreen() {
     Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 1,
-        duration: 800,
+        duration: 600,
         useNativeDriver: true,
       }),
       Animated.spring(slideAnim, {
         toValue: 0,
-        tension: 50,
-        friction: 7,
+        tension: 60,
+        friction: 8,
         useNativeDriver: true,
       }),
     ]).start();
-
-    // Stagger stats animations
-    Animated.stagger(
-      150,
-      statsAnimations.map((anim) =>
-        Animated.spring(anim, {
-          toValue: 1,
-          tension: 50,
-          friction: 7,
-          useNativeDriver: true,
-        })
-      )
-    ).start();
   }, [userId, setUserData]);
 
   return (
@@ -209,11 +267,11 @@ export default function RealAccountsScreen() {
     >
       <StatusBar backgroundColor={theme.primary} barStyle="light-content" />
 
-      {/* Enhanced Gradient Header */}
+      {/* Compact Header */}
       <LinearGradient
         colors={[theme.primary, `${theme.primary}dd`]}
         start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
+        end={{ x: 1, y: 0 }}
         style={styles.headerGradient}
       >
         <View style={styles.header}>
@@ -225,9 +283,8 @@ export default function RealAccountsScreen() {
               <AppIcon name="arrow-back" color="#fff" size={22} />
             </View>
           </TouchableOpacity>
-          <View style={{ flex: 1, alignItems: 'center' }}>
-            <Text style={styles.headerTitle}>Account Dashboard</Text>
-            <Text style={styles.headerSubtitle}>Manage your trading account</Text>
+          <View style={{ flex: 1, alignItems: "center" }}>
+            <Text style={styles.headerTitle}>Account Overview</Text>
           </View>
           <TouchableOpacity style={styles.headerButton}>
             <View style={styles.headerIconButton}>
@@ -245,335 +302,372 @@ export default function RealAccountsScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
-        {/* Clean Modern Account Card */}
-        <Animated.View 
+        {/* Tab Navigation */}
+        <View style={[styles.tabsContainer, { backgroundColor: theme.card }]}>
+          {["ACTIONS", "DETAILS"].map((tab) => (
+            <TouchableOpacity
+              key={tab}
+              onPress={() => setActiveTab(tab)}
+              style={[
+                styles.tabButton,
+                activeTab === tab && styles.activeTabButton,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.tabText,
+                  {
+                    color: activeTab === tab ? theme.primary : theme.secondary,
+                    fontWeight: activeTab === tab ? "700" : "500",
+                  },
+                ]}
+              >
+                {tab}
+              </Text>
+              {activeTab === tab && (
+                <View
+                  style={[
+                    styles.tabIndicator,
+                    { backgroundColor: theme.primary },
+                  ]}
+                />
+              )}
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        {/* Content Area */}
+        {activeTab === "ACTIONS" ? (
+          <View style={styles.actionsSection}>
+            <Text style={[styles.sectionTitle, { color: theme.text }]}>
+              Quick Actions
+            </Text>
+            <ScrollView
+              horizontal
+              contentContainerStyle={styles.actionsGrid}
+              showsHorizontalScrollIndicator={false}
+            >
+              {actionItems.map((item) => (
+                <TouchableOpacity
+                  key={item.id}
+                  onPress={() => handleActionPress(item)}
+                  style={styles.actionCard}
+                  activeOpacity={0.7}
+                >
+                  <LinearGradient
+                    colors={item.gradient}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.actionGradient}
+                  >
+                    <View style={styles.actionIconContainer}>
+                      <AppIcon name={item.icon} color="#fff" size={22} />
+                    </View>
+                    <Text style={styles.actionTitle}>{item.title}</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        ) : (
+          <View style={styles.detailsSection}>
+            <Text style={[styles.sectionTitle, { color: theme.text }]}>
+              Account Details
+            </Text>
+            <View style={[styles.detailsCard, { backgroundColor: theme.card }]}>
+              {infoItems.map((item, index) => (
+                <View
+                  key={index}
+                  style={[
+                    styles.detailRow,
+                    index < infoItems.length - 1 && [
+                      styles.detailRowBorder,
+                      { borderBottomColor: theme.border },
+                    ],
+                  ]}
+                >
+                  <View style={styles.detailLeft}>
+                    <View
+                      style={[
+                        styles.detailIconContainer,
+                        { backgroundColor: `${item.color}15` },
+                      ]}
+                    >
+                      <AppIcon name={item.icon} color={item.color} size={18} />
+                    </View>
+                    <View style={styles.detailInfo}>
+                      <Text style={[styles.detailLabel, { color: theme.text }]}>
+                        {item.label}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.detailDescription,
+                          { color: theme.secondary },
+                        ]}
+                      >
+                        {item.description}
+                      </Text>
+                    </View>
+                  </View>
+                  <Text style={[styles.detailValue, { color: theme.text }]}>
+                    {item.value}
+                  </Text>
+                </View>
+              ))}
+            </View>
+
+            {/* Account Management */}
+            <Text
+              style={[
+                styles.sectionTitle,
+                { color: theme.text, marginTop: 20 },
+              ]}
+            >
+              Account Management
+            </Text>
+            <View style={styles.accountActions}>
+              <TouchableOpacity style={styles.actionButton}>
+                <LinearGradient
+                  colors={["#00D9A3", "#00B87C"]}
+                  style={styles.actionButtonGradient}
+                >
+                  <AppIcon name="add" color="#fff" size={18} />
+                  <Text style={styles.actionButtonText}>Add Funds</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.actionButton}>
+                <LinearGradient
+                  colors={["#4C6EF5", "#3B5BDB"]}
+                  style={styles.actionButtonGradient}
+                >
+                  <AppIcon name="download" color="#fff" size={18} />
+                  <Text style={styles.actionButtonText}>Statement</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
+        {/* Performance Stats Grid */}
+        <View style={styles.statsSection}>
+          <View style={styles.statsSectionHeader}>
+            <Text style={[styles.statsTitle, { color: theme.text }]}>
+              Performance
+            </Text>
+            <TouchableOpacity style={styles.viewAllButton}>
+              <Text style={[styles.viewAllText, { color: theme.primary }]}>
+                Details
+              </Text>
+              <AppIcon name="chevron-right" color={theme.primary} size={14} />
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.statsGrid}>
+            {statsItems.map((stat, index) => (
+              <View key={index} style={styles.statCardWrapper}>
+                <View
+                  style={[
+                    styles.statCard,
+                    { backgroundColor: theme.card, borderColor: theme.border },
+                  ]}
+                >
+                  <View
+                    style={[
+                      styles.statIconContainer,
+                      { backgroundColor: `${stat.color}15` },
+                    ]}
+                  >
+                    <AppIcon name={stat.icon} color={stat.color} size={18} />
+                  </View>
+                  <View style={styles.statContent}>
+                    <Text
+                      style={[styles.statLabel, { color: theme.secondary }]}
+                    >
+                      {stat.label}
+                    </Text>
+                    <Text style={[styles.statValue, { color: theme.text }]}>
+                      {stat.value}
+                    </Text>
+                  </View>
+                  <View
+                    style={[
+                      styles.statChangeBadge,
+                      {
+                        backgroundColor: stat.change.startsWith("+")
+                          ? "#00E67615"
+                          : "#FF638415",
+                      },
+                    ]}
+                  >
+                    <AppIcon
+                      name={
+                        stat.change.startsWith("+")
+                          ? "trending-up"
+                          : "trending-down"
+                      }
+                      size={12}
+                      color={
+                        stat.change.startsWith("+") ? "#00E676" : "#FF6384"
+                      }
+                    />
+                    <Text
+                      style={[
+                        styles.statChangeText,
+                        {
+                          color: stat.change.startsWith("+")
+                            ? "#00E676"
+                            : "#FF6384",
+                        },
+                      ]}
+                    >
+                      {stat.change}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            ))}
+          </View>
+        </View>
+
+        {/* Compact Account Card */}
+        <Animated.View
           style={[
             styles.accountCardWrapper,
             {
               opacity: fadeAnim,
-              transform: [
-                { scale: balanceScale },
-                { translateY: slideAnim }
-              ],
-            }
+              transform: [{ scale: balanceScale }, { translateY: slideAnim }],
+            },
           ]}
         >
-          <View style={[styles.accountCard, { backgroundColor: theme.card }]}>
-            {/* Header Section */}
+          <LinearGradient
+            colors={[theme.card, `${theme.card}ee`]}
+            style={[styles.accountCard, { borderColor: theme.border }]}
+          >
+            {/* Account Info Row */}
             <View style={styles.accountCardHeader}>
-              <View style={styles.accountInfoRow}>
-                <View style={[styles.accountIconBadge, { backgroundColor: `${theme.primary}15` }]}>
-                  <AppIcon name="account-balance-wallet" color={theme.primary} size={22} />
+              <View style={styles.accountTypeRow}>
+                <View
+                  style={[
+                    styles.accountIconBadge,
+                    { backgroundColor: `${theme.primary}15` },
+                  ]}
+                >
+                  <AppIcon
+                    name="account-balance-wallet"
+                    color={theme.primary}
+                    size={20}
+                  />
                 </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.accountType, { color: theme.text }]}>{accountData.type}</Text>
-                  <View style={styles.accountIdRow}>
-                    <Text style={[styles.accountId, { color: theme.secondary }]}>#{accountData.id}</Text>
-                    <TouchableOpacity style={styles.copyButton}>
-                      <AppIcon name="content-copy" color={theme.secondary} size={14} />
-                    </TouchableOpacity>
-                  </View>
+                <View style={styles.accountTypeInfo}>
+                  <Text style={[styles.accountType, { color: theme.text }]}>
+                    {accountData.type}
+                  </Text>
+                  <Text style={[styles.accountId, { color: theme.secondary }]}>
+                    #{accountData.id}
+                  </Text>
                 </View>
               </View>
-              <View style={[styles.statusBadge, { backgroundColor: '#00E67615' }]}>
+              <View
+                style={[styles.statusBadge, { backgroundColor: "#00E67615" }]}
+              >
                 <View style={styles.statusDot} />
                 <Text style={styles.statusText}>Active</Text>
               </View>
             </View>
 
-            {/* Balance Section */}
+            {/* Balance Display */}
             <View style={styles.balanceSection}>
-              <Text style={[styles.balanceLabel, { color: theme.secondary }]}>Total Balance</Text>
+              <Text style={[styles.balanceLabel, { color: theme.secondary }]}>
+                Available Balance
+              </Text>
               <Text style={[styles.balanceAmount, { color: theme.text }]}>
-                {accountData.currency} {accountData.balance.toLocaleString('en-US', {
+                {accountData.currency}{" "}
+                {accountData.balance.toLocaleString("en-US", {
                   minimumFractionDigits: 2,
-                  maximumFractionDigits: 2
+                  maximumFractionDigits: 2,
                 })}
               </Text>
-              <View style={styles.profitRow}>
-                <View style={styles.profitBadge}>
-                  <AppIcon name="trending-up" color="#00E676" size={14} />
-                  <Text style={styles.profitText}>+$2,450.00</Text>
-                  <Text style={styles.profitPercent}>(+12.5%)</Text>
-                </View>
-              </View>
             </View>
 
-            {/* Quick Info Grid */}
-            <View style={[styles.quickInfoGrid, { borderTopColor: theme.border }]}>
-              <View style={styles.quickInfoItem}>
-                <Text style={[styles.quickInfoLabel, { color: theme.secondary }]}>Equity</Text>
-                <Text style={[styles.quickInfoValue, { color: theme.text }]}>
-                  {accountData.currency} {(accountData.balance * 1.12).toLocaleString('en-US', {
+            {/* Quick Stats Row */}
+            <View
+              style={[styles.quickStatsRow, { borderTopColor: theme.border }]}
+            >
+              <View style={styles.quickStatItem}>
+                <Text
+                  style={[styles.quickStatLabel, { color: theme.secondary }]}
+                >
+                  Equity
+                </Text>
+                <Text style={[styles.quickStatValue, { color: theme.text }]}>
+                  {accountData.currency}{" "}
+                  {(accountData.balance * 1.12).toLocaleString("en-US", {
                     minimumFractionDigits: 2,
-                    maximumFractionDigits: 2
+                    maximumFractionDigits: 2,
                   })}
                 </Text>
               </View>
-              <View style={[styles.quickInfoDivider, { backgroundColor: theme.border }]} />
-              <View style={styles.quickInfoItem}>
-                <Text style={[styles.quickInfoLabel, { color: theme.secondary }]}>Free Margin</Text>
-                <Text style={[styles.quickInfoValue, { color: theme.text }]}>
-                  {accountData.currency} {(accountData.balance * 0.85).toLocaleString('en-US', {
+              <View
+                style={[
+                  styles.quickStatDivider,
+                  { backgroundColor: theme.border },
+                ]}
+              />
+              <View style={styles.quickStatItem}>
+                <Text
+                  style={[styles.quickStatLabel, { color: theme.secondary }]}
+                >
+                  Margin
+                </Text>
+                <Text style={[styles.quickStatValue, { color: theme.text }]}>
+                  {accountData.currency}{" "}
+                  {(accountData.balance * 0.85).toLocaleString("en-US", {
                     minimumFractionDigits: 2,
-                    maximumFractionDigits: 2
+                    maximumFractionDigits: 2,
                   })}
                 </Text>
               </View>
-              <View style={[styles.quickInfoDivider, { backgroundColor: theme.border }]} />
-              <View style={styles.quickInfoItem}>
-                <Text style={[styles.quickInfoLabel, { color: theme.secondary }]}>Leverage</Text>
-                <Text style={[styles.quickInfoValue, { color: theme.text }]}>
+              <View
+                style={[
+                  styles.quickStatDivider,
+                  { backgroundColor: theme.border },
+                ]}
+              />
+              <View style={styles.quickStatItem}>
+                <Text
+                  style={[styles.quickStatLabel, { color: theme.secondary }]}
+                >
+                  Leverage
+                </Text>
+                <Text style={[styles.quickStatValue, { color: theme.text }]}>
                   {accountData.leverage}
                 </Text>
               </View>
             </View>
-          </View>
+          </LinearGradient>
         </Animated.View>
 
-        {/* Enhanced Quick Stats */}
-        <View style={styles.statsSection}>
-          <View style={styles.statsSectionHeader}>
-            <Text style={[styles.statsTitle, { color: theme.text }]}>Performance Overview</Text>
-            <TouchableOpacity style={styles.viewAllButton}>
-              <Text style={[styles.viewAllText, { color: theme.primary }]}>View All</Text>
-              <AppIcon name="arrow-forward" color={theme.primary} size={14} />
-            </TouchableOpacity>
-          </View>
-          <View style={styles.statsGrid}>
-            {statsItems.map((stat, index) => (
-              <Animated.View
-                key={index}
-                style={[
-                  {
-                    opacity: statsAnimations[index],
-                    transform: [{
-                      translateY: statsAnimations[index].interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [30, 0],
-                      }),
-                    }],
-                  }
-                ]}
-              >
-                <LinearGradient
-                  colors={[theme.card, theme.card]}
-                  style={[styles.statCard, { borderColor: theme.border }]}
-                >
-                  <View style={[styles.statIconContainer, { backgroundColor: `${stat.color}15` }]}>
-                    <AppIcon name={stat.icon} color={stat.color} size={20} />
-                  </View>
-                  <Text style={[styles.statValue, { color: theme.text }]}>
-                    {stat.value}
-                  </Text>
-                  <Text style={[styles.statLabel, { color: theme.secondary }]}>
-                    {stat.label}
-                  </Text>
-                  <View style={[
-                    styles.statChange, 
-                    { 
-                      backgroundColor: stat.change.startsWith('+') 
-                        ? '#00E67620' 
-                        : '#FF638420' 
-                    }
-                  ]}>
-                    <AppIcon 
-                      name={stat.change.startsWith('+') ? "arrow-upward" : "arrow-downward"} 
-                      color={stat.change.startsWith('+') ? '#00E676' : '#FF6384'} 
-                      size={10} 
-                    />
-                    <Text style={[
-                      styles.statChangeText, 
-                      { 
-                        color: stat.change.startsWith('+') ? '#00E676' : '#FF6384'
-                      }
-                    ]}>
-                      {stat.change}
-                    </Text>
-                  </View>
-                </LinearGradient>
-              </Animated.View>
-            ))}
-          </View>
-        </View>
-
-        {/* Modern Tabs with Slider */}
-        <View style={[styles.tabsContainer, { backgroundColor: theme.card }]}>
-          <View style={styles.tabsInner}>
-            {["ACTIONS", "DETAILS"].map((tab) => (
-              <TouchableOpacity
-                key={tab}
-                onPress={() => setActiveTab(tab)}
-                style={styles.tab}
-              >
-                {activeTab === tab && (
-                  <LinearGradient
-                    colors={[theme.primary, `${theme.primary}cc`]}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={styles.activeTabBackground}
-                  />
-                )}
-                <Text
-                  style={[
-                    styles.tabText,
-                    {
-                      color: activeTab === tab ? "#fff" : theme.secondary,
-                      fontWeight: activeTab === tab ? "700" : "600",
-                    },
-                  ]}
-                >
-                  {tab}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-
-        {/* Content */}
-        <View style={styles.content}>
-          {activeTab === "ACTIONS" ? (
-            <View style={styles.actionsGrid}>
-              {actionItems.map((item, index) => (
-                <Animated.View
-                  key={item.id}
-                  style={[
-                    {
-                      opacity: fadeAnim,
-                      transform: [{
-                        scale: fadeAnim.interpolate({
-                          inputRange: [0, 1],
-                          outputRange: [0.8, 1],
-                        }),
-                      }],
-                    }
-                  ]}
-                >
-                  <TouchableOpacity
-                    onPress={() => handleActionPress(item)}
-                    style={styles.actionCard}
-                    activeOpacity={0.7}
-                  >
-                    <LinearGradient
-                      colors={item.gradient}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 1 }}
-                      style={styles.actionGradient}
-                    >
-                      <View style={styles.actionIconContainer}>
-                        <AppIcon name={item.icon} color="#fff" size={26} />
-                      </View>
-                      <Text style={styles.actionTitle}>
-                        {item.title}
-                      </Text>
-                      <View style={styles.actionArrow}>
-                        <AppIcon name="arrow-forward" color="rgba(255,255,255,0.7)" size={14} />
-                      </View>
-                    </LinearGradient>
-                  </TouchableOpacity>
-                </Animated.View>
-              ))}
-            </View>
-          ) : (
-            <View style={styles.detailsContainer}>
-              <View style={[styles.detailsCard, { backgroundColor: theme.card }]}>
-                {infoItems.map((item, index) => (
-                  <View
-                    key={index}
-                    style={[
-                      styles.detailItem,
-                      index < infoItems.length - 1 && { 
-                        borderBottomWidth: 1, 
-                        borderBottomColor: theme.border,
-                        paddingBottom: 18,
-                        marginBottom: 18,
-                      }
-                    ]}
-                  >
-                    <View style={styles.detailLeft}>
-                      <LinearGradient
-                        colors={[`${item.color}25`, `${item.color}15`]}
-                        style={styles.detailIcon}
-                      >
-                        <AppIcon name={item.icon} color={item.color} size={20} />
-                      </LinearGradient>
-                      <View style={{ flex: 1 }}>
-                        <Text style={[styles.detailLabel, { color: theme.text }]}>
-                          {item.label}
-                        </Text>
-                        <Text style={[styles.detailDescription, { color: theme.secondary }]}>
-                          {item.description}
-                        </Text>
-                      </View>
-                    </View>
-                    <Text style={[styles.detailValue, { color: theme.text }]}>
-                      {item.value}
-                    </Text>
-                  </View>
-                ))}
-              </View>
-
-              {/* Enhanced Account Actions */}
-              <Text style={[styles.sectionTitle, { color: theme.text, marginTop: 24 }]}>
-                Quick Actions
-              </Text>
-              <View style={styles.accountActions}>
-                <TouchableOpacity style={styles.actionButtonContainer}>
-                  <LinearGradient
-                    colors={['#00D9A3', '#00B87C']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={styles.actionButtonGradient}
-                  >
-                    <AppIcon name="add-circle" color="#fff" size={20} />
-                    <Text style={styles.actionButtonText}>Fund Account</Text>
-                  </LinearGradient>
-                </TouchableOpacity>
-                
-                <TouchableOpacity style={styles.actionButtonContainer}>
-                  <LinearGradient
-                    colors={['#4C6EF5', '#3B5BDB']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={styles.actionButtonGradient}
-                  >
-                    <AppIcon name="download" color="#fff" size={20} />
-                    <Text style={styles.actionButtonText}>Export Statement</Text>
-                  </LinearGradient>
-                </TouchableOpacity>
-                
-                <TouchableOpacity style={styles.actionButtonContainer}>
-                  <View style={[styles.actionButtonOutline, { borderColor: theme.border }]}>
-                    <AppIcon name="lock-outline" color={theme.negative} size={20} />
-                    <Text style={[styles.actionButtonTextOutline, { color: theme.negative }]}>
-                      Close Account
-                    </Text>
-                  </View>
-                </TouchableOpacity>
-              </View>
-            </View>
-          )}
-        </View>
-
-        {/* Enhanced Security Notice */}
+        {/* Footer Security Notice */}
         <View style={[styles.securityNotice, { backgroundColor: theme.card }]}>
-          <LinearGradient
-            colors={[`${theme.primary}15`, `${theme.primary}08`]}
-            style={styles.securityGradient}
-          >
-            <View style={[styles.securityIcon, { backgroundColor: `${theme.primary}25` }]}>
-              <AppIcon name="verified-user" color={theme.primary} size={20} />
+          <View style={styles.securityContent}>
+            <View
+              style={[
+                styles.securityIcon,
+                { backgroundColor: `${theme.primary}15` },
+              ]}
+            >
+              <AppIcon name="verified-user" color={theme.primary} size={18} />
             </View>
-            <View style={{ flex: 1 }}>
+            <View style={styles.securityInfo}>
               <Text style={[styles.securityTitle, { color: theme.text }]}>
-                Bank-Level Security
+                Secure Account
               </Text>
               <Text style={[styles.securityText, { color: theme.secondary }]}>
-                256-bit encryption • 2FA enabled • Insured funds
+                256-bit encryption • 2FA enabled
               </Text>
             </View>
-            <AppIcon name="shield-checkmark" color={theme.positive} size={24} />
-          </LinearGradient>
+          </View>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -585,484 +679,441 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   headerGradient: {
+    paddingTop: 8,
+    paddingBottom: 20,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 8,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
   },
   header: {
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 20,
   },
   backButton: {
-    borderRadius: 20,
+    borderRadius: 12,
   },
   headerIconButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    position: 'relative',
+    backgroundColor: "rgba(255,255,255,0.15)",
+    position: "relative",
   },
   headerTitle: {
-    fontSize: 20,
-    fontWeight: "800",
+    fontSize: 18,
+    fontWeight: "700",
     color: "#fff",
-    letterSpacing: 0.5,
-  },
-  headerSubtitle: {
-    fontSize: 12,
-    color: "rgba(255,255,255,0.85)",
-    marginTop: 2,
-    fontWeight: "500",
+    letterSpacing: 0.3,
   },
   headerButton: {
-    borderRadius: 20,
-    position: 'relative',
+    borderRadius: 12,
   },
   notificationBadge: {
-    position: 'absolute',
-    top: -2,
-    right: -2,
-    backgroundColor: '#FF3B30',
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: '#fff',
+    position: "absolute",
+    top: -4,
+    right: -4,
+    backgroundColor: "#FF3B30",
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1.5,
+    borderColor: "#fff",
   },
   notificationText: {
-    color: '#fff',
-    fontSize: 10,
-    fontWeight: '700',
+    color: "#fff",
+    fontSize: 9,
+    fontWeight: "700",
   },
   scrollView: {
     flex: 1,
   },
   scrollContent: {
-    paddingBottom: 40,
+    paddingBottom: 30,
   },
   accountCardWrapper: {
     marginHorizontal: 20,
-    marginTop: -30,
-    marginBottom: 24,
+    marginTop: -16,
+    marginBottom: 16,
   },
   accountCard: {
-    padding: 24,
-    borderRadius: 24,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.1,
-    shadowRadius: 16,
-    elevation: 8,
+    padding: 20,
+    borderRadius: 20,
     borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.05)',
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 6,
   },
   accountCardHeader: {
     flexDirection: "row",
-    alignItems: "flex-start",
+    alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 24,
+    marginBottom: 20,
   },
-  accountInfoRow: {
+  accountTypeRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
-    flex: 1,
   },
   accountIconBadge: {
-    width: 52,
-    height: 52,
-    borderRadius: 16,
+    width: 44,
+    height: 44,
+    borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
   },
+  accountTypeInfo: {
+    gap: 2,
+  },
   accountType: {
-    fontSize: 17,
-    fontWeight: "800",
-    marginBottom: 4,
+    fontSize: 16,
+    fontWeight: "700",
     letterSpacing: 0.3,
   },
-  accountIdRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
   accountId: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: "600",
     letterSpacing: 0.5,
   },
-  copyButton: {
-    padding: 4,
-    borderRadius: 6,
-  },
   statusBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 6,
-    paddingHorizontal: 12,
+    paddingHorizontal: 10,
     paddingVertical: 6,
-    borderRadius: 12,
+    borderRadius: 10,
   },
   statusDot: {
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: '#00E676',
+    backgroundColor: "#00E676",
   },
   statusText: {
-    color: '#00E676',
-    fontSize: 12,
-    fontWeight: '700',
+    color: "#00E676",
+    fontSize: 11,
+    fontWeight: "700",
   },
   balanceSection: {
-    marginBottom: 24,
+    marginBottom: 20,
   },
   balanceLabel: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: "600",
-    marginBottom: 8,
-  },
-  balanceAmount: {
-    fontSize: 40,
-    fontWeight: "800",
-    letterSpacing: 0.5,
-    marginBottom: 12,
-  },
-  profitRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  profitBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: '#00E67615',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 12,
-  },
-  profitText: {
-    color: '#00E676',
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  profitPercent: {
-    color: '#00E676',
-    fontSize: 13,
-    fontWeight: '600',
+    marginBottom: 6,
     opacity: 0.8,
   },
-  quickInfoGrid: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  balanceAmount: {
+    fontSize: 32,
+    fontWeight: "800",
+    letterSpacing: 0.5,
+  },
+  quickStatsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingTop: 16,
     borderTopWidth: 1,
-    paddingTop: 20,
   },
-  quickInfoItem: {
+  quickStatItem: {
     flex: 1,
-    alignItems: 'center',
+    alignItems: "center",
+    paddingHorizontal: 4,
   },
-  quickInfoLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    marginBottom: 6,
+  quickStatLabel: {
+    fontSize: 11,
+    fontWeight: "600",
+    marginBottom: 4,
+    opacity: 0.8,
   },
-  quickInfoValue: {
+  quickStatValue: {
     fontSize: 14,
-    fontWeight: '800',
+    fontWeight: "700",
     letterSpacing: 0.3,
   },
-  quickInfoDivider: {
+  quickStatDivider: {
     width: 1,
-    height: 32,
+    height: 30,
+    opacity: 0.5,
   },
   statsSection: {
     marginHorizontal: 20,
-    marginBottom: 24,
+    marginBottom: 20,
   },
   statsSectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 12,
   },
   statsTitle: {
-    fontSize: 20,
-    fontWeight: "800",
+    fontSize: 18,
+    fontWeight: "700",
     letterSpacing: 0.3,
   },
   viewAllButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 4,
   },
   viewAllText: {
-    fontSize: 13,
-    fontWeight: '600',
+    fontSize: 12,
+    fontWeight: "600",
   },
   statsGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 12,
+    gap: 10,
+  },
+  statCardWrapper: {
+    width: (CARD_WIDTH - 10) / 2,
   },
   statCard: {
-    width: (SCREEN_WIDTH - 52) / 2,
-    padding: 18,
-    borderRadius: 20,
-    borderWidth: 1.5,
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 1,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 3,
   },
   statIconContainer: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
     marginBottom: 12,
   },
-  statValue: {
-    fontSize: 26,
-    fontWeight: "800",
-    marginBottom: 4,
-    letterSpacing: 0.3,
+  statContent: {
+    gap: 2,
   },
   statLabel: {
-    fontSize: 13,
+    fontSize: 11,
     fontWeight: "600",
-    marginBottom: 10,
+    opacity: 0.8,
   },
-  statChange: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  statValue: {
+    fontSize: 20,
+    fontWeight: "800",
+    letterSpacing: 0.3,
+  },
+  statChangeBadge: {
+    flexDirection: "row",
+    alignItems: "center",
     gap: 4,
-    alignSelf: 'flex-start',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 12,
+    alignSelf: "flex-start",
+    marginTop: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 10,
   },
   statChangeText: {
-    fontSize: 12,
+    fontSize: 10,
     fontWeight: "700",
   },
   tabsContainer: {
-    marginHorizontal: 20,
-    marginBottom: 24,
-    borderRadius: 18,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.05)',
-  },
-  tabsInner: {
     flexDirection: "row",
-    padding: 4,
+    marginHorizontal: 20,
+    marginBottom: 20,
+    backgroundColor: "transparent",
+    gap: 8,
   },
-  tab: {
+  tabButton: {
     flex: 1,
-    paddingVertical: 14,
+    paddingVertical: 12,
     alignItems: "center",
     position: "relative",
-    borderRadius: 14,
   },
-  activeTabBackground: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    borderRadius: 14,
+  activeTabButton: {
+    backgroundColor: "transparent",
   },
   tabText: {
     fontSize: 14,
+    fontWeight: "600",
     letterSpacing: 0.5,
-    zIndex: 1,
   },
-  content: {
+  tabIndicator: {
+    position: "absolute",
+    bottom: 0,
+    left: "25%",
+    right: "25%",
+    height: 3,
+    borderRadius: 1.5,
+  },
+  actionsSection: {
     paddingHorizontal: 20,
+    marginBottom: 20,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    marginBottom: 16,
+    letterSpacing: 0.3,
   },
   actionsGrid: {
     flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 14,
+    flexWrap: "nowrap",
+    paddingHorizontal: 6,
+    paddingVertical: 4,
+    alignItems: "center",
   },
   actionCard: {
-    width: (SCREEN_WIDTH - 54) / 2,
-    borderRadius: 20,
-    overflow: 'hidden',
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 8,
-  },
-  actionGradient: {
-    padding: 20,
-    alignItems: "center",
-    justifyContent: "center",
-    minHeight: 140,
-  },
-  actionIconContainer: {
-    width: 60,
-    height: 60,
-    borderRadius: 18,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 14,
-  },
-  actionTitle: {
-    fontSize: 15,
-    fontWeight: "700",
-    textAlign: "center",
-    color: '#fff',
-    letterSpacing: 0.3,
-  },
-  actionArrow: {
-    marginTop: 8,
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  detailsContainer: {
-    gap: 16,
-  },
-  detailsCard: {
-    borderRadius: 20,
-    padding: 20,
-    borderWidth: 1.5,
-    borderColor: 'rgba(0,0,0,0.05)',
+    width: ACTION_CARD_WIDTH,
+    borderRadius: 16,
+    overflow: "hidden",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.06,
+    shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 4,
+    marginRight: 12,
   },
-  detailItem: {
+  actionGradient: {
+    padding: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: 100,
+  },
+  actionIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 14,
+    backgroundColor: "rgba(255,255,255,0.2)",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 10,
+  },
+  actionTitle: {
+    fontSize: 13,
+    fontWeight: "700",
+    textAlign: "center",
+    color: "#fff",
+    letterSpacing: 0.3,
+  },
+  detailsSection: {
+    paddingHorizontal: 20,
+    marginBottom: 20,
+  },
+  detailsCard: {
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: "rgba(0,0,0,0.05)",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  detailRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    paddingVertical: 12,
+  },
+  detailRowBorder: {
+    borderBottomWidth: 1,
   },
   detailLeft: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 14,
+    gap: 12,
     flex: 1,
   },
-  detailIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 16,
+  detailIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
   },
+  detailInfo: {
+    gap: 2,
+  },
   detailLabel: {
-    fontSize: 15,
+    fontSize: 13,
     fontWeight: "700",
-    marginBottom: 3,
     letterSpacing: 0.2,
   },
   detailDescription: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "500",
+    opacity: 0.7,
   },
   detailValue: {
-    fontSize: 15,
-    fontWeight: "800",
-    letterSpacing: 0.3,
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: "800",
-    marginBottom: 16,
+    fontSize: 13,
+    fontWeight: "700",
     letterSpacing: 0.3,
   },
   accountActions: {
-    gap: 12,
+    flexDirection: "row",
+    gap: 10,
   },
-  actionButtonContainer: {
-    borderRadius: 16,
-    overflow: 'hidden',
+  actionButton: {
+    flex: 1,
+    borderRadius: 12,
+    overflow: "hidden",
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.12,
-    shadowRadius: 8,
-    elevation: 6,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    elevation: 3,
   },
   actionButtonGradient: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: 'center',
-    gap: 10,
-    paddingHorizontal: 20,
-    paddingVertical: 16,
+    justifyContent: "center",
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
   },
   actionButtonText: {
-    fontSize: 15,
+    fontSize: 13,
     fontWeight: "700",
-    color: '#fff',
-    letterSpacing: 0.3,
-  },
-  actionButtonOutline: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: 'center',
-    gap: 10,
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderWidth: 2,
-    borderRadius: 16,
-  },
-  actionButtonTextOutline: {
-    fontSize: 15,
-    fontWeight: "700",
+    color: "#fff",
     letterSpacing: 0.3,
   },
   securityNotice: {
     marginHorizontal: 20,
-    marginTop: 24,
-    borderRadius: 18,
-    overflow: 'hidden',
-    borderWidth: 1.5,
-    borderColor: 'rgba(0,0,0,0.05)',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "rgba(0,0,0,0.05)",
+    overflow: "hidden",
   },
-  securityGradient: {
+  securityContent: {
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
-    padding: 18,
+    padding: 16,
   },
   securityIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  securityInfo: {
+    flex: 1,
+    gap: 2,
   },
   securityTitle: {
-    fontSize: 15,
+    fontSize: 13,
     fontWeight: "700",
-    marginBottom: 3,
     letterSpacing: 0.2,
   },
   securityText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "500",
-    lineHeight: 16,
+    opacity: 0.7,
   },
 });

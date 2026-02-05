@@ -3,7 +3,6 @@ import * as LocalAuthentication from "expo-local-authentication";
 import { router } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import {
-  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -20,6 +19,7 @@ import {
 } from "../../utils/secureAuth";
 
 import LogoComp from "../../components/LogoComp";
+import { showErrorToast, showInfoToast } from "../../utils/toast";
 
 export default function Login() {
   const [accountType, setAccountType] = useState("live");
@@ -61,9 +61,9 @@ export default function Login() {
   const loginWithBiometrics = async () => {
     if (biometricBusy) return;
     if (!biometricEnabled) {
-      Alert.alert(
-        "Biometric login is off",
+      showInfoToast(
         "Enable it in Account settings first.",
+        "Biometric login is off",
       );
       return;
     }
@@ -75,18 +75,18 @@ export default function Login() {
 
       const hasHardware = await LocalAuthentication.hasHardwareAsync();
       if (!hasHardware) {
-        Alert.alert(
-          "Biometrics not available",
+        showInfoToast(
           "This device does not support biometric authentication.",
+          "Biometrics not available",
         );
         return;
       }
 
       const isEnrolled = await LocalAuthentication.isEnrolledAsync();
       if (!isEnrolled) {
-        Alert.alert(
-          "No biometrics enrolled",
+        showInfoToast(
           "Please enroll Face ID / Touch ID / Fingerprint in device settings first.",
+          "No biometrics enrolled",
         );
         return;
       }
@@ -106,9 +106,9 @@ export default function Login() {
 
       const creds = await getBiometricCredentials();
       if (!creds?.email || !creds?.password) {
-        Alert.alert(
-          "Biometric login not set up",
+        showInfoToast(
           "Login once with username/password and enable biometrics (or Remember me) to use biometric login.",
+          "Biometric login not set up",
         );
         return;
       }
@@ -120,13 +120,16 @@ export default function Login() {
       if (relogin?.success) {
         router.replace("/(tabs)");
       } else {
-        Alert.alert(
-          "Login failed",
+        showErrorToast(
           relogin?.error || "Unable to login with saved credentials.",
+          "Login failed",
         );
       }
     } catch (e) {
-      Alert.alert("Biometric error", e?.message || "Biometric login failed.");
+      showErrorToast(
+        e?.message || "Biometric login failed.",
+        "Biometric error",
+      );
     } finally {
       setBiometricBusy(false);
     }

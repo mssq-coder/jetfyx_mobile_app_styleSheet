@@ -21,9 +21,7 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 export default function Dashboard() {
   const { theme, themeName, setAppTheme } = useAppTheme();
   const [themePickerOpen, setThemePickerOpen] = useState(false);
-  const userData = useAuthStore((state) => state.userData);
-  const firstName = userData?.firstName || "Trader";
-  const lastName = userData?.lastName || "";
+  const fullName = useAuthStore((state) => state.fullName);
 
   const dashboardThemes = ["light", "dark", "green", "purple"];
 
@@ -87,7 +85,7 @@ export default function Dashboard() {
           <View style={styles.headerTopRow}>
             <View style={styles.userGreeting}>
               <Text style={styles.welcomeText}>Welcome back,</Text>
-              <Text style={styles.userName}>{firstName} {lastName}</Text>
+              <Text style={styles.userName}> {fullName || "Trader"}!</Text>
             </View>
             <TouchableOpacity
               onPress={() => setThemePickerOpen(true)}
@@ -124,7 +122,7 @@ export default function Dashboard() {
               style={styles.actionGridItem}
             >
               <View style={[styles.actionGridIcon, { backgroundColor: `${theme.primary}20` }]}>
-                <AppIcon name="trending-up" color={theme.primary} size={24} />
+                <AppIcon name="trending-up" color={theme.positive} size={24} />
               </View>
               <Text style={styles.actionGridLabel}>Trade</Text>
             </TouchableOpacity>
@@ -134,7 +132,7 @@ export default function Dashboard() {
               style={styles.actionGridItem}
             >
               <View style={[styles.actionGridIcon, { backgroundColor: `${theme.secondary}20` }]}>
-                <AppIcon name="account-balance-wallet" color={theme.secondary} size={24} />
+                <AppIcon name="account-balance-wallet" color={theme.positive} size={24} />
               </View>
               <Text style={styles.actionGridLabel}>Withdraw</Text>
             </TouchableOpacity>
@@ -144,7 +142,7 @@ export default function Dashboard() {
               style={styles.actionGridItem}
             >
               <View style={[styles.actionGridIcon, { backgroundColor: `${theme.headerBlue}20` }]}>
-                <AppIcon name="menu" color={theme.headerBlue} size={24} />
+                <AppIcon name="menu" color={theme.positive} size={24} />
               </View>
               <Text style={styles.actionGridLabel}>More</Text>
             </TouchableOpacity>

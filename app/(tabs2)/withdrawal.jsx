@@ -2,7 +2,6 @@ import { router } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Image,
   KeyboardAvoidingView,
   Platform,
@@ -20,6 +19,7 @@ import AccountSelectorModal from "../../components/Accounts/AccountSelectorModal
 import AppIcon from "../../components/AppIcon";
 import { useAppTheme } from "../../contexts/ThemeContext";
 import { useAuthStore } from "../../store/authStore";
+import { showInfoToast } from "../../utils/toast";
 
 const MODE = "withdrawal";
 
@@ -193,35 +193,38 @@ export default function WithdrawalScreen() {
 
   const validateAndProceed = async () => {
     if (!selectedAccount) {
-      Alert.alert("Select account", "Please select an account.");
+      showInfoToast("Please select an account.", "Select account");
       return;
     }
 
     if (!selectedMethod) {
-      Alert.alert("Select method", "Please select a withdrawal method.");
+      showInfoToast("Please select a withdrawal method.", "Select method");
       return;
     }
 
     const amt = Number(amount);
     if (!amount || Number.isNaN(amt) || amt <= 0) {
-      Alert.alert("Invalid amount", "Please enter a valid withdrawal amount.");
+      showInfoToast(
+        "Please enter a valid withdrawal amount.",
+        "Invalid amount",
+      );
       return;
     }
 
     const min = Number(selectedMethod.amountMin);
     const max = Number(selectedMethod.amountMax);
     if (!Number.isNaN(min) && amt < min) {
-      Alert.alert("Amount too low", `Minimum amount is ${min}.`);
+      showInfoToast(`Minimum amount is ${min}.`, "Amount too low");
       return;
     }
     if (!Number.isNaN(max) && amt > max) {
-      Alert.alert("Amount too high", `Maximum amount is ${max}.`);
+      showInfoToast(`Maximum amount is ${max}.`, "Amount too high");
       return;
     }
 
-    Alert.alert(
-      "Proceed",
+    showInfoToast(
       `Withdrawal ${amt}\nMethod: ${selectedMethod.name}\nProcessing: ${selectedCategory?.processingTime || "—"}`,
+      "Proceed",
     );
   };
 

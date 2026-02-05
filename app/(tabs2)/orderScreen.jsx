@@ -3,7 +3,6 @@ import { useRouter } from "expo-router";
 import * as SecureStore from "expo-secure-store";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  Alert,
   Animated,
   Dimensions,
   Modal,
@@ -11,7 +10,7 @@ import {
   StatusBar,
   Text,
   TouchableOpacity,
-  View
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { getAllCurrencyListFromDB } from "../../api/getServices";
@@ -22,7 +21,13 @@ import TradingModal from "../../components/OrderComponents/TradingModal";
 import TradingViewChart from "../../components/TradingViewChart";
 import { useAppTheme } from "../../contexts/ThemeContext";
 import useAccountSummary from "../../hooks/useAccountSummary";
+import { useMarginCalculation } from "../../hooks/useMarginCalculation";
 import { useAuthStore } from "../../store/authStore";
+import {
+  showErrorToast,
+  showInfoToast,
+  showSuccessToast,
+} from "../../utils/toast";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 const API_BASE_URL =
@@ -79,8 +84,10 @@ export default function Orders() {
     );
   }, [accounts, selectedAccountId]);
   const { summary } = useAccountSummary(null, selectedAccountId, API_BASE_URL);
+  console.log("OrderScreen - currentAccount:", currentAccount, summary);
 
   const [symbol, setSymbol] = useState("XAUUSD");
+  console.log("OrderScreen - selectedAccountId:", symbol, selectedAccountId);
   const [isSymbolModalVisible, setSymbolModalVisible] = useState(false);
   const [isAccountModalVisible, setAccountModalVisible] = useState(false);
   const [isTradingModalVisible, setTradingModalVisible] = useState(false);
@@ -99,7 +106,6 @@ export default function Orders() {
   const [isFavourite, setIsFavourite] = useState(false);
   const connectionRef = useRef(null);
   const symbolsBySymbolRef = useRef({});
-
   const [symbols, setSymbols] = useState([]);
   const [quotesBySymbol, setQuotesBySymbol] = useState({});
   const [lot, setLot] = useState(0.01);
@@ -290,6 +296,17 @@ export default function Orders() {
             minLotSize: item.minLotSize ?? null,
             maxLotSize: item.maxLotSize ?? null,
             lotStepSize: item.lotStepSize ?? null,
+
+            // Margin-related fields (if provided by API)
+            contractSize: item.contractSize ?? null,
+            contractValue: item.contractValue ?? null,
+            marginCalculationType: item.marginCalculationType ?? null,
+            marginPercentage: item.marginPercentage ?? null,
+            marginInUsdCode:
+              item.marginInUsdCode ??
+              item.marginInUSD ??
+              item.marginInUsd ??
+              null,
           }));
 
         if (isCancelled) return;
@@ -420,6 +437,26 @@ export default function Orders() {
   const lotMax = safeNumber(instrument?.maxLotSize);
   const lotDecimals = Math.min(6, Math.max(2, countDecimals(lotStep)));
 
+  const contractValue = useMemo(() => {
+    const cs = safeNumber(instrument?.contractSize);
+    const l = safeNumber(lot);
+    if (cs == null || l == null) return null;
+    const v = cs * l;
+    return Number.isFinite(v) ? v : null;
+  }, [instrument?.contractSize, lot]);
+
+  const leverageForMargin = currentAccount?.leverage ?? "1:100";
+  const { margin: marginValue, isCalculating: marginBusy } =
+    useMarginCalculation(
+      instrument,
+      lot,
+      leverageForMargin,
+      quotesBySymbol,
+      tradeTab === "Pending" ? pendingEntryPrice : "",
+      tradeTab === "Pending" ? currentMarketMid : getReferencePrice(),
+      symbols,
+    );
+
   const normalizeLot = useCallback(
     (value) => {
       let v = safeNumber(value);
@@ -529,7 +566,7 @@ export default function Orders() {
   const executeOrder = async () => {
     try {
       if (!selectedAccountId) {
-        Alert.alert("Account missing", "Please select an account first.");
+        showInfoToast("Please select an account first.", "Account missing");
         return;
       }
 
@@ -539,9 +576,9 @@ export default function Orders() {
       if (isPending) {
         const n = safeNumber(pendingPriceNumber);
         if (n == null || n <= 0) {
-          Alert.alert(
-            "Missing Entry Price",
+          showInfoToast(
             "Entry price is required and must be greater than 0 for pending orders.",
+            "Missing Entry Price",
           );
           return;
         }
@@ -589,18 +626,18 @@ export default function Orders() {
 
       await createOrder(payload);
 
-      Alert.alert(
-        "✅ Order Placed",
+      showSuccessToast(
         isPending
           ? `${pendingType?.label ?? "Pending"} ${symbol} ${payload.lotSize}`
           : `${orderType} ${symbol} ${payload.lotSize}`,
+        "Order Placed",
       );
       setTradingModalVisible(false);
     } catch (err) {
       console.error("Create order failed:", err?.response?.data ?? err);
       const message =
         err?.response?.data?.message || err?.message || String(err);
-      Alert.alert("❌ Order Failed", message);
+      showErrorToast(message, "Order Failed");
     }
   };
 
@@ -702,9 +739,7 @@ export default function Orders() {
                     borderRadius: 12,
                     backgroundColor: `${theme.primary}15`,
                   }}
-                >
-              
-                </View>
+                ></View>
               </View>
             </TouchableOpacity>
 
@@ -1565,36 +1600,36 @@ export default function Orders() {
               <Text
                 style={{ fontSize: 10, color: theme.secondary, opacity: 0.7 }}
               >
-                VOLUME
+                MAX LOT
               </Text>
               <Text
                 style={{ fontSize: 12, fontWeight: "700", color: theme.text }}
               >
-                --
+                {lotMax != null ? Number(lotMax).toFixed(lotDecimals) : "--"}
               </Text>
             </View>
             <View style={{ alignItems: "center" }}>
               <Text
                 style={{ fontSize: 10, color: theme.secondary, opacity: 0.7 }}
               >
-                SPREAD
+                CONTRACT VALUE
               </Text>
               <Text
                 style={{ fontSize: 12, fontWeight: "700", color: theme.text }}
               >
-                {(Number(askStr) - Number(bidStr) || 0).toFixed(digits)}
+                {contractValue != null ? contractValue.toFixed(2) : "--"}
               </Text>
             </View>
             <View style={{ alignItems: "center" }}>
               <Text
                 style={{ fontSize: 10, color: theme.secondary, opacity: 0.7 }}
               >
-                SWAP
+                MARGIN
               </Text>
               <Text
                 style={{ fontSize: 12, fontWeight: "700", color: theme.text }}
               >
-                --
+                {marginBusy ? "…" : marginValue ? marginValue.toFixed(2) : "--"}
               </Text>
             </View>
           </View>

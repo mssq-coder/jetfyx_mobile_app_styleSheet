@@ -24,8 +24,28 @@ const normalizeOrdersPayload = (payload) => {
 const isPendingOrder = (order) => {
   if (!order || typeof order !== "object") return false;
   if (typeof order.isPending === "boolean") return order.isPending;
-  const status = (order.status ?? order.orderStatus ?? "").toString().toLowerCase();
+  const status = (order.status ?? order.orderStatus ?? "")
+    .toString()
+    .toLowerCase();
   return status === "pending" || status === "placed" || status === "new";
+};
+
+const isClosedOrder = (order) => {
+  if (!order || typeof order !== "object") return false;
+  if (order.isClosed === true) return true;
+  if (order.closed === true) return true;
+  if (order.isOpen === false) return true;
+
+  const raw = order.status ?? order.orderStatus;
+  if (typeof raw === "number") {
+    // Common enum pattern: 1 = Closed
+    return raw === 1;
+  }
+
+  const status = String(raw ?? "").toLowerCase();
+  const asNum = Number(status);
+  if (Number.isFinite(asNum)) return asNum === 1;
+  return status === "closed" || status === "close" || status.includes("closed");
 };
 
 const mergeById = (prevList, incomingList) => {
@@ -57,7 +77,8 @@ const useOrderHub = (accountId, setOrders, setPendingOrders) => {
   const connectionRef = useRef(null);
   const prevAccountId = useRef(null);
 
-  const baseURL = "https://jetwebapp-api-dev-e4bpepgaeaaxgecr.centralindia-01.azurewebsites.net/api";
+  const baseURL =
+    "https://jetwebapp-api-dev-e4bpepgaeaaxgecr.centralindia-01.azurewebsites.net/api";
 
   useEffect(() => {
     if (!accountId) {
@@ -79,8 +100,28 @@ const useOrderHub = (accountId, setOrders, setPendingOrders) => {
         (updates) => {
           const incoming = normalizeOrdersPayload(updates);
 
-          const pendingIncoming = incoming.filter(isPendingOrder);
-          const ongoingIncoming = incoming.filter((o) => !isPendingOrder(o));
+          const closedIncoming = incoming.filter(isClosedOrder);
+          const openIncoming = incoming.filter((o) => !isClosedOrder(o));
+
+          // If backend broadcasts closed orders as updates (instead of RemoveOrder),
+          // proactively remove them from local lists.
+          if (closedIncoming.length) {
+            for (const c of closedIncoming) {
+              const rid = getOrderId(c);
+              if (rid == null) continue;
+              if (typeof setOrders === "function") {
+                setOrders((prev) => removeById(prev, rid));
+              }
+              if (typeof setPendingOrders === "function") {
+                setPendingOrders((prev) => removeById(prev, rid));
+              }
+            }
+          }
+
+          const pendingIncoming = openIncoming.filter(isPendingOrder);
+          const ongoingIncoming = openIncoming.filter(
+            (o) => !isPendingOrder(o),
+          );
 
           if (typeof setOrders === "function") {
             setOrders((prev) => mergeById(prev, ongoingIncoming));
@@ -96,7 +137,7 @@ const useOrderHub = (accountId, setOrders, setPendingOrders) => {
           if (typeof setPendingOrders === "function") {
             setPendingOrders((prev) => removeById(prev, removedId));
           }
-        }
+        },
       );
 
       connectionRef.current = connection;

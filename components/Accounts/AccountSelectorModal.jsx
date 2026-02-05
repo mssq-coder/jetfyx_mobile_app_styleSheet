@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Animated,
   Dimensions,
   Easing,
@@ -18,9 +17,14 @@ import { FadeIn, FadeOut } from "react-native-reanimated";
 import { addUserToProfile } from "../../api/auth";
 import { useAppTheme } from "../../contexts/ThemeContext";
 import { useAuthStore } from "../../store/authStore";
+import {
+  showErrorToast,
+  showInfoToast,
+  showSuccessToast,
+} from "../../utils/toast";
 import AppIcon from "../AppIcon";
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 // Modal lists accounts grouped by owner: main user fullName + shared owners
 export default function AccountSelectorModal({
@@ -104,45 +108,32 @@ export default function AccountSelectorModal({
 
   const handleAddUser = async () => {
     if (!userId) {
-      Alert.alert(
-        "Not signed in",
+      showErrorToast(
         "Unable to determine current user. Please login again.",
+        "Not signed in",
       );
       return;
     }
 
     if (!addEmail || !addPassword) {
-      Alert.alert(
-        "Missing fields",
-        "Please enter email and password.",
-      );
+      showInfoToast("Please enter email and password.", "Missing fields");
       return;
     }
 
     // Basic validation
     const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(addEmail);
     if (!emailValid) {
-      Alert.alert(
-        "Invalid Email",
-        "Please enter a valid email address.",
-      );
+      showInfoToast("Please enter a valid email address.", "Invalid Email");
       return;
     }
     if (addPassword.length < 6) {
-      Alert.alert(
-        "Weak Password",
-        "Password must be at least 6 characters.",
-      );
+      showInfoToast("Password must be at least 6 characters.", "Weak Password");
       return;
     }
 
     setAddingUser(true);
     try {
-      const result = await addUserToProfile(
-        userId,
-        addEmail,
-        addPassword,
-      );
+      const result = await addUserToProfile(userId, addEmail, addPassword);
       console.log("User added to profile", {
         userId,
         addEmail,
@@ -152,7 +143,7 @@ export default function AccountSelectorModal({
       setAddEmail("");
       setAddPassword("");
       onRefresh && onRefresh();
-      Alert.alert("Success", "User added to profile.");
+      showSuccessToast("User added to profile.", "Success");
     } catch (err) {
       console.error("Error adding user to profile", err);
       const resp = err?.response?.data;
@@ -160,7 +151,7 @@ export default function AccountSelectorModal({
         resp?.message ||
         (resp ? JSON.stringify(resp) : err?.message) ||
         "Failed to add user.";
-      Alert.alert("Error", message);
+      showErrorToast(String(message));
     } finally {
       setAddingUser(false);
     }
@@ -168,14 +159,9 @@ export default function AccountSelectorModal({
 
   return (
     <Modal visible={visible} transparent animationType="fade">
-      <Animated.View 
-        style={[
-          styles.backdrop, 
-          { opacity: fadeAnim }
-        ]}
-      >
-        <TouchableOpacity 
-          style={styles.backdropInner} 
+      <Animated.View style={[styles.backdrop, { opacity: fadeAnim }]}>
+        <TouchableOpacity
+          style={styles.backdropInner}
           onPress={onClose}
           activeOpacity={1}
         />
@@ -193,7 +179,9 @@ export default function AccountSelectorModal({
       >
         {/* Drag handle */}
         <View style={styles.handleWrapper}>
-          <View style={[styles.handle, { backgroundColor: theme.secondary + '80' }]} />
+          <View
+            style={[styles.handle, { backgroundColor: theme.secondary + "80" }]}
+          />
         </View>
 
         <View style={{ flexShrink: 0 }}>
@@ -246,7 +234,9 @@ export default function AccountSelectorModal({
               >
                 Owner
               </Text>
-              <Text style={[styles.labelHint, { color: theme.secondary + '90' }]}>
+              <Text
+                style={[styles.labelHint, { color: theme.secondary + "90" }]}
+              >
                 Tap to switch
               </Text>
             </View>
@@ -254,16 +244,21 @@ export default function AccountSelectorModal({
               onPress={() => setOwnersOpen((s) => !s)}
               style={[
                 styles.dropdown,
-                { 
-                  backgroundColor: theme.card, 
-                  borderColor: ownersOpen ? theme.primary + '50' : theme.border,
+                {
+                  backgroundColor: theme.card,
+                  borderColor: ownersOpen ? theme.primary + "50" : theme.border,
                   shadowColor: theme.shadow,
                 },
               ]}
               activeOpacity={0.8}
             >
               <View style={styles.rowCenter}>
-                <View style={[styles.ownerAvatar, { backgroundColor: theme.primary + '15' }]}>
+                <View
+                  style={[
+                    styles.ownerAvatar,
+                    { backgroundColor: theme.primary + "15" },
+                  ]}
+                >
                   <AppIcon name="person" size={18} color={theme.primary} />
                 </View>
                 <View style={{ flex: 1 }}>
@@ -271,8 +266,11 @@ export default function AccountSelectorModal({
                     {owners.find((p) => p.id === activeOwner)?.name ??
                       "Select Owner"}
                   </Text>
-                  <Text style={[styles.dropdownSubtext, { color: theme.secondary }]}>
-                    {filteredAccounts.length} account{filteredAccounts.length !== 1 ? 's' : ''}
+                  <Text
+                    style={[styles.dropdownSubtext, { color: theme.secondary }]}
+                  >
+                    {filteredAccounts.length} account
+                    {filteredAccounts.length !== 1 ? "s" : ""}
                   </Text>
                 </View>
               </View>
@@ -286,16 +284,16 @@ export default function AccountSelectorModal({
               <Animated.View
                 style={[
                   styles.dropdownList,
-                  { 
-                    backgroundColor: theme.card, 
-                    borderColor: theme.primary + '30',
+                  {
+                    backgroundColor: theme.card,
+                    borderColor: theme.primary + "30",
                     shadowColor: theme.shadow,
                   },
                 ]}
                 entering={FadeIn.duration(200)}
                 exiting={FadeOut.duration(150)}
               >
-                <ScrollView 
+                <ScrollView
                   showsVerticalScrollIndicator={false}
                   style={{ maxHeight: 160 }}
                 >
@@ -311,20 +309,23 @@ export default function AccountSelectorModal({
                         {
                           backgroundColor:
                             activeOwner === p.id
-                              ? theme.primary + '10'
+                              ? theme.primary + "10"
                               : "transparent",
                         },
                       ]}
                       activeOpacity={0.7}
                     >
-                      <View style={[
-                        styles.ownerAvatarSmall,
-                        { 
-                          backgroundColor: activeOwner === p.id 
-                            ? theme.primary 
-                            : theme.primary + '15' 
-                        }
-                      ]}>
+                      <View
+                        style={[
+                          styles.ownerAvatarSmall,
+                          {
+                            backgroundColor:
+                              activeOwner === p.id
+                                ? theme.primary
+                                : theme.primary + "15",
+                          },
+                        ]}
+                      >
                         <AppIcon
                           name="person"
                           size={14}
@@ -336,19 +337,34 @@ export default function AccountSelectorModal({
                           style={[
                             styles.dropdownItemText,
                             {
-                              color: activeOwner === p.id ? theme.primary : theme.text,
-                              fontWeight: activeOwner === p.id ? '700' : '500',
+                              color:
+                                activeOwner === p.id
+                                  ? theme.primary
+                                  : theme.text,
+                              fontWeight: activeOwner === p.id ? "700" : "500",
                             },
                           ]}
                         >
                           {p.name}
                         </Text>
-                        <Text style={[styles.dropdownItemSubtext, { color: theme.secondary }]}>
-                          {p.id === 'currentUser' ? 'Your accounts' : 'Shared accounts'}
+                        <Text
+                          style={[
+                            styles.dropdownItemSubtext,
+                            { color: theme.secondary },
+                          ]}
+                        >
+                          {p.id === "currentUser"
+                            ? "Your accounts"
+                            : "Shared accounts"}
                         </Text>
                       </View>
                       {activeOwner === p.id && (
-                        <View style={[styles.selectedDot, { backgroundColor: theme.primary }]} />
+                        <View
+                          style={[
+                            styles.selectedDot,
+                            { backgroundColor: theme.primary },
+                          ]}
+                        />
                       )}
                     </TouchableOpacity>
                   ))}
@@ -364,23 +380,37 @@ export default function AccountSelectorModal({
             <Text style={[styles.label, { color: theme.secondary }]}>
               Available Accounts
             </Text>
-            <View style={[styles.accountCountBadge, { backgroundColor: theme.primary + '15' }]}>
+            <View
+              style={[
+                styles.accountCountBadge,
+                { backgroundColor: theme.primary + "15" },
+              ]}
+            >
               <Text style={[styles.accountCountText, { color: theme.primary }]}>
                 {filteredAccounts.length}
               </Text>
             </View>
           </View>
-          
+
           {filteredAccounts.length === 0 ? (
             <View style={styles.emptyState}>
-              <View style={[styles.emptyIcon, { backgroundColor: theme.primary + '10' }]}>
-                <AppIcon name="account-balance-wallet" size={32} color={theme.primary} />
+              <View
+                style={[
+                  styles.emptyIcon,
+                  { backgroundColor: theme.primary + "10" },
+                ]}
+              >
+                <AppIcon
+                  name="account-balance-wallet"
+                  size={32}
+                  color={theme.primary}
+                />
               </View>
               <Text style={[styles.emptyTitle, { color: theme.text }]}>
                 No Accounts Found
               </Text>
               <Text style={[styles.emptyText, { color: theme.secondary }]}>
-                {activeOwner === 'currentUser' 
+                {activeOwner === "currentUser"
                   ? "You don't have any accounts yet"
                   : "No shared accounts available"}
               </Text>
@@ -408,11 +438,11 @@ export default function AccountSelectorModal({
                       {
                         backgroundColor:
                           (item.accountId ?? item.id) === selectedAccountId
-                            ? theme.primary + '10'
+                            ? theme.primary + "10"
                             : theme.card,
                         borderColor:
                           (item.accountId ?? item.id) === selectedAccountId
-                            ? theme.primary + '30'
+                            ? theme.primary + "30"
                             : theme.border,
                         shadowColor: theme.shadow,
                       },
@@ -423,10 +453,11 @@ export default function AccountSelectorModal({
                       <View
                         style={[
                           styles.accountAvatar,
-                          { 
-                            backgroundColor: (item.accountId ?? item.id) === selectedAccountId
-                              ? theme.primary + '20'
-                              : theme.primary + '10',
+                          {
+                            backgroundColor:
+                              (item.accountId ?? item.id) === selectedAccountId
+                                ? theme.primary + "20"
+                                : theme.primary + "10",
                           },
                         ]}
                       >
@@ -437,11 +468,16 @@ export default function AccountSelectorModal({
                         />
                       </View>
                       <View style={{ flex: 1 }}>
-                        <Text style={[styles.accountNumber, { color: theme.text }]}>
+                        <Text
+                          style={[styles.accountNumber, { color: theme.text }]}
+                        >
                           {item.accountNumber ?? item.id}
                         </Text>
                         <Text
-                          style={[styles.accountMeta, { color: theme.secondary }]}
+                          style={[
+                            styles.accountMeta,
+                            { color: theme.secondary },
+                          ]}
                           numberOfLines={1}
                         >
                           {item.accountTypeName ?? item.type ?? "Account"}
@@ -454,8 +490,13 @@ export default function AccountSelectorModal({
                               { color: theme.primary },
                             ]}
                           >
-                            {item.balance != null ? item.balance.toLocaleString() : "-"} 
-                            <Text style={{ color: theme.secondary }}> {item.currency ?? ""}</Text>
+                            {item.balance != null
+                              ? item.balance.toLocaleString()
+                              : "-"}
+                            <Text style={{ color: theme.secondary }}>
+                              {" "}
+                              {item.currency ?? ""}
+                            </Text>
                           </Text>
                         )}
                       </View>
@@ -470,10 +511,10 @@ export default function AccountSelectorModal({
                         <AppIcon name="check" size={16} color="#fff" />
                       </View>
                     ) : (
-                      <AppIcon 
-                        name="chevron-right" 
-                        size={20} 
-                        color={theme.secondary + '50'} 
+                      <AppIcon
+                        name="chevron-right"
+                        size={20}
+                        color={theme.secondary + "50"}
                       />
                     )}
                   </TouchableOpacity>
@@ -496,8 +537,8 @@ export default function AccountSelectorModal({
         <Animated.View
           style={[
             styles.addModalBox,
-            { 
-              backgroundColor: theme.background, 
+            {
+              backgroundColor: theme.background,
               shadowColor: theme.shadow,
             },
           ]}
@@ -505,12 +546,15 @@ export default function AccountSelectorModal({
           exiting={FadeOut.duration(200)}
         >
           <View style={styles.addModalHeader}>
-            <View style={[styles.addModalIcon, { backgroundColor: theme.primary + '15' }]}>
+            <View
+              style={[
+                styles.addModalIcon,
+                { backgroundColor: theme.primary + "15" },
+              ]}
+            >
               <AppIcon name="person-add" size={24} color={theme.primary} />
             </View>
-            <Text
-              style={[styles.addModalTitle, { color: theme.text }]}
-            >
+            <Text style={[styles.addModalTitle, { color: theme.text }]}>
               Add User To Profile
             </Text>
             <Text style={[styles.addModalSubtitle, { color: theme.secondary }]}>
@@ -519,14 +563,19 @@ export default function AccountSelectorModal({
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={[styles.label, { color: theme.secondary, marginBottom: 6 }]}>
+            <Text
+              style={[
+                styles.label,
+                { color: theme.secondary, marginBottom: 6 },
+              ]}
+            >
               Email Address
             </Text>
             <TextInput
               value={addEmail}
               onChangeText={setAddEmail}
               placeholder="Enter user's email"
-              placeholderTextColor={theme.secondary + '70'}
+              placeholderTextColor={theme.secondary + "70"}
               keyboardType="email-address"
               autoCapitalize="none"
               style={[
@@ -541,14 +590,19 @@ export default function AccountSelectorModal({
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={[styles.label, { color: theme.secondary, marginBottom: 6 }]}>
+            <Text
+              style={[
+                styles.label,
+                { color: theme.secondary, marginBottom: 6 },
+              ]}
+            >
               Password
             </Text>
             <TextInput
               value={addPassword}
               onChangeText={setAddPassword}
               placeholder="Enter temporary password"
-              placeholderTextColor={theme.secondary + '70'}
+              placeholderTextColor={theme.secondary + "70"}
               secureTextEntry
               style={[
                 styles.modalInput,
@@ -559,7 +613,7 @@ export default function AccountSelectorModal({
                 },
               ]}
             />
-            <Text style={[styles.inputHint, { color: theme.secondary + '70' }]}>
+            <Text style={[styles.inputHint, { color: theme.secondary + "70" }]}>
               Minimum 6 characters
             </Text>
           </View>
@@ -596,7 +650,9 @@ export default function AccountSelectorModal({
               {addingUser ? (
                 <ActivityIndicator color="#fff" size="small" />
               ) : (
-                <Text style={{ color: "#fff", fontWeight: '600' }}>Add User</Text>
+                <Text style={{ color: "#fff", fontWeight: "600" }}>
+                  Add User
+                </Text>
               )}
             </TouchableOpacity>
           </View>
@@ -661,8 +717,8 @@ const styles = StyleSheet.create({
   iconButton: {
     padding: 10,
     borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   iconButtonElevated: {
     shadowOffset: { width: 0, height: 2 },
@@ -674,20 +730,20 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   labelRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: 8,
   },
   label: {
     fontSize: 13,
     fontWeight: "600",
     letterSpacing: 0.3,
-    textTransform: 'uppercase',
+    textTransform: "uppercase",
   },
   labelHint: {
     fontSize: 11,
-    fontWeight: '500',
+    fontWeight: "500",
   },
   labelTight: {
     marginBottom: 6,
@@ -752,7 +808,7 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     paddingHorizontal: 16,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0,0,0,0.05)',
+    borderBottomColor: "rgba(0,0,0,0.05)",
   },
   dropdownItemText: {
     marginLeft: 0,
@@ -772,9 +828,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   listHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     marginBottom: 16,
   },
   accountCountBadge: {
@@ -784,7 +840,7 @@ const styles = StyleSheet.create({
   },
   accountCountText: {
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   accountCard: {
     flexDirection: "row",
@@ -840,26 +896,26 @@ const styles = StyleSheet.create({
   },
   emptyState: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     paddingVertical: 60,
   },
   emptyIcon: {
     width: 80,
     height: 80,
     borderRadius: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     marginBottom: 20,
   },
   emptyTitle: {
     fontSize: 18,
-    fontWeight: '700',
+    fontWeight: "700",
     marginBottom: 8,
   },
   emptyText: {
     fontSize: 14,
-    textAlign: 'center',
+    textAlign: "center",
     paddingHorizontal: 40,
     lineHeight: 20,
   },
@@ -876,26 +932,26 @@ const styles = StyleSheet.create({
     elevation: 20,
   },
   addModalHeader: {
-    alignItems: 'center',
+    alignItems: "center",
     marginBottom: 24,
   },
   addModalIcon: {
     width: 56,
     height: 56,
     borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     marginBottom: 16,
   },
   addModalTitle: {
     fontSize: 20,
-    fontWeight: '800',
-    textAlign: 'center',
+    fontWeight: "800",
+    textAlign: "center",
     marginBottom: 6,
   },
   addModalSubtitle: {
     fontSize: 13,
-    textAlign: 'center',
+    textAlign: "center",
     opacity: 0.8,
   },
   inputGroup: {
@@ -907,7 +963,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 14,
     fontSize: 15,
-    fontWeight: '500',
+    fontWeight: "500",
   },
   inputHint: {
     fontSize: 11,
@@ -918,8 +974,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 12,
     borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     minWidth: 100,
   },
   modalButtonPrimary: {
@@ -930,6 +986,6 @@ const styles = StyleSheet.create({
   },
   modalButtonSecondary: {
     borderWidth: 1.5,
-    borderColor: 'transparent',
+    borderColor: "transparent",
   },
 });

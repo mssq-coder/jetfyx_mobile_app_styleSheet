@@ -12,6 +12,7 @@ const ProfitCard = ({
   submitBulkDelete,
   selectedCount,
   bulkDeleting,
+  onOpenBulkCloseModal,
 }) => {
   return (
     <View style={{ paddingHorizontal: 16, marginTop: 20 }}>
@@ -53,6 +54,7 @@ const ProfitCard = ({
               setSelectedOrderIds({});
               setExpandedOrderId(null);
               openSwipeRef.current?.close?.();
+              onOpenBulkCloseModal?.();
             }}
             style={{
               paddingHorizontal: 16,
@@ -74,7 +76,40 @@ const ProfitCard = ({
             </Text>
           </TouchableOpacity>
         ) : (
-          <View style={{ flexDirection: "row", gap: 10 }}>
+          <View
+            style={{
+              flexDirection: "row",
+              flexWrap: "wrap",
+              justifyContent: "flex-end",
+              gap: 10,
+            }}
+          >
+            <TouchableOpacity
+              onPress={onOpenBulkCloseModal}
+              disabled={bulkDeleting}
+              style={{
+                paddingHorizontal: 12,
+                paddingVertical: 8,
+                borderRadius: 12,
+                backgroundColor: theme.background,
+                borderWidth: 1,
+                borderColor: theme.border,
+                opacity: bulkDeleting ? 0.6 : 1,
+              }}
+              accessibilityRole="button"
+              accessibilityLabel="Open bulk close filters"
+            >
+              <Text
+                style={{
+                  fontSize: 12,
+                  fontWeight: "800",
+                  color: theme.text,
+                }}
+              >
+                Filters
+              </Text>
+            </TouchableOpacity>
+
             <TouchableOpacity
               onPress={cancelBulkMode}
               disabled={bulkDeleting}

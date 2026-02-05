@@ -1,14 +1,11 @@
 import { useCallback, useState } from "react";
-import { Alert } from "react-native";
 import {
   createOrderTarget,
   deleteOrderTarget,
   updateOrderTarget,
 } from "../../api/orderTargets";
-import {
-  getTargetId,
-  getTargetKey
-} from "../../utils/order/orderHelpers";
+import { getTargetId, getTargetKey } from "../../utils/order/orderHelpers";
+import { showErrorToast, showInfoToast } from "../../utils/toast";
 
 export const useTargetsManagement = ({
   targetsOrder,
@@ -59,7 +56,7 @@ export const useTargetsManagement = ({
     async (order) => {
       const oid = getOrderId(order);
       if (oid == null) {
-        Alert.alert("Multi target", "Missing order id.");
+        showErrorToast("Missing order id.", "Multi target");
         return;
       }
 
@@ -67,9 +64,9 @@ export const useTargetsManagement = ({
       const minLot = getMinLotSizeForOrder(order);
 
       if (!(orderLot > minLot) || !(minLot > 0)) {
-        Alert.alert(
-          "Multi target",
+        showInfoToast(
           `Multi target is only available when order lot is greater than the minimum lot.\n\nOrder lot: ${orderLot}\nMin lot: ${minLot || "—"}`,
+          "Multi target",
         );
         return;
       }

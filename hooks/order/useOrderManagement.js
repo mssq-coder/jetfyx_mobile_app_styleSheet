@@ -1,10 +1,14 @@
 import { useCallback, useState } from "react";
-import { Alert } from "react-native";
 import { bulkClose, updateOrder } from "../../api/orders";
 import {
   buildUpdatePayload,
   statusForClose,
 } from "../../utils/order/orderHelpers";
+import {
+  showConfirmToast,
+  showErrorToast,
+  showInfoToast,
+} from "../../utils/toast";
 
 export const useOrderManagement = ({
   editOrder,
@@ -133,59 +137,59 @@ export const useOrderManagement = ({
     (order) => {
       const oid = getOrderId(order);
       if (oid == null) {
-        Alert.alert("Close order", "Missing order id.");
+        showErrorToast("Missing order id.", "Close order");
         return;
       }
 
       const symbol =
         order?.symbol ?? order?.instrument ?? order?.instrumentName ?? "—";
 
-      Alert.alert("Close order", `Close ${symbol}?`, [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Close",
-          style: "destructive",
-          onPress: async () => {
-            setSavingUpdate(true);
-            setUpdateError(null);
-            try {
-              const now = new Date().toISOString();
-              const fullLot =
-                order?.lotSize ??
-                order?.remainingLotSize ??
-                order?.lotSizeForPendingOrders ??
-                0;
+      showConfirmToast({
+        title: "Close order",
+        message: `Close ${symbol}?`,
+        confirmText: "Close",
+        cancelText: "Cancel",
+        onConfirm: async () => {
+          setSavingUpdate(true);
+          setUpdateError(null);
+          try {
+            const now = new Date().toISOString();
+            const fullLot =
+              order?.lotSize ??
+              order?.remainingLotSize ??
+              order?.lotSizeForPendingOrders ??
+              0;
 
-              const payload = buildUpdatePayload(
-                order,
-                {
-                  status: statusForClose(order?.status),
-                  executedAt: now,
-                  closedAt: now,
-                  partialCloseLotSize: toNumberOrZero(fullLot),
-                },
-                getOrderId,
-                toNumberOrZero,
-                accountId,
-              );
+            const payload = buildUpdatePayload(
+              order,
+              {
+                status: statusForClose(order?.status),
+                executedAt: now,
+                closedAt: now,
+                partialCloseLotSize: toNumberOrZero(fullLot),
+              },
+              getOrderId,
+              toNumberOrZero,
+              accountId,
+            );
 
-              const result = await updateOrder(oid, payload);
-              console.log("Close order result:", result);
-              removeOrderFromLists(oid);
-              if (expandedOrderId === oid) setExpandedOrderId(null);
-            } catch (error) {
-              const message =
-                error?.response?.data?.message ||
-                error?.response?.data?.error ||
-                error?.message ||
-                "Failed to close order.";
-              setUpdateError(String(message));
-            } finally {
-              setSavingUpdate(false);
-            }
-          },
+            const result = await updateOrder(oid, payload);
+            console.log("Close order result:", result);
+            removeOrderFromLists(oid);
+            if (expandedOrderId === oid) setExpandedOrderId(null);
+          } catch (error) {
+            const message =
+              error?.response?.data?.message ||
+              error?.response?.data?.error ||
+              error?.message ||
+              "Failed to close order.";
+            setUpdateError(String(message));
+            showErrorToast(String(message), "Close order");
+          } finally {
+            setSavingUpdate(false);
+          }
         },
-      ]);
+      });
     },
     [
       getOrderId,
@@ -224,49 +228,44 @@ export const useOrderManagement = ({
       (k) => selectedOrderIds?.[k],
     );
     if (!keys.length) {
-      Alert.alert("Select orders", "Please select at least one order.");
+      showInfoToast("Please select at least one order.", "Select orders");
       return;
     }
 
-    Alert.alert(
-      "Close selected orders?",
-      `This will close ${keys.length} order(s).`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: bulkDeleting ? "Closing…" : "Close",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              setBulkDeleting(true);
+    showConfirmToast({
+      title: "Close selected orders?",
+      message: `This will close ${keys.length} order(s).`,
+      confirmText: bulkDeleting ? "Closing…" : "Close",
+      cancelText: "Cancel",
+      onConfirm: async () => {
+        try {
+          setBulkDeleting(true);
 
-              const ids = keys.map((k) => {
-                const n = Number(k);
-                return Number.isFinite(n) ? n : k;
-              });
+          const ids = keys.map((k) => {
+            const n = Number(k);
+            return Number.isFinite(n) ? n : k;
+          });
 
-              await bulkClose(ids);
+          await bulkClose(ids);
 
-              for (const k of keys) {
-                removeOrderFromLists(k);
-              }
+          for (const k of keys) {
+            removeOrderFromLists(k);
+          }
 
-              setSelectedOrderIds({});
-              setBulkMode(false);
-            } catch (error) {
-              const message =
-                error?.response?.data?.message ||
-                error?.response?.data?.error ||
-                error?.message ||
-                "Failed to delete orders.";
-              Alert.alert("Error", String(message));
-            } finally {
-              setBulkDeleting(false);
-            }
-          },
-        },
-      ],
-    );
+          setSelectedOrderIds({});
+          setBulkMode(false);
+        } catch (error) {
+          const message =
+            error?.response?.data?.message ||
+            error?.response?.data?.error ||
+            error?.message ||
+            "Failed to delete orders.";
+          showErrorToast(String(message));
+        } finally {
+          setBulkDeleting(false);
+        }
+      },
+    });
   }, [
     selectedOrderIds,
     bulkDeleting,

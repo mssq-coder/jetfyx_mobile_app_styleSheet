@@ -224,8 +224,14 @@ export async function previewFile(imagePath) {
     }
   }
 
+  const encodePathPreservingSlashes = (p) =>
+    String(p)
+      .split("/")
+      .map((seg) => encodeURIComponent(seg))
+      .join("/");
+
   const url = useProtectedPreview
-    ? `${baseURL}/shared/file-preview/preview/${encodeURIComponent(raw)}`
+    ? `${baseURL}/shared/file-preview/preview/${encodePathPreservingSlashes(raw)}`
     : raw;
 
   const token = await SecureStore.getItemAsync("accessToken");

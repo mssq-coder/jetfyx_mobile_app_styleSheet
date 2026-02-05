@@ -1,6 +1,13 @@
 import * as signalR from "@microsoft/signalr";
 import * as SecureStore from "expo-secure-store";
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  forwardRef,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { ActivityIndicator, Text, TouchableOpacity, View } from "react-native";
 import { WebView } from "react-native-webview";
 import { useAppTheme } from "../contexts/ThemeContext";
@@ -88,17 +95,22 @@ const getBarStartTimeSec = (timestampSec, resolution) => {
   return Math.floor(ts / bucket) * bucket;
 };
 
-export default function TradingViewChart({
-  symbol = "XAUUSD",
-  accountId = null,
-  resolution = "1",
-  showSideToolbar = false,
-  apiBaseUrl = DEFAULT_API_BASE_URL,
-  hubBaseUrl = DEFAULT_HUB_BASE_URL,
-  polygonApiKey = DEFAULT_POLYGON_API_KEY,
-  drawMode = "none",
-  clearDrawingsToken = 0,
-}) {
+const TradingViewChart = forwardRef(function TradingViewChart(
+  {
+    symbol = "XAUUSD",
+    accountId = null,
+    resolution = "1",
+    showSideToolbar = false,
+    apiBaseUrl = DEFAULT_API_BASE_URL,
+    hubBaseUrl = DEFAULT_HUB_BASE_URL,
+    polygonApiKey = DEFAULT_POLYGON_API_KEY,
+    drawMode = "none",
+    clearDrawingsToken = 0,
+    initialBarSpacing = 140,
+    initialVisibleBars = 40,
+  },
+  ref,
+) {
   const { theme, themeName } = useAppTheme();
   const webRef = useRef(null);
   const lastBarRef = useRef(null);
@@ -131,6 +143,12 @@ export default function TradingViewChart({
     const up = JSON.stringify(chartColors.up);
     const down = JSON.stringify(chartColors.down);
     const accent = JSON.stringify(chartColors.accent);
+    const initialSpacing = Number.isFinite(Number(initialBarSpacing))
+      ? Math.max(2, Math.min(200, Number(initialBarSpacing)))
+      : 140;
+    const initialBarsCount = Number.isFinite(Number(initialVisibleBars))
+      ? Math.max(10, Math.min(500, Math.floor(Number(initialVisibleBars))))
+      : 40;
     return `<!doctype html>
 <html>
   <head>
@@ -165,14 +183,15 @@ export default function TradingViewChart({
         wickUpColor: ${up}, wickDownColor: ${down}
       });
 
-      let barSpacing = 8;
+      let barSpacing = ${initialSpacing};
+      try { chart.timeScale().applyOptions({ barSpacing: barSpacing }); } catch (e) {}
 
       window.__fit = function() {
         try { chart.timeScale().fitContent(); } catch (e) {}
       };
       window.__zoomIn = function() {
         try {
-          barSpacing = Math.min(60, barSpacing + 2);
+          barSpacing = Math.min(200, barSpacing + 2);
           chart.timeScale().applyOptions({ barSpacing: barSpacing });
         } catch (e) {}
       };
@@ -190,9 +209,21 @@ export default function TradingViewChart({
 
       window.__setBars = function(bars) {
         try {
-          series.setData(Array.isArray(bars) ? bars : []);
-          if (bars && bars.length) {
-            chart.timeScale().fitContent();
+          const arr = Array.isArray(bars) ? bars : [];
+          series.setData(arr);
+
+          // Keep initial spacing even after data is set.
+          try { chart.timeScale().applyOptions({ barSpacing: barSpacing }); } catch (e) {}
+
+          // Default: focus the most recent candles (more magnified).
+          if (arr && arr.length) {
+            const to = arr.length + 5;
+            const from = Math.max(0, arr.length - ${initialBarsCount});
+            try {
+              chart.timeScale().setVisibleLogicalRange({ from: from, to: to });
+            } catch (e) {
+              try { chart.timeScale().fitContent(); } catch (_) {}
+            }
           }
         } catch (e) {}
       };
@@ -314,12 +345,22 @@ export default function TradingViewChart({
     </script>
   </body>
 </html>`;
-  }, [chartColors]);
+  }, [chartColors, initialBarSpacing, initialVisibleBars]);
 
   const inject = (js) => {
     if (!webRef.current) return;
     webRef.current.injectJavaScript(`${js}; true;`);
   };
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      fit: () => inject("window.__fit && window.__fit()"),
+      zoomIn: () => inject("window.__zoomIn && window.__zoomIn()"),
+      zoomOut: () => inject("window.__zoomOut && window.__zoomOut()"),
+    }),
+    [],
+  );
 
   useEffect(() => {
     if (!webReady) return;
@@ -588,4 +629,6 @@ export default function TradingViewChart({
       ) : null}
     </View>
   );
-}
+});
+
+export default TradingViewChart;

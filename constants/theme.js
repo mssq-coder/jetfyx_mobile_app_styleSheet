@@ -19,16 +19,16 @@ export const themes = {
     name: "light",
     background: "white",
     text: "black",
-    primary: "#6df77b", // red
+    primary: "#013306", // red
     card: "#f2f2f2",
-    icon: "#1c9fa5",
+    icon: "#003f5f",
     // Trading specific colors
-    positive: "#004bff",
+    positive: "#01184f",
     negative: "#FF4444",
     border: "#E0E0E0",
     secondary: "#6C757D",
-    headerBlue: "#4285F4",
-    tabActive: "#4285F4",
+    headerBlue: "#001331",
+    tabActive: "#252f3e",
     tabInactive: "#9E9E9E",
   },
 
@@ -55,12 +55,12 @@ export const themes = {
     text: "#070000",
     primary: "#16A34A",
     card: "#d7ffed",
-    icon: "#b0f7ca",
+    icon: "#012a10",
     // Trading specific colors
-    positive: "#18fbe0",
+    positive: "#7417e6c8",
     negative: "#fc8080",
     border: "#14532D",
-    secondary: "#BBF7D0",
+    secondary: "#006423",
     headerBlue: "#16A34A",
     tabActive: "#22C55E",
     tabInactive: "#4ADE80",
