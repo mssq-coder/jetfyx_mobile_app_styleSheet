@@ -116,15 +116,14 @@ export default function Dashboard() {
               </View>
               <Text style={styles.actionGridLabel}>Deposit</Text>
             </TouchableOpacity>
-
             <TouchableOpacity
-              onPress={() => router.push("/orderScreen")}
+              onPress={() => router.push("/internalTransfer")}
               style={styles.actionGridItem}
             >
               <View style={[styles.actionGridIcon, { backgroundColor: `${theme.primary}20` }]}>
-                <AppIcon name="trending-up" color={theme.positive} size={24} />
+                <AppIcon name="compare-arrows" color={theme.positive} size={24} />
               </View>
-              <Text style={styles.actionGridLabel}>Trade</Text>
+              <Text style={styles.actionGridLabel}>Internal Transfer</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -288,10 +287,10 @@ export default function Dashboard() {
           <View style={styles.featuresGrid}>
             <FeatureCard 
               icon="people" 
-              title="Become IB" 
-              description="Join our partner program"
+              title="Leverage Settings" 
+              description="Adjust your leverage"
               color={theme.primary}
-              onPress={() => router.push("/ibProgram")}
+              onPress={() => router.push("/leverageSettings")}
             />
             <FeatureCard 
               icon="content-copy" 
@@ -301,18 +300,18 @@ export default function Dashboard() {
               onPress={() => router.push("/copyTrading")}
             />
             <FeatureCard 
-              icon="history" 
-              title="Trade History" 
-              description="View your activity"
+              icon="people-outline" 
+              title="IB Activity" 
+              description="Become IB & track referrals"
               color={theme.secondary}
-              onPress={() => router.push("/tradeHistory")}
+              onPress={() => router.push("/ibActivity")}
             />
             <FeatureCard 
               icon="support-agent" 
               title="Support" 
               description="24/7 Customer help"
               color={theme.headerBlue}
-              onPress={() => router.push("/support")}
+              onPress={() => router.push("/supportTickets")}
             />
           </View>
         </View>
@@ -365,13 +364,13 @@ export default function Dashboard() {
             <QuickAction 
               icon="settings" 
               label="Settings" 
-              onPress={() => router.push("/settings")}
+              onPress={() => router.push("/accountSettings")}
               theme={theme}
             />
             <QuickAction 
               icon="help-outline" 
               label="Help Center" 
-              onPress={() => router.push("/help")}
+              onPress={() => router.push("/helpCenter")}
               theme={theme}
             />
             <QuickAction 

@@ -149,7 +149,7 @@ export default function RealAccountsScreen() {
         router.push("/(tabs2)/statements");
         break;
       case "Support":
-        router.push("/(tabs2)/support");
+        router.push("/(tabs2)/supportTickets");
         break;
       default:
         break;

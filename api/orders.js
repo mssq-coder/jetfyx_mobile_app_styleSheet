@@ -61,6 +61,18 @@ export async function bulkDelete(orderIds) {
   return response.data;
 }
 
+/**
+ * Delete/cancel an order.
+ * Endpoint: DELETE /api/Orders/{OrderId}
+ */
+export async function deleteOrder(orderId) {
+  if (orderId == null) {
+    throw new Error("orderId is required");
+  }
+  const response = await api.delete(`/Orders/${orderId}`);
+  return response.data;
+}
+
 // Backwards-compatible alias (older name)
 export async function bulkClose(orderIds) {
   return bulkDelete(orderIds);
@@ -70,4 +82,5 @@ export default {
   createOrder,
   updateOrder,
   bulkDelete,
+  deleteOrder,
 };

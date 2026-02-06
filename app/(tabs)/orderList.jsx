@@ -1,16 +1,18 @@
 import { useRouter } from "expo-router";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FlatList, InteractionManager, SafeAreaView } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 
 import { useAuthStore } from "@/store/authStore";
 import AccountSummaryModal from "../../components/AccountSummaryModal";
+import EditOrderModal from "../../components/OrderComponents/EditOrderModal";
 import MultiTargetsModal from "../../components/OrderComponents/MultiTargetsModal";
-import UpdateSlTpModal from "../../components/OrderComponents/UpdateSlTpModal";
 import { useAppTheme } from "../../contexts/ThemeContext";
 
 import AccountHeader from "../../components/OrderComponents/AccountHeader";
+import BulkActionsBar from "../../components/OrderComponents/BulkActionsBar";
 import BulkCloseModal from "../../components/OrderComponents/BulkCloseModal";
+import BulkEditSlTpModal from "../../components/OrderComponents/BulkEditSlTpModal";
 import EmptyState from "../../components/OrderComponents/EmptyState";
 import FloatingHistoryButton from "../../components/OrderComponents/FloatingHistoryButton";
 import OrderCard from "../../components/OrderComponents/OrderCard";
@@ -27,6 +29,11 @@ import {
   mergeTargetsFromHub,
 } from "../../utils/order/orderHelpers";
 
+import { updateOrder } from "../../api/orders";
+import { deleteOrderTarget } from "../../api/orderTargets";
+import { buildUpdatePayload } from "../../utils/order/orderHelpers";
+import { showErrorToast, showSuccessToast } from "../../utils/toast";
+
 const OrderListScreen = () => {
   const router = useRouter();
   const { theme } = useAppTheme();
@@ -38,6 +45,9 @@ const OrderListScreen = () => {
   const [selectedOrderIds, setSelectedOrderIds] = useState({});
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const [bulkCloseModalOpen, setBulkCloseModalOpen] = useState(false);
+  const [bulkEditOpen, setBulkEditOpen] = useState(false);
+  const [bulkEditSaving, setBulkEditSaving] = useState(false);
+  const [quickActionsExpanded, setQuickActionsExpanded] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [editOrder, setEditOrder] = useState(null);
   const [targetsOpen, setTargetsOpen] = useState(false);
@@ -72,6 +82,11 @@ const OrderListScreen = () => {
     if (!bulkMode) {
       setSelectedOrderIds({});
       setBulkCloseModalOpen(false);
+      // keep quick actions collapsed when exiting bulk mode
+      setQuickActionsExpanded(false);
+    } else {
+      // bulk mode needs controls visible
+      setQuickActionsExpanded(true);
     }
   }, [bulkMode]);
 
@@ -117,7 +132,102 @@ const OrderListScreen = () => {
 
   const cancelBulkModeAndCloseModal = () => {
     setBulkCloseModalOpen(false);
+    setBulkEditOpen(false);
     cancelBulkMode();
+  };
+
+  const symbolsList = Object.values(symbolsBySymbol || {});
+
+  const handleBulkSaveSlTp = async ({
+    tab,
+    symbol,
+    orderType,
+    stopLoss,
+    takeProfit,
+  }) => {
+    if (bulkEditSaving) return;
+    const list = tab === "pending" ? pendingOrders : orders;
+    const affected = (list || []).filter((o) => {
+      const sym = String(o?.symbol ?? o?.instrument ?? o?.instrumentName ?? "");
+      if (sym !== String(symbol)) return false;
+      const typeKey = String(
+        o?.orderType ??
+          o?.type ??
+          o?.orderSide ??
+          o?.side ??
+          o?.direction ??
+          "",
+      );
+      return typeKey === String(orderType);
+    });
+
+    if (!affected.length) {
+      showErrorToast("No orders matched for bulk edit.", "Bulk edit");
+      return;
+    }
+
+    const slProvided = String(stopLoss ?? "").trim().length > 0;
+    const tpProvided = String(takeProfit ?? "").trim().length > 0;
+    if (!slProvided && !tpProvided) return;
+
+    const slNum = slProvided ? toNumberOrZero(stopLoss) : null;
+    const tpNum = tpProvided ? toNumberOrZero(takeProfit) : null;
+
+    // Validate per order (market ref/side might differ)
+    for (const o of affected) {
+      const nextSl = slNum != null ? slNum : toNumberOrZero(o?.stopLoss);
+      const nextTp = tpNum != null ? tpNum : toNumberOrZero(o?.takeProfit);
+      const { slError, tpError } = validateSlTp(o, nextSl, nextTp);
+      if (slError || tpError) {
+        showErrorToast(slError || tpError, "Bulk edit");
+        return;
+      }
+    }
+
+    setBulkEditSaving(true);
+    try {
+      for (const o of affected) {
+        const oid = getOrderId(o);
+        if (oid == null) continue;
+
+        const nextSl = slNum != null ? slNum : toNumberOrZero(o?.stopLoss);
+        const nextTp = tpNum != null ? tpNum : toNumberOrZero(o?.takeProfit);
+
+        const payload = buildUpdatePayload(
+          o,
+          {
+            stopLoss: nextSl,
+            takeProfit: nextTp,
+            status: o?.status ?? "Ongoing",
+          },
+          getOrderId,
+          toNumberOrZero,
+          accountId,
+          {
+            includeRemark: false,
+            includePendingFields: Boolean(isPendingOrder(o)),
+          },
+        );
+
+        await updateOrder(oid, payload);
+        patchOrderInLists(oid, {
+          stopLoss: payload.stopLoss,
+          takeProfit: payload.takeProfit,
+        });
+      }
+
+      showSuccessToast(`Updated ${affected.length} order(s).`, "Bulk edit");
+      setBulkEditOpen(false);
+    } catch (error) {
+      const message =
+        error?.response?.data?.message ||
+        error?.response?.data?.error ||
+        error?.message ||
+        "Bulk update failed.";
+      showErrorToast(String(message), "Bulk edit");
+    } finally {
+      setBulkEditSaving(false);
+    }
   };
 
   const {
@@ -172,11 +282,29 @@ const OrderListScreen = () => {
     setTpFieldError,
     openEdit,
     submitEdit,
+    deleteEditOrder,
     confirmClose,
     toggleSelectedOrder,
     cancelBulkMode,
     submitBulkDelete,
     selectedCount,
+
+    entryPriceInput,
+    setEntryPriceInput,
+    lotSizeInput,
+    setLotSizeInput,
+    expiryEnabled,
+    setExpiryEnabled,
+    expiryIso,
+    setExpiryIso,
+    shiftExpiry,
+    remarkLocked,
+
+    partialLotInput,
+    setPartialLotInput,
+    partialSaving,
+    partialError,
+    submitPartialClose,
   } = useOrderManagement({
     editOrder,
     setEditOrder,
@@ -190,6 +318,8 @@ const OrderListScreen = () => {
     expandedOrderId,
     setExpandedOrderId,
     getOrderId,
+    getOrderLotSize,
+    isPendingOrder,
     toNumberOrZero,
     validateSlTp,
     accountId,
@@ -244,75 +374,179 @@ const OrderListScreen = () => {
     formatWithDecimals,
   });
 
+  const editOrderId = editOrder ? getOrderId(editOrder) : null;
+  const editTargetsFromState =
+    editOrderId != null ? getTargetsForOrderId(editOrderId) : [];
+  const editTargetsFromOrder = editOrder
+    ? extractTargetsFromOrder(editOrder)
+    : [];
+  const editTargets = (
+    (editTargetsFromState && editTargetsFromState.length
+      ? editTargetsFromState
+      : editTargetsFromOrder) || []
+  ).filter((t) => !t?.isDeleted && !t?.isClosed);
+
+  const deleteTargetFromEditModal = async (targetId) => {
+    if (!editOrder) return;
+    const oid = getOrderId(editOrder);
+    if (oid == null) return;
+    if (targetsSaving) return;
+
+    setTargetsSaving(true);
+    try {
+      await deleteOrderTarget(targetId);
+      const existing = getTargetsForOrderId(oid);
+      const next = (existing || []).filter(
+        (t) => String(getTargetId(t)) !== String(targetId),
+      );
+      setTargetsForOrderId(oid, next);
+      showSuccessToast("Target deleted", "Multi target");
+    } catch (error) {
+      const message =
+        error?.response?.data?.message ||
+        error?.response?.data?.error ||
+        error?.message ||
+        "Failed to delete target.";
+      showErrorToast(String(message), "Multi target");
+    } finally {
+      setTargetsSaving(false);
+    }
+  };
+
+  const keyExtractor = useCallback((o) => String(getOrderId(o)), [getOrderId]);
+
+  const renderOrderItem = useCallback(
+    ({ item }) => (
+      <OrderCard
+        order={item}
+        theme={theme}
+        expandedOrderId={expandedOrderId}
+        setExpandedOrderId={setExpandedOrderId}
+        bulkMode={bulkMode}
+        selectedOrderIds={selectedOrderIds}
+        toggleSelectedOrder={toggleSelectedOrder}
+        openEdit={openEdit}
+        confirmClose={confirmClose}
+        openTargets={openTargets}
+        savingUpdate={savingUpdate}
+        updateError={updateError}
+        getOrderId={getOrderId}
+        getOrderLotSize={getOrderLotSize}
+        getMinLotSizeForOrder={getMinLotSizeForOrder}
+        getTargetsForOrderId={getTargetsForOrderId}
+        getTargetId={getTargetId}
+        getTargetKey={getTargetKey}
+        toNumberOrZero={toNumberOrZero}
+        closeSwipe={closeSwipe}
+        swipeRefs={swipeRefs}
+        openSwipeRef={openSwipeRef}
+        targetsSaving={targetsSaving}
+      />
+    ),
+    [
+      bulkMode,
+      confirmClose,
+      expandedOrderId,
+      getMinLotSizeForOrder,
+      getOrderId,
+      getOrderLotSize,
+      getTargetId,
+      getTargetKey,
+      getTargetsForOrderId,
+      openEdit,
+      openTargets,
+      savingUpdate,
+      selectedOrderIds,
+      setExpandedOrderId,
+      theme,
+      toNumberOrZero,
+      toggleSelectedOrder,
+      updateError,
+      closeSwipe,
+      targetsSaving,
+    ],
+  );
+
+  const listHeader = useMemo(
+    () => (
+      <>
+        <AccountHeader
+          theme={theme}
+          account={account}
+          summaryLoading={summaryLoading}
+          selectedAccount={selectedAccount}
+          setSummaryOpen={setSummaryOpen}
+          summaryOpen={summaryOpen}
+        />
+
+        <TabNavigation
+          theme={theme}
+          tab={tab}
+          setTab={setTab}
+          orders={orders}
+          pendingOrders={pendingOrders}
+        />
+
+        <ProfitCard
+          theme={theme}
+          floatingProfit={floatingProfit}
+          bulkMode={bulkMode}
+          quickExpanded={quickActionsExpanded}
+          onToggleQuickActions={() => setQuickActionsExpanded((prev) => !prev)}
+        />
+
+        <BulkActionsBar
+          theme={theme}
+          bulkMode={bulkMode}
+          bulkDeleting={bulkDeleting}
+          selectedCount={selectedCount}
+          quickExpanded={quickActionsExpanded}
+          onToggleQuickExpanded={() => setQuickActionsExpanded((prev) => !prev)}
+          onPressCloseAll={() => {
+            setBulkMode(true);
+            setSelectedOrderIds({});
+            setExpandedOrderId(null);
+            openSwipeRef.current?.close?.();
+            setBulkCloseModalOpen(true);
+          }}
+          onPressBulkEdit={() => setBulkEditOpen(true)}
+          onPressFilters={() => setBulkCloseModalOpen(true)}
+          onPressCancel={cancelBulkModeAndCloseModal}
+          onPressSubmitClose={submitBulkDelete}
+        />
+      </>
+    ),
+    [
+      account,
+      bulkDeleting,
+      bulkMode,
+      cancelBulkModeAndCloseModal,
+      floatingProfit,
+      orders,
+      pendingOrders,
+      quickActionsExpanded,
+      selectedAccount,
+      selectedCount,
+      setBulkMode,
+      setSelectedOrderIds,
+      setTab,
+      submitBulkDelete,
+      summaryLoading,
+      summaryOpen,
+      tab,
+      theme,
+    ],
+  );
+
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaView style={{ flex: 1, backgroundColor: theme.background }}>
         <FlatList
           data={listOrders}
-          keyExtractor={(o) => String(getOrderId(o))}
+          keyExtractor={keyExtractor}
           contentContainerStyle={{ paddingBottom: 140 }}
-          ListHeaderComponent={() => (
-            <>
-              <AccountHeader
-                theme={theme}
-                account={account}
-                summaryLoading={summaryLoading}
-                selectedAccount={selectedAccount}
-                setSummaryOpen={setSummaryOpen}
-                summaryOpen={summaryOpen}
-              />
-
-              <TabNavigation
-                theme={theme}
-                tab={tab}
-                setTab={setTab}
-                orders={orders}
-                pendingOrders={pendingOrders}
-              />
-
-              <ProfitCard
-                theme={theme}
-                floatingProfit={floatingProfit}
-                bulkMode={bulkMode}
-                setBulkMode={setBulkMode}
-                setSelectedOrderIds={setSelectedOrderIds}
-                setExpandedOrderId={setExpandedOrderId}
-                openSwipeRef={openSwipeRef}
-                cancelBulkMode={cancelBulkModeAndCloseModal}
-                submitBulkDelete={submitBulkDelete}
-                selectedCount={selectedCount}
-                bulkDeleting={bulkDeleting}
-                onOpenBulkCloseModal={() => setBulkCloseModalOpen(true)}
-              />
-            </>
-          )}
-          renderItem={({ item }) => (
-            <OrderCard
-              order={item}
-              theme={theme}
-              expandedOrderId={expandedOrderId}
-              setExpandedOrderId={setExpandedOrderId}
-              bulkMode={bulkMode}
-              selectedOrderIds={selectedOrderIds}
-              toggleSelectedOrder={toggleSelectedOrder}
-              openEdit={openEdit}
-              confirmClose={confirmClose}
-              openTargets={openTargets}
-              savingUpdate={savingUpdate}
-              updateError={updateError}
-              getOrderId={getOrderId}
-              getOrderLotSize={getOrderLotSize}
-              getMinLotSizeForOrder={getMinLotSizeForOrder}
-              getTargetsForOrderId={getTargetsForOrderId}
-              getTargetId={getTargetId}
-              getTargetKey={getTargetKey}
-              toNumberOrZero={toNumberOrZero}
-              closeSwipe={closeSwipe}
-              swipeRefs={swipeRefs}
-              openSwipeRef={openSwipeRef}
-              targetsSaving={targetsSaving}
-            />
-          )}
+          ListHeaderComponent={listHeader}
+          renderItem={renderOrderItem}
           ListEmptyComponent={() => <EmptyState theme={theme} />}
         />
 
@@ -333,6 +567,26 @@ const OrderListScreen = () => {
           onSubmitClose={submitBulkDelete}
         />
 
+        <BulkEditSlTpModal
+          visible={bulkEditOpen}
+          theme={theme}
+          ongoingOrders={orders}
+          pendingOrders={pendingOrders}
+          symbols={symbolsList}
+          saving={bulkEditSaving}
+          onClose={() => setBulkEditOpen(false)}
+          onSave={handleBulkSaveSlTp}
+          validateSlTp={validateSlTp}
+          getOrderId={getOrderId}
+          getMarketReferencePrice={getMarketReferencePrice}
+          getPriceDigits={getPriceDigits}
+          getPriceStep={getPriceStep}
+          formatWithDigits={formatWithDigits}
+          adjustInputByStep={adjustInputByStep}
+          toNumberOrZero={toNumberOrZero}
+          styles={styles}
+        />
+
         <AccountSummaryModal
           visible={summaryOpen}
           onClose={() => setSummaryOpen(false)}
@@ -341,23 +595,46 @@ const OrderListScreen = () => {
           theme={theme}
         />
 
-        <UpdateSlTpModal
+        <EditOrderModal
           visible={editOpen}
           theme={theme}
           order={editOrder}
           saving={savingUpdate}
-          slInput={slInput}
-          tpInput={tpInput}
-          remarkInput={remarkInput}
-          setSlInput={setSlInput}
-          setTpInput={setTpInput}
-          setRemarkInput={setRemarkInput}
-          setUpdateError={setUpdateError}
+          partialSaving={partialSaving}
+          targetsSaving={targetsSaving}
           onSubmit={submitEdit}
-          onClose={() => setEditOpen(false)}
+          onSubmitPartialClose={submitPartialClose}
+          onDelete={deleteEditOrder}
+          onClose={() => {
+            setEditOpen(false);
+            setEditOrder(null);
+          }}
           updateError={updateError}
+          setUpdateError={setUpdateError}
+          slInput={slInput}
+          setSlInput={setSlInput}
+          tpInput={tpInput}
+          setTpInput={setTpInput}
+          remarkInput={remarkInput}
+          setRemarkInput={setRemarkInput}
           slFieldError={slFieldError}
           tpFieldError={tpFieldError}
+          lotSizeInput={lotSizeInput}
+          setLotSizeInput={setLotSizeInput}
+          entryPriceInput={entryPriceInput}
+          setEntryPriceInput={setEntryPriceInput}
+          expiryEnabled={expiryEnabled}
+          setExpiryEnabled={setExpiryEnabled}
+          expiryIso={expiryIso}
+          setExpiryIso={setExpiryIso}
+          shiftExpiry={shiftExpiry}
+          remarkLocked={remarkLocked}
+          partialLotInput={partialLotInput}
+          setPartialLotInput={setPartialLotInput}
+          partialError={partialError}
+          targets={editTargets}
+          onDeleteTarget={deleteTargetFromEditModal}
+          getOrderId={getOrderId}
           getOrderSide={getOrderSide}
           getPriceDigits={getPriceDigits}
           getPriceStep={getPriceStep}

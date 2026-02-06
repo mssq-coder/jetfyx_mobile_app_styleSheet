@@ -1,21 +1,16 @@
-import { ActivityIndicator, Text, TouchableOpacity, View } from "react-native";
+import { Text, TouchableOpacity, View } from "react-native";
+
+import AppIcon from "../AppIcon";
 
 const ProfitCard = ({
   theme,
   floatingProfit,
   bulkMode,
-  setBulkMode,
-  setSelectedOrderIds,
-  setExpandedOrderId,
-  openSwipeRef,
-  cancelBulkMode,
-  submitBulkDelete,
-  selectedCount,
-  bulkDeleting,
-  onOpenBulkCloseModal,
+  quickExpanded,
+  onToggleQuickActions,
 }) => {
   return (
-    <View style={{ paddingHorizontal: 16, marginTop: 20 }}>
+    <View style={{ paddingHorizontal: 16, marginTop: 12 }}>
       <View
         style={{
           borderRadius: 16,
@@ -24,143 +19,89 @@ const ProfitCard = ({
           alignItems: "center",
           justifyContent: "space-between",
           backgroundColor: theme.card,
+          borderWidth: 1,
+          borderColor: theme.border,
         }}
       >
-        <View>
-          <Text
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+          <View
             style={{
-              fontSize: 12,
-              fontWeight: "500",
-              color: theme.secondary,
+              width: 38,
+              height: 38,
+              borderRadius: 14,
+              backgroundColor: theme.background,
+              borderWidth: 1,
+              borderColor: theme.border,
+              alignItems: "center",
+              justifyContent: "center",
             }}
           >
-            Net Profit
-          </Text>
-          <Text
-            style={{
-              fontSize: 20,
-              fontWeight: "700",
-              color: floatingProfit >= 0 ? theme.positive : theme.negative,
-            }}
-          >
-            ${floatingProfit.toFixed(2)}
-          </Text>
+            <AppIcon name="show-chart" color={theme.icon} size={20} />
+          </View>
+
+          <View>
+            <Text
+              style={{
+                fontSize: 12,
+                fontWeight: "500",
+                color: theme.secondary,
+              }}
+            >
+              Net Profit
+            </Text>
+            <Text
+              style={{
+                fontSize: 20,
+                fontWeight: "700",
+                color: floatingProfit >= 0 ? theme.positive : theme.negative,
+              }}
+            >
+              ${floatingProfit.toFixed(2)}
+            </Text>
+          </View>
         </View>
 
         {!bulkMode ? (
           <TouchableOpacity
-            onPress={() => {
-              setBulkMode(true);
-              setSelectedOrderIds({});
-              setExpandedOrderId(null);
-              openSwipeRef.current?.close?.();
-              onOpenBulkCloseModal?.();
-            }}
+            onPress={onToggleQuickActions}
+            hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
             style={{
-              paddingHorizontal: 16,
-              paddingVertical: 8,
-              borderRadius: 12,
+              width: 44,
+              height: 44,
+              borderRadius: 16,
               backgroundColor: theme.background,
+              borderWidth: 1,
+              borderColor: theme.border,
+              alignItems: "center",
+              justifyContent: "center",
+              flexDirection: "row",
+              gap: 4,
             }}
             accessibilityRole="button"
-            accessibilityLabel="Enable multi-select close"
+            accessibilityLabel="Quick actions"
           >
-            <Text
-              style={{
-                fontSize: 12,
-                fontWeight: "600",
-                color: theme.text,
-              }}
-            >
-              Close All
-            </Text>
+            <AppIcon name="bolt" color={theme.icon} size={20} />
+            <AppIcon
+              name={quickExpanded ? "expand-less" : "expand-more"}
+              color={theme.icon}
+              size={18}
+            />
           </TouchableOpacity>
         ) : (
           <View
             style={{
-              flexDirection: "row",
-              flexWrap: "wrap",
-              justifyContent: "flex-end",
-              gap: 10,
+              width: 44,
+              height: 44,
+              borderRadius: 16,
+              backgroundColor: theme.background,
+              borderWidth: 1,
+              borderColor: theme.border,
+              alignItems: "center",
+              justifyContent: "center",
+              opacity: 0.7,
             }}
           >
-            <TouchableOpacity
-              onPress={onOpenBulkCloseModal}
-              disabled={bulkDeleting}
-              style={{
-                paddingHorizontal: 12,
-                paddingVertical: 8,
-                borderRadius: 12,
-                backgroundColor: theme.background,
-                borderWidth: 1,
-                borderColor: theme.border,
-                opacity: bulkDeleting ? 0.6 : 1,
-              }}
-              accessibilityRole="button"
-              accessibilityLabel="Open bulk close filters"
-            >
-              <Text
-                style={{
-                  fontSize: 12,
-                  fontWeight: "800",
-                  color: theme.text,
-                }}
-              >
-                Filters
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              onPress={cancelBulkMode}
-              disabled={bulkDeleting}
-              style={{
-                paddingHorizontal: 12,
-                paddingVertical: 8,
-                borderRadius: 12,
-                backgroundColor: theme.background,
-                opacity: bulkDeleting ? 0.6 : 1,
-              }}
-              accessibilityRole="button"
-              accessibilityLabel="Cancel multi-select"
-            >
-              <Text
-                style={{
-                  fontSize: 12,
-                  fontWeight: "600",
-                  color: theme.text,
-                }}
-              >
-                Cancel
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              onPress={submitBulkDelete}
-              disabled={bulkDeleting}
-              style={{
-                paddingHorizontal: 14,
-                paddingVertical: 8,
-                borderRadius: 12,
-                backgroundColor: theme.negative,
-                flexDirection: "row",
-                alignItems: "center",
-                gap: 8,
-                opacity: bulkDeleting ? 0.6 : 1,
-              }}
-              accessibilityRole="button"
-              accessibilityLabel="Delete selected orders"
-            >
-              {bulkDeleting ? <ActivityIndicator color="#fff" /> : null}
-              <Text
-                style={{
-                  fontSize: 12,
-                  fontWeight: "700",
-                  color: "#fff",
-                }}
-              >
-                Close ({selectedCount})
-              </Text>
-            </TouchableOpacity>
+            <AppIcon name="checklist" color={theme.icon} size={18} />
           </View>
         )}
       </View>

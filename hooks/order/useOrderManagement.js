@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import { bulkClose, updateOrder } from "../../api/orders";
+import { bulkClose, deleteOrder, updateOrder } from "../../api/orders";
 import {
   buildUpdatePayload,
   statusForClose,
@@ -8,6 +8,7 @@ import {
   showConfirmToast,
   showErrorToast,
   showInfoToast,
+  showSuccessToast,
 } from "../../utils/toast";
 
 export const useOrderManagement = ({
@@ -23,6 +24,8 @@ export const useOrderManagement = ({
   expandedOrderId,
   setExpandedOrderId,
   getOrderId,
+  getOrderLotSize,
+  isPendingOrder,
   toNumberOrZero,
   validateSlTp,
   accountId,
@@ -32,6 +35,19 @@ export const useOrderManagement = ({
   const [slInput, setSlInput] = useState("");
   const [tpInput, setTpInput] = useState("");
   const [remarkInput, setRemarkInput] = useState("");
+
+  // Pending-order fields
+  const [entryPriceInput, setEntryPriceInput] = useState("");
+  const [lotSizeInput, setLotSizeInput] = useState("");
+  const [expiryEnabled, setExpiryEnabled] = useState(false);
+  const [expiryIso, setExpiryIso] = useState("");
+  const [remarkLocked, setRemarkLocked] = useState(false);
+
+  // Partial close
+  const [partialLotInput, setPartialLotInput] = useState("");
+  const [partialSaving, setPartialSaving] = useState(false);
+  const [partialError, setPartialError] = useState(null);
+
   const [savingUpdate, setSavingUpdate] = useState(false);
   const [updateError, setUpdateError] = useState(null);
   const [slFieldError, setSlFieldError] = useState(null);
@@ -49,12 +65,64 @@ export const useOrderManagement = ({
       setSlInput(order?.stopLoss != null ? String(order.stopLoss) : "");
       setTpInput(order?.takeProfit != null ? String(order.takeProfit) : "");
       setRemarkInput(pending ? String(order?.remark ?? "") : "");
+
+      if (pending) {
+        const lot =
+          order?.lotSizeForPendingOrders ??
+          order?.lotSizeForPendingOrder ??
+          order?.lotSize ??
+          "";
+        setLotSizeInput(lot != null ? String(lot) : "");
+
+        const entry =
+          order?.entryPriceForPendingOrders ??
+          order?.entryPriceForPendingOrder ??
+          order?.EntryPriceForPendingOrder ??
+          order?.entryPrice ??
+          "";
+        setEntryPriceInput(entry != null ? String(entry) : "");
+
+        const enabled = Boolean(
+          order?.isExpirationTimeEnabledForPendingOrder ??
+          order?.isExpirationTimeEnabled ??
+          false,
+        );
+        setExpiryEnabled(enabled);
+        const exp = order?.expirationTimeForPendingOrder ?? order?.expiry ?? "";
+        setExpiryIso(exp != null ? String(exp) : "");
+
+        const hasInitialRemark =
+          order?.remark != null && String(order?.remark).trim().length > 0;
+        setRemarkLocked(hasInitialRemark);
+      } else {
+        setEntryPriceInput("");
+        setLotSizeInput("");
+        setExpiryEnabled(false);
+        setExpiryIso("");
+        setRemarkLocked(false);
+      }
+
+      setPartialLotInput("");
+      setPartialError(null);
       setUpdateError(null);
       setSlFieldError(null);
       setTpFieldError(null);
       setEditOpen(true);
     },
-    [setEditOrder, setEditOpen],
+    [setEditOrder, setEditOpen, isPendingOrder],
+  );
+
+  const shiftExpiry = useCallback(
+    (deltaMs) => {
+      const base =
+        expiryIso && !Number.isNaN(Date.parse(expiryIso))
+          ? new Date(expiryIso).getTime()
+          : Date.now();
+      const nextIso = new Date(base + (Number(deltaMs) || 0)).toISOString();
+      setExpiryEnabled(true);
+      setExpiryIso(nextIso);
+    },
+    [expiryIso],
   );
 
   const submitEdit = useCallback(async () => {
@@ -82,13 +150,37 @@ export const useOrderManagement = ({
     setUpdateError(null);
 
     try {
+      const normalizedExpiryIso = (() => {
+        if (!pending) return null;
+        if (!expiryEnabled) {
+          const existing = editOrder?.expirationTimeForPendingOrder;
+          if (existing && !Number.isNaN(Date.parse(existing))) {
+            return new Date(existing).toISOString();
+          }
+          return new Date().toISOString();
+        }
+
+        if (expiryIso && !Number.isNaN(Date.parse(expiryIso))) {
+          return new Date(expiryIso).toISOString();
+        }
+        return new Date().toISOString();
+      })();
+
       const payload = buildUpdatePayload(
         editOrder,
         {
           stopLoss: slValue,
           takeProfit: tpValue,
           status: editOrder?.status ?? "Ongoing",
-          ...(pending ? { remark: remarkInput } : {}),
+          ...(pending
+            ? {
+                remark: remarkInput,
+                entryPriceForPendingOrders: toNumberOrZero(entryPriceInput),
+                lotSizeForPendingOrders: toNumberOrZero(lotSizeInput),
+                expirationTimeForPendingOrder: normalizedExpiryIso,
+                isExpirationTimeEnabledForPendingOrder: Boolean(expiryEnabled),
+              }
+            : {}),
         },
         getOrderId,
         toNumberOrZero,
@@ -99,11 +191,20 @@ export const useOrderManagement = ({
       const res = await updateOrder(oid, payload);
       console.log("Update order result:", res);
 
-      patchOrderInLists(oid, {
+      const patch = {
         stopLoss: payload.stopLoss,
         takeProfit: payload.takeProfit,
-        remark: payload.remark,
-      });
+      };
+      if (pending) {
+        patch.remark = payload.remark;
+        patch.entryPriceForPendingOrders = payload.entryPriceForPendingOrders;
+        patch.lotSizeForPendingOrders = payload.lotSizeForPendingOrders;
+        patch.expirationTimeForPendingOrder =
+          payload.expirationTimeForPendingOrder;
+        patch.isExpirationTimeEnabledForPendingOrder =
+          payload.isExpirationTimeEnabledForPendingOrder;
+      }
+      patchOrderInLists(oid, patch);
 
       setEditOpen(false);
       setEditOrder(null);
@@ -120,9 +221,14 @@ export const useOrderManagement = ({
   }, [
     editOrder,
     getOrderId,
+    getOrderLotSize,
     slInput,
     tpInput,
     remarkInput,
+    entryPriceInput,
+    lotSizeInput,
+    expiryEnabled,
+    expiryIso,
     toNumberOrZero,
     validateSlTp,
     accountId,
@@ -131,6 +237,116 @@ export const useOrderManagement = ({
     setSavingUpdate,
     setUpdateError,
     patchOrderInLists,
+  ]);
+
+  const submitPartialClose = useCallback(async () => {
+    if (!editOrder) return;
+    const oid = getOrderId(editOrder);
+    if (oid == null) {
+      setPartialError("Missing order id");
+      return;
+    }
+
+    const maxLot =
+      typeof getOrderLotSize === "function" ? getOrderLotSize(editOrder) : 0;
+    const lot = toNumberOrZero(partialLotInput);
+    if (!(lot > 0)) {
+      setPartialError("Please enter a valid partial lot size.");
+      return;
+    }
+    if (maxLot > 0 && lot > maxLot) {
+      setPartialError(`Partial close lot cannot exceed ${maxLot}.`);
+      return;
+    }
+
+    setPartialSaving(true);
+    setPartialError(null);
+    try {
+      const payload = buildUpdatePayload(
+        editOrder,
+        {
+          partialCloseLotSize: lot,
+          status: editOrder?.status ?? "Ongoing",
+        },
+        getOrderId,
+        toNumberOrZero,
+        accountId,
+      );
+      await updateOrder(oid, payload);
+      showSuccessToast("Partial close successful", "Order");
+      setEditOpen(false);
+      setEditOrder(null);
+    } catch (error) {
+      const message =
+        error?.response?.data?.message ||
+        error?.response?.data?.error ||
+        error?.message ||
+        "Partial close failed.";
+      setPartialError(String(message));
+      showErrorToast(String(message), "Partial close");
+    } finally {
+      setPartialSaving(false);
+    }
+  }, [
+    editOrder,
+    getOrderId,
+    getOrderLotSize,
+    toNumberOrZero,
+    partialLotInput,
+    accountId,
+    setEditOpen,
+    setEditOrder,
+  ]);
+
+  const deleteEditOrder = useCallback(async () => {
+    if (!editOrder) return;
+    const oid = getOrderId(editOrder);
+    if (oid == null) {
+      showErrorToast("Missing order id.", "Delete order");
+      return;
+    }
+
+    const pending = isPendingOrder(editOrder);
+    if (!pending) {
+      showInfoToast(
+        "Only pending orders can be deleted/canceled here.",
+        "Delete order",
+      );
+      return;
+    }
+
+    showConfirmToast({
+      title: "Delete order",
+      message: "Delete/cancel this pending order?",
+      confirmText: "Delete",
+      cancelText: "Cancel",
+      onConfirm: async () => {
+        try {
+          setSavingUpdate(true);
+          await deleteOrder(oid);
+          removeOrderFromLists(oid);
+          setEditOpen(false);
+          setEditOrder(null);
+          showSuccessToast("Order deleted/canceled", "Order");
+        } catch (error) {
+          const message =
+            error?.response?.data?.message ||
+            error?.response?.data?.error ||
+            error?.message ||
+            "Failed to delete/cancel order.";
+          showErrorToast(String(message), "Delete order");
+        } finally {
+          setSavingUpdate(false);
+        }
+      },
+    });
+  }, [
+    editOrder,
+    getOrderId,
+    isPendingOrder,
+    removeOrderFromLists,
+    setEditOpen,
+    setEditOrder,
   ]);
 
   const confirmClose = useCallback(
@@ -290,6 +506,29 @@ export const useOrderManagement = ({
     setSlFieldError,
     tpFieldError,
     setTpFieldError,
+
+    // Pending fields
+    entryPriceInput,
+    setEntryPriceInput,
+    lotSizeInput,
+    setLotSizeInput,
+    expiryEnabled,
+    setExpiryEnabled,
+    expiryIso,
+    setExpiryIso,
+    shiftExpiry,
+    remarkLocked,
+
+    // Partial close
+    partialLotInput,
+    setPartialLotInput,
+    partialSaving,
+    partialError,
+    submitPartialClose,
+
+    // Delete
+    deleteEditOrder,
+
     openEdit,
     submitEdit,
     confirmClose,

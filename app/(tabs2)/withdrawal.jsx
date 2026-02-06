@@ -14,12 +14,17 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { getFinanceOptions, previewFile } from "../../api/getServices";
+import {
+  getDetailsByAmountAndCategory,
+  getFinanceOptions,
+  previewFile,
+} from "../../api/getServices";
 import AccountSelectorModal from "../../components/Accounts/AccountSelectorModal";
 import AppIcon from "../../components/AppIcon";
+import WithdrawalDetailsModal from "../../components/WithdrawalDetailsModal";
 import { useAppTheme } from "../../contexts/ThemeContext";
 import { useAuthStore } from "../../store/authStore";
-import { showInfoToast } from "../../utils/toast";
+import { showErrorToast, showInfoToast } from "../../utils/toast";
 
 const MODE = "withdrawal";
 
@@ -136,24 +141,56 @@ export default function WithdrawalScreen() {
   const [categories, setCategories] = useState([]);
   const [selectedCategoryId, setSelectedCategoryId] = useState(null);
   const [selectedMethodName, setSelectedMethodName] = useState(null);
+  const [selectedCurrency, setSelectedCurrency] = useState(null);
+
+  const parseCurrenciesCsv = (csv) => {
+    return String(csv || "")
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+  };
+
+  const methodSupportsCurrency = (method, currency) => {
+    if (!currency) return false;
+    const list = parseCurrenciesCsv(method?.currenciesCsv);
+    return list.some(
+      (c) => String(c).toUpperCase() === String(currency).toUpperCase(),
+    );
+  };
 
   const [amount, setAmount] = useState("");
   const normalizeAmount = (val) => String(val || "").replace(/[^0-9.]/g, "");
 
-  const selectedCategory = useMemo(() => {
-    return (
-      (categories || []).find(
-        (c) => String(c.id) === String(selectedCategoryId),
-      ) || null
-    );
-  }, [categories, selectedCategoryId]);
+  // Dynamic input fields based on payment type
+  const [bankDetails, setBankDetails] = useState({
+    accountHolderName: "",
+    accountNumber: "",
+    bankName: "",
+    branchName: "",
+    ifscCode: "",
+  });
 
-  const selectedMethod = useMemo(() => {
-    const list = selectedCategory?.methods || [];
-    return (
-      list.find((m) => String(m.name) === String(selectedMethodName)) || null
-    );
-  }, [selectedCategory, selectedMethodName]);
+  const [upiDetails, setUpiDetails] = useState({
+    upiId: "",
+  });
+
+  const [cardDetails, setCardDetails] = useState({
+    cardHolderName: "",
+    cardNumber: "",
+    expiryDate: "",
+    cardType: "",
+    bankName: "",
+  });
+
+  // Modal state
+  const [detailsModalVisible, setDetailsModalVisible] = useState(false);
+  const [currentReferenceNumber, setCurrentReferenceNumber] = useState(null);
+  const [currentImageUrl, setCurrentImageUrl] = useState(null);
+  const [currentPaymentName, setCurrentPaymentName] = useState(null);
+  const [currentProcessingTime, setCurrentProcessingTime] = useState(null);
+  const [withdrawalPayloadBase, setWithdrawalPayloadBase] = useState(null);
+  const [detailsJsonBase, setDetailsJsonBase] = useState(null);
+  const [fieldValues, setFieldValues] = useState({});
 
   useEffect(() => {
     let mounted = true;
@@ -175,6 +212,20 @@ export default function WithdrawalScreen() {
           ? (safe[0]?.methods?.[0]?.name ?? null)
           : null;
         setSelectedMethodName((prev) => prev ?? firstMethod);
+
+        // Default currency should be derived from the initially selected category (payment option)
+        // because the flow is: Payment option -> Currency.
+        const firstCategory = safe[0] || null;
+        const firstCategoryCurrencies = Array.from(
+          new Set(
+            (firstCategory?.methods || [])
+              .flatMap((m) => parseCurrenciesCsv(m?.currenciesCsv))
+              .map((c) => String(c).toUpperCase()),
+          ),
+        ).filter(Boolean);
+        setSelectedCurrency(
+          (prev) => prev ?? firstCategoryCurrencies[0] ?? null,
+        );
       } catch (e) {
         if (!mounted) return;
         setOptionsError(
@@ -191,14 +242,174 @@ export default function WithdrawalScreen() {
     };
   }, []);
 
+  // Determine payment type based on category name
+  const getPaymentType = (categoryName) => {
+    if (!categoryName) return null;
+    const name = String(categoryName).toLowerCase();
+    if (
+      name.includes("bank") ||
+      name.includes("wire") ||
+      name.includes("transfer")
+    ) {
+      return "bank";
+    }
+    if (name.includes("upi")) {
+      return "upi";
+    }
+    if (
+      name.includes("card") ||
+      name.includes("credit") ||
+      name.includes("debit")
+    ) {
+      return "card";
+    }
+    return "bank"; // default to bank
+  };
+
+  const selectedCategory = useMemo(() => {
+    return (
+      (categories || []).find(
+        (c) => String(c.id) === String(selectedCategoryId),
+      ) || null
+    );
+  }, [categories, selectedCategoryId]);
+
+  const selectedMethod = useMemo(() => {
+    const list = selectedCategory?.methods || [];
+    return (
+      list.find((m) => String(m.name) === String(selectedMethodName)) || null
+    );
+  }, [selectedCategory, selectedMethodName]);
+
+  const currencyList = useMemo(() => {
+    // Currency comes AFTER selecting payment option/category.
+    if (!selectedCategory) return [];
+
+    const all = (selectedCategory?.methods || []).flatMap((m) =>
+      parseCurrenciesCsv(m?.currenciesCsv),
+    );
+    const unique = Array.from(new Set(all.map((c) => String(c).toUpperCase())));
+    return unique;
+  }, [selectedCategory]);
+
+  // When category changes, ensure selectedCurrency is valid for that category.
+  useEffect(() => {
+    if (!selectedCategory) return;
+    const allowed = (selectedCategory?.methods || [])
+      .flatMap((m) => parseCurrenciesCsv(m?.currenciesCsv))
+      .map((c) => String(c).toUpperCase());
+
+    const allowedUnique = Array.from(new Set(allowed)).filter(Boolean);
+    if (!allowedUnique.length) return;
+
+    const current = String(selectedCurrency || "").toUpperCase();
+    if (!current || !allowedUnique.includes(current)) {
+      setSelectedCurrency(allowedUnique[0]);
+    }
+  }, [selectedCategoryId]);
+
+  // When currency changes, ensure the selected method is valid for that currency within the selected category.
+  useEffect(() => {
+    if (!selectedCategory) return;
+    if (!selectedCurrency) return;
+
+    const supportedMethod = (selectedCategory?.methods || []).find((m) =>
+      methodSupportsCurrency(m, selectedCurrency),
+    );
+    setSelectedMethodName(supportedMethod?.name ?? null);
+  }, [selectedCurrency, selectedCategoryId]);
+
+  const paymentType = useMemo(() => {
+    return getPaymentType(selectedCategory?.name);
+  }, [selectedCategory]);
+
+  // Get current field values based on payment type
+  const getCurrentFieldValues = () => {
+    switch (paymentType) {
+      case "bank":
+        return {
+          AccountHolderName: bankDetails.accountHolderName,
+          AccountNumber: bankDetails.accountNumber,
+          BankName: bankDetails.bankName,
+          BranchName: bankDetails.branchName,
+          IFSCCode: bankDetails.ifscCode,
+        };
+      case "upi":
+        return {
+          UPIId: upiDetails.upiId,
+        };
+      case "card":
+        return {
+          CardHolderName: cardDetails.cardHolderName,
+          CardNumber: cardDetails.cardNumber,
+          ExpiryDate: cardDetails.expiryDate,
+          CardType: cardDetails.cardType,
+          BankName: cardDetails.bankName,
+        };
+      default:
+        return {};
+    }
+  };
+
+  // Validate fields based on payment type
+  const validateFields = () => {
+    switch (paymentType) {
+      case "bank":
+        if (!bankDetails.accountHolderName.trim()) {
+          showInfoToast("Please enter account holder name.", "Required");
+          return false;
+        }
+        if (!bankDetails.accountNumber.trim()) {
+          showInfoToast("Please enter account number.", "Required");
+          return false;
+        }
+        if (!bankDetails.bankName.trim()) {
+          showInfoToast("Please enter bank name.", "Required");
+          return false;
+        }
+        return true;
+      case "upi":
+        if (!upiDetails.upiId.trim()) {
+          showInfoToast("Please enter UPI ID.", "Required");
+          return false;
+        }
+        return true;
+      case "card":
+        if (!cardDetails.cardHolderName.trim()) {
+          showInfoToast("Please enter card holder name.", "Required");
+          return false;
+        }
+        if (!cardDetails.cardNumber.trim()) {
+          showInfoToast("Please enter card number.", "Required");
+          return false;
+        }
+        if (!cardDetails.expiryDate.trim()) {
+          showInfoToast("Please enter expiry date.", "Required");
+          return false;
+        }
+        return true;
+      default:
+        return true;
+    }
+  };
+
   const validateAndProceed = async () => {
     if (!selectedAccount) {
       showInfoToast("Please select an account.", "Select account");
       return;
     }
 
-    if (!selectedMethod) {
+    if (!selectedCategory) {
       showInfoToast("Please select a withdrawal method.", "Select method");
+      return;
+    }
+
+    if (!selectedCurrency) {
+      showInfoToast("Please select a currency.", "Select currency");
+      return;
+    }
+
+    if (!validateFields()) {
       return;
     }
 
@@ -211,21 +422,59 @@ export default function WithdrawalScreen() {
       return;
     }
 
-    const min = Number(selectedMethod.amountMin);
-    const max = Number(selectedMethod.amountMax);
-    if (!Number.isNaN(min) && amt < min) {
-      showInfoToast(`Minimum amount is ${min}.`, "Amount too low");
-      return;
-    }
-    if (!Number.isNaN(max) && amt > max) {
-      showInfoToast(`Maximum amount is ${max}.`, "Amount too high");
-      return;
-    }
+    try {
+      const accountId = selectedAccount?.accountId ?? selectedAccount?.id;
+      const currency = selectedCurrency;
 
-    showInfoToast(
-      `Withdrawal ${amt}\nMethod: ${selectedMethod.name}\nProcessing: ${selectedCategory?.processingTime || "—"}`,
-      "Proceed",
-    );
+      const response = await getDetailsByAmountAndCategory(
+        selectedCategory?.name,
+        amt,
+        MODE,
+        currency,
+      );
+
+      const data = response?.data?.category?.methods || [];
+      const referenceNumber = response?.data?.referenceNumber || null;
+      const imageUrl = data[0]?.imageUrl || selectedCategory?.imageUrl || null;
+      const paymentName =
+        data[0]?.name ||
+        selectedMethod?.name ||
+        selectedCategory?.name ||
+        "Selected Method";
+      const processingTime =
+        data[0]?.processingTime || selectedCategory?.processingTime || "";
+
+      const currentFields = getCurrentFieldValues();
+
+      setCurrentReferenceNumber(referenceNumber);
+      setCurrentImageUrl(imageUrl);
+      setCurrentPaymentName(paymentName);
+      setCurrentProcessingTime(processingTime);
+      setFieldValues(currentFields);
+
+      setWithdrawalPayloadBase({
+        AccountId: accountId,
+        Amount: amt,
+        Currency: currency,
+        PaymentCategory: selectedCategory?.name,
+        PaymentMethod: selectedMethod?.name || selectedCategory?.name,
+      });
+
+      setDetailsJsonBase({
+        PaymentCategory: selectedCategory?.name,
+        PaymentMethod: selectedMethod?.name || selectedCategory?.name,
+        ...currentFields,
+      });
+
+      setDetailsModalVisible(true);
+    } catch (e) {
+      showErrorToast(
+        e?.response?.data?.message ||
+          e?.message ||
+          "Failed to retrieve withdrawal details.",
+        "Error",
+      );
+    }
   };
 
   const accountLabel = useMemo(() => {
@@ -304,30 +553,6 @@ export default function WithdrawalScreen() {
           <Text
             style={[styles.sectionTitle, { color: theme.text, marginTop: 16 }]}
           >
-            Amount
-          </Text>
-          <View
-            style={[
-              styles.inputWrap,
-              { backgroundColor: theme.card, borderColor: theme.border },
-            ]}
-          >
-            <Text style={[styles.currencyPrefix, { color: theme.secondary }]}>
-              ₹
-            </Text>
-            <TextInput
-              value={amount}
-              onChangeText={(t) => setAmount(normalizeAmount(t))}
-              placeholder="0.00"
-              placeholderTextColor={theme.secondary}
-              keyboardType="decimal-pad"
-              style={[styles.amountInput, { color: theme.text }]}
-            />
-          </View>
-
-          <Text
-            style={[styles.sectionTitle, { color: theme.text, marginTop: 16 }]}
-          >
             Payment Options
           </Text>
 
@@ -381,14 +606,43 @@ export default function WithdrawalScreen() {
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={{ gap: 12, paddingVertical: 4 }}
               >
-                {categories.map((cat) => {
+                {(Array.isArray(categories) ? categories : []).map((cat) => {
                   const active = String(cat.id) === String(selectedCategoryId);
                   return (
                     <TouchableOpacity
                       key={String(cat.id)}
                       onPress={() => {
                         setSelectedCategoryId(cat.id);
-                        setSelectedMethodName(cat?.methods?.[0]?.name ?? null);
+
+                        // If the currently selected currency isn't supported by this category,
+                        // switch to the first supported currency for this category.
+                        const categoryCurrencies = Array.from(
+                          new Set(
+                            (cat?.methods || [])
+                              .flatMap((m) =>
+                                parseCurrenciesCsv(m?.currenciesCsv),
+                              )
+                              .map((c) => String(c).toUpperCase()),
+                          ),
+                        ).filter(Boolean);
+                        const current = String(
+                          selectedCurrency || "",
+                        ).toUpperCase();
+                        const currencyToUse =
+                          categoryCurrencies.length &&
+                          categoryCurrencies.includes(current)
+                            ? current
+                            : (categoryCurrencies[0] ?? null);
+
+                        setSelectedCurrency(currencyToUse);
+
+                        const nextMethod =
+                          (cat?.methods || []).find((m) =>
+                            methodSupportsCurrency(m, currencyToUse),
+                          ) ||
+                          cat?.methods?.[0] ||
+                          null;
+                        setSelectedMethodName(nextMethod?.name ?? null);
                       }}
                       style={[
                         styles.optionCard,
@@ -421,63 +675,372 @@ export default function WithdrawalScreen() {
                 })}
               </ScrollView>
 
-              <View style={{ marginTop: 12 }}>
-                <Text style={[styles.sectionTitle, { color: theme.text }]}>
-                  Methods
-                </Text>
-                {(selectedCategory?.methods || []).map((m) => {
-                  const active = String(m.name) === String(selectedMethodName);
-                  return (
-                    <TouchableOpacity
-                      key={m.name}
-                      onPress={() => setSelectedMethodName(m.name)}
+              {/* Currency Selection (after Payment Option) */}
+              {selectedCategory && currencyList.length ? (
+                <View style={{ marginTop: 12 }}>
+                  <Text style={[styles.sectionTitle, { color: theme.text }]}>
+                    Currency
+                  </Text>
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={{ gap: 10, paddingVertical: 4 }}
+                  >
+                    {currencyList.map((c) => {
+                      const active =
+                        String(c).toUpperCase() ===
+                        String(selectedCurrency || "").toUpperCase();
+                      return (
+                        <TouchableOpacity
+                          key={String(c)}
+                          onPress={() => setSelectedCurrency(c)}
+                          style={[
+                            styles.currencyChip,
+                            {
+                              backgroundColor: active
+                                ? `${theme.primary}15`
+                                : theme.card,
+                              borderColor: active
+                                ? theme.primary
+                                : theme.border,
+                            },
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.currencyChipText,
+                              { color: active ? theme.primary : theme.text },
+                            ]}
+                          >
+                            {String(c)}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </ScrollView>
+                </View>
+              ) : null}
+
+              {/* Dynamic Input Fields based on payment type */}
+              {selectedCategory && (
+                <View style={{ marginTop: 16 }}>
+                  <Text style={[styles.sectionTitle, { color: theme.text }]}>
+                    {paymentType === "bank"
+                      ? "Bank Details"
+                      : paymentType === "upi"
+                        ? "UPI Details"
+                        : paymentType === "card"
+                          ? "Card Details"
+                          : "Payment Details"}
+                  </Text>
+
+                  {paymentType === "bank" && (
+                    <>
+                      <View
+                        style={[
+                          styles.inputWrap,
+                          {
+                            backgroundColor: theme.card,
+                            borderColor: theme.border,
+                            marginBottom: 10,
+                          },
+                        ]}
+                      >
+                        <TextInput
+                          value={bankDetails.accountHolderName}
+                          onChangeText={(t) =>
+                            setBankDetails((prev) => ({
+                              ...prev,
+                              accountHolderName: t,
+                            }))
+                          }
+                          placeholder="Account Holder Name *"
+                          placeholderTextColor={theme.secondary}
+                          style={[styles.textInput, { color: theme.text }]}
+                        />
+                      </View>
+                      <View
+                        style={[
+                          styles.inputWrap,
+                          {
+                            backgroundColor: theme.card,
+                            borderColor: theme.border,
+                            marginBottom: 10,
+                          },
+                        ]}
+                      >
+                        <TextInput
+                          value={bankDetails.accountNumber}
+                          onChangeText={(t) =>
+                            setBankDetails((prev) => ({
+                              ...prev,
+                              accountNumber: t,
+                            }))
+                          }
+                          placeholder="Account Number *"
+                          placeholderTextColor={theme.secondary}
+                          keyboardType="number-pad"
+                          style={[styles.textInput, { color: theme.text }]}
+                        />
+                      </View>
+                      <View
+                        style={[
+                          styles.inputWrap,
+                          {
+                            backgroundColor: theme.card,
+                            borderColor: theme.border,
+                            marginBottom: 10,
+                          },
+                        ]}
+                      >
+                        <TextInput
+                          value={bankDetails.bankName}
+                          onChangeText={(t) =>
+                            setBankDetails((prev) => ({
+                              ...prev,
+                              bankName: t,
+                            }))
+                          }
+                          placeholder="Bank Name *"
+                          placeholderTextColor={theme.secondary}
+                          style={[styles.textInput, { color: theme.text }]}
+                        />
+                      </View>
+                      <View
+                        style={[
+                          styles.inputWrap,
+                          {
+                            backgroundColor: theme.card,
+                            borderColor: theme.border,
+                            marginBottom: 10,
+                          },
+                        ]}
+                      >
+                        <TextInput
+                          value={bankDetails.branchName}
+                          onChangeText={(t) =>
+                            setBankDetails((prev) => ({
+                              ...prev,
+                              branchName: t,
+                            }))
+                          }
+                          placeholder="Branch Name"
+                          placeholderTextColor={theme.secondary}
+                          style={[styles.textInput, { color: theme.text }]}
+                        />
+                      </View>
+                      <View
+                        style={[
+                          styles.inputWrap,
+                          {
+                            backgroundColor: theme.card,
+                            borderColor: theme.border,
+                          },
+                        ]}
+                      >
+                        <TextInput
+                          value={bankDetails.ifscCode}
+                          onChangeText={(t) =>
+                            setBankDetails((prev) => ({
+                              ...prev,
+                              ifscCode: t.toUpperCase(),
+                            }))
+                          }
+                          placeholder="IFSC Code"
+                          placeholderTextColor={theme.secondary}
+                          autoCapitalize="characters"
+                          style={[styles.textInput, { color: theme.text }]}
+                        />
+                      </View>
+                    </>
+                  )}
+
+                  {paymentType === "upi" && (
+                    <View
                       style={[
-                        styles.methodLine,
+                        styles.inputWrap,
                         {
                           backgroundColor: theme.card,
-                          borderColor: active ? theme.primary : theme.border,
+                          borderColor: theme.border,
                         },
                       ]}
                     >
-                      <View style={{ flex: 1 }}>
-                        <Text
-                          style={[styles.methodName, { color: theme.text }]}
-                          numberOfLines={1}
-                        >
-                          {m.name}
-                        </Text>
-                        <Text
-                          style={[
-                            styles.methodMeta,
-                            { color: theme.secondary },
-                          ]}
-                          numberOfLines={2}
-                        >
-                          {m.kind || ""}
-                          {m.currenciesCsv ? ` • ${m.currenciesCsv}` : ""}
-                          {m.countriesCsv ? ` • ${m.countriesCsv}` : ""}
-                        </Text>
-                        <Text
-                          style={[
-                            styles.methodMeta,
-                            { color: theme.secondary },
-                          ]}
-                        >
-                          Min {m.amountMin ?? "—"} • Max {m.amountMax ?? "—"}
-                        </Text>
-                      </View>
-                      <AppIcon
-                        name={
-                          active
-                            ? "radio-button-checked"
-                            : "radio-button-unchecked"
+                      <TextInput
+                        value={upiDetails.upiId}
+                        onChangeText={(t) =>
+                          setUpiDetails((prev) => ({ ...prev, upiId: t }))
                         }
-                        color={active ? theme.primary : theme.secondary}
-                        size={20}
+                        placeholder="UPI ID (e.g., name@upi) *"
+                        placeholderTextColor={theme.secondary}
+                        keyboardType="email-address"
+                        autoCapitalize="none"
+                        style={[styles.textInput, { color: theme.text }]}
                       />
-                    </TouchableOpacity>
-                  );
-                })}
+                    </View>
+                  )}
+
+                  {paymentType === "card" && (
+                    <>
+                      <View
+                        style={[
+                          styles.inputWrap,
+                          {
+                            backgroundColor: theme.card,
+                            borderColor: theme.border,
+                            marginBottom: 10,
+                          },
+                        ]}
+                      >
+                        <TextInput
+                          value={cardDetails.cardHolderName}
+                          onChangeText={(t) =>
+                            setCardDetails((prev) => ({
+                              ...prev,
+                              cardHolderName: t,
+                            }))
+                          }
+                          placeholder="Card Holder Name *"
+                          placeholderTextColor={theme.secondary}
+                          style={[styles.textInput, { color: theme.text }]}
+                        />
+                      </View>
+                      <View
+                        style={[
+                          styles.inputWrap,
+                          {
+                            backgroundColor: theme.card,
+                            borderColor: theme.border,
+                            marginBottom: 10,
+                          },
+                        ]}
+                      >
+                        <TextInput
+                          value={cardDetails.cardNumber}
+                          onChangeText={(t) =>
+                            setCardDetails((prev) => ({
+                              ...prev,
+                              cardNumber: t.replace(/[^0-9]/g, ""),
+                            }))
+                          }
+                          placeholder="Card Number *"
+                          placeholderTextColor={theme.secondary}
+                          keyboardType="number-pad"
+                          maxLength={16}
+                          style={[styles.textInput, { color: theme.text }]}
+                        />
+                      </View>
+                      <View
+                        style={[
+                          styles.inputWrap,
+                          {
+                            backgroundColor: theme.card,
+                            borderColor: theme.border,
+                            marginBottom: 10,
+                          },
+                        ]}
+                      >
+                        <TextInput
+                          value={cardDetails.expiryDate}
+                          onChangeText={(t) => {
+                            let formatted = t.replace(/[^0-9]/g, "");
+                            if (formatted.length > 2) {
+                              formatted =
+                                formatted.slice(0, 2) +
+                                "/" +
+                                formatted.slice(2, 4);
+                            }
+                            setCardDetails((prev) => ({
+                              ...prev,
+                              expiryDate: formatted,
+                            }));
+                          }}
+                          placeholder="Expiry Date (MM/YY) *"
+                          placeholderTextColor={theme.secondary}
+                          keyboardType="number-pad"
+                          maxLength={5}
+                          style={[styles.textInput, { color: theme.text }]}
+                        />
+                      </View>
+                      <View
+                        style={[
+                          styles.inputWrap,
+                          {
+                            backgroundColor: theme.card,
+                            borderColor: theme.border,
+                            marginBottom: 10,
+                          },
+                        ]}
+                      >
+                        <TextInput
+                          value={cardDetails.cardType}
+                          onChangeText={(t) =>
+                            setCardDetails((prev) => ({
+                              ...prev,
+                              cardType: t,
+                            }))
+                          }
+                          placeholder="Card Type (Visa, MasterCard, etc.)"
+                          placeholderTextColor={theme.secondary}
+                          style={[styles.textInput, { color: theme.text }]}
+                        />
+                      </View>
+                      <View
+                        style={[
+                          styles.inputWrap,
+                          {
+                            backgroundColor: theme.card,
+                            borderColor: theme.border,
+                          },
+                        ]}
+                      >
+                        <TextInput
+                          value={cardDetails.bankName}
+                          onChangeText={(t) =>
+                            setCardDetails((prev) => ({
+                              ...prev,
+                              bankName: t,
+                            }))
+                          }
+                          placeholder="Bank Name"
+                          placeholderTextColor={theme.secondary}
+                          style={[styles.textInput, { color: theme.text }]}
+                        />
+                      </View>
+                    </>
+                  )}
+                </View>
+              )}
+
+              {/* Amount Section */}
+              <Text
+                style={[
+                  styles.sectionTitle,
+                  { color: theme.text, marginTop: 16 },
+                ]}
+              >
+                Amount
+              </Text>
+              <View
+                style={[
+                  styles.inputWrap,
+                  { backgroundColor: theme.card, borderColor: theme.border },
+                ]}
+              >
+                <Text
+                  style={[styles.currencyPrefix, { color: theme.secondary }]}
+                >
+                  {String(selectedCurrency || "").toUpperCase() === "INR"
+                    ? "₹"
+                    : "$"}
+                </Text>
+                <TextInput
+                  value={amount}
+                  onChangeText={(t) => setAmount(normalizeAmount(t))}
+                  placeholder="0.00"
+                  placeholderTextColor={theme.secondary}
+                  keyboardType="decimal-pad"
+                  style={[styles.amountInput, { color: theme.text }]}
+                />
               </View>
             </View>
           ) : (
@@ -502,10 +1065,6 @@ export default function WithdrawalScreen() {
           >
             <Text style={styles.primaryButtonText}>Proceed</Text>
           </TouchableOpacity>
-
-          <Text style={[styles.helper, { color: theme.secondary }]}>
-            Options loaded from `/FinanceOptions?mode=withdrawal`.
-          </Text>
         </ScrollView>
       </KeyboardAvoidingView>
 
@@ -518,6 +1077,41 @@ export default function WithdrawalScreen() {
         selectedAccountId={selectedAccount?.accountId ?? selectedAccount?.id}
         onSelectAccount={(acc) => setSelectedAccount(acc)}
         onRefresh={() => {}}
+      />
+
+      <WithdrawalDetailsModal
+        visible={detailsModalVisible}
+        onClose={() => setDetailsModalVisible(false)}
+        theme={theme}
+        referenceNumber={currentReferenceNumber}
+        imageUrl={currentImageUrl}
+        paymentName={currentPaymentName}
+        processingTime={currentProcessingTime}
+        amount={amount}
+        currency={selectedCurrency || "USD"}
+        fieldValues={fieldValues}
+        withdrawalPayloadBase={withdrawalPayloadBase}
+        detailsJsonBase={detailsJsonBase}
+        onSuccess={() => {
+          setDetailsModalVisible(false);
+          setAmount("");
+          setBankDetails({
+            accountHolderName: "",
+            accountNumber: "",
+            bankName: "",
+            branchName: "",
+            ifscCode: "",
+          });
+          setUpiDetails({ upiId: "" });
+          setCardDetails({
+            cardHolderName: "",
+            cardNumber: "",
+            expiryDate: "",
+            cardType: "",
+            bankName: "",
+          });
+          router.back();
+        }}
       />
     </SafeAreaView>
   );
@@ -583,6 +1177,11 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "800",
   },
+  textInput: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: "600",
+  },
   primaryButton: {
     marginTop: 18,
     borderRadius: 12,
@@ -620,6 +1219,16 @@ const styles = StyleSheet.create({
     marginTop: 2,
     fontSize: 12,
     fontWeight: "600",
+  },
+  currencyChip: {
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  currencyChipText: {
+    fontSize: 13,
+    fontWeight: "800",
   },
   methodLine: {
     borderWidth: 1,

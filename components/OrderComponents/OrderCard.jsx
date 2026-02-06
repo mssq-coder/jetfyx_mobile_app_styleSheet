@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { memo, useCallback } from "react";
 import { TouchableOpacity, View } from "react-native";
 import { Swipeable } from "react-native-gesture-handler";
 import { showInfoToast } from "../../utils/toast";
@@ -181,4 +181,4 @@ const OrderCard = ({
   );
 };
 
-export default OrderCard;
+export default memo(OrderCard);

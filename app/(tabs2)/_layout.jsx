@@ -1,5 +1,4 @@
-import React from 'react'
-import { Stack } from 'expo-router'
+import { Stack } from "expo-router";
 
 export default function Layout() {
   return (
@@ -11,6 +10,10 @@ export default function Layout() {
       <Stack.Screen name="deposit" options={{ headerShown: false }} />
       <Stack.Screen name="withdrawal" options={{ headerShown: false }} />
       <Stack.Screen name="internalTransfer" options={{ headerShown: false }} />
+      <Stack.Screen name="copyTrade" options={{ headerShown: false }} />
+      <Stack.Screen name="passwordChange" options={{ headerShown: false }} />
+      <Stack.Screen name="leverageSettings" options={{ headerShown: false }} />
+      <Stack.Screen name="supportTickets" options={{ headerShown: false }} />
     </Stack>
-  )
+  );
 }

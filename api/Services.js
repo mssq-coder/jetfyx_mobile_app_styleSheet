@@ -107,8 +107,32 @@ export const confirmDeposit = async (payload) => {
 };
 
 export const confirmWithdrawal = async (payload) => {
-  const response = await api.post(
+  // Backend commonly expects multipart/form-data for this route (similar to deposit).
+  // Use fetch so RN sets the boundary correctly.
+  const fd = new FormData();
+  Object.entries(payload || {}).forEach(([key, value]) => {
+    if (value === undefined || value === null) return;
+
+    if (key === "DetailsJson") {
+      if (typeof value === "object") fd.append(key, JSON.stringify(value));
+      else fd.append(key, String(value));
+      return;
+    }
+
+    fd.append(key, String(value));
+  });
+
+  return await fetchPostFormData(
     `account/ClientAccountTransactions/withdrawal`,
+    fd,
+  );
+};
+
+export const createInternalTransfer = async (payload) => {
+  // Web portal uses JSON body for this route.
+  // Keep JSON by default; if the backend changes to multipart later we can align.
+  const response = await api.post(
+    `account/ClientAccountTransactions/internal-transfer`,
     payload,
   );
   return response.data;
