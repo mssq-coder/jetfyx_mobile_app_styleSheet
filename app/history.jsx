@@ -1,6 +1,6 @@
 import { useAuthStore } from "@/store/authStore";
 import { useRouter } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   FlatList,
   ScrollView,
@@ -16,6 +16,7 @@ import {
 } from "../api/getServices";
 import AppIcon from "../components/AppIcon";
 import { useAppTheme } from "../contexts/ThemeContext";
+import usePullToRefresh from "../hooks/usePullToRefresh";
 
 const TRANSACTION_TYPES = [
   "Deposit",
@@ -27,6 +28,7 @@ const TRANSACTION_TYPES = [
 const HistoryScreen = () => {
   const router = useRouter();
   const { theme } = useAppTheme();
+  const { refreshing, runRefresh } = usePullToRefresh();
   const [expandedOrderId, setExpandedOrderId] = useState(null);
 
   const [activeTab, setActiveTab] = useState("orders"); // 'orders' | 'transactions'
@@ -59,6 +61,53 @@ const HistoryScreen = () => {
     }),
     [selectedAccountId, selectedAccount],
   );
+
+  const handlePullRefresh = useCallback(() => {
+    return runRefresh(async () => {
+      if (!selectedAccountId) return;
+
+      if (activeTab === "transactions") {
+        try {
+          setTxLoading(true);
+          setTxError("");
+          const resp = await getClientAccountTransactions({
+            accountId: selectedAccountId,
+            transactionType: transactionType || undefined,
+            includePending,
+          });
+          const data = Array.isArray(resp?.data) ? resp.data : [];
+          setTransactions(data);
+        } catch (e) {
+          console.warn("Failed to load transactions", e);
+          setTransactions([]);
+          setTxError(e?.message ?? "Failed to load transactions");
+        } finally {
+          setTxLoading(false);
+        }
+        return;
+      }
+
+      try {
+        setLoading(true);
+        setError("");
+        const resp = await getOrderHistory(selectedAccountId);
+        const data = Array.isArray(resp?.data) ? resp.data : [];
+        setClosedOrders(data);
+      } catch (e) {
+        console.warn("Failed to load order history", e);
+        setClosedOrders([]);
+        setError(e?.message ?? "Failed to load order history");
+      } finally {
+        setLoading(false);
+      }
+    });
+  }, [
+    activeTab,
+    includePending,
+    runRefresh,
+    selectedAccountId,
+    transactionType,
+  ]);
 
   useEffect(() => {
     let mounted = true;
@@ -348,6 +397,8 @@ const HistoryScreen = () => {
         <FlatList
           data={closedOrders}
           keyExtractor={(o) => String(getOrderId(o))}
+          refreshing={refreshing}
+          onRefresh={handlePullRefresh}
           contentContainerStyle={{
             paddingBottom: 40,
             paddingHorizontal: 12,
@@ -876,6 +927,8 @@ const HistoryScreen = () => {
         <FlatList
           data={transactions}
           keyExtractor={(t) => String(getTransactionId(t))}
+          refreshing={refreshing}
+          onRefresh={handlePullRefresh}
           contentContainerStyle={{
             paddingBottom: 40,
             paddingHorizontal: 12,

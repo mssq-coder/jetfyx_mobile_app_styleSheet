@@ -10,11 +10,11 @@ const ProfitCard = ({
   onToggleQuickActions,
 }) => {
   return (
-    <View style={{ paddingHorizontal: 16, marginTop: 12 }}>
+    <View style={{ paddingHorizontal: 16, marginTop: 14 }}>
       <View
         style={{
           borderRadius: 16,
-          padding: 16,
+          padding: 18,
           flexDirection: "row",
           alignItems: "center",
           justifyContent: "space-between",
@@ -75,12 +75,14 @@ const ProfitCard = ({
               alignItems: "center",
               justifyContent: "center",
               flexDirection: "row",
-              gap: 4,
+              gap: 6,
             }}
             accessibilityRole="button"
-            accessibilityLabel="Quick actions"
+            accessibilityLabel={
+              quickExpanded ? "Hide quick actions" : "Show quick actions"
+            }
           >
-            <AppIcon name="bolt" color={theme.icon} size={20} />
+            <AppIcon name="tune" color={theme.icon} size={20} />
             <AppIcon
               name={quickExpanded ? "expand-less" : "expand-more"}
               color={theme.icon}

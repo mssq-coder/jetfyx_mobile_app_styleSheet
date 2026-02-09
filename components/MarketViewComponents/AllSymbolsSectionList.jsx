@@ -2,6 +2,7 @@ import { useAuthStore } from "@/store/authStore";
 import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
+  RefreshControl,
   SectionList,
   Text,
   TouchableOpacity,
@@ -55,6 +56,8 @@ export default function AllSymbolsSectionList({
   onSell,
   onOpenInfo,
   bottomPadding = 110,
+  refreshing = false,
+  onRefresh,
 }) {
   // Start collapsed: initially show only the category headers
   const [openGroups, setOpenGroups] = useState(() => new Set());
@@ -531,6 +534,15 @@ export default function AllSymbolsSectionList({
     <SectionList
       sections={sections}
       keyExtractor={(item) => String(item.id)}
+      refreshControl={
+        typeof onRefresh === "function" ? (
+          <RefreshControl
+            refreshing={Boolean(refreshing)}
+            onRefresh={onRefresh}
+            tintColor={theme?.primary}
+          />
+        ) : undefined
+      }
       stickySectionHeadersEnabled={true}
       showsVerticalScrollIndicator={false}
       contentContainerStyle={{

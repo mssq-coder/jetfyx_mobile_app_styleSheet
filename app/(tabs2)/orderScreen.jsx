@@ -6,6 +6,7 @@ import {
   Animated,
   Dimensions,
   Modal,
+  RefreshControl,
   ScrollView,
   StatusBar,
   Text,
@@ -22,6 +23,7 @@ import TradingViewChart from "../../components/TradingViewChart";
 import { useAppTheme } from "../../contexts/ThemeContext";
 import useAccountSummary from "../../hooks/useAccountSummary";
 import { useMarginCalculation } from "../../hooks/useMarginCalculation";
+import usePullToRefresh from "../../hooks/usePullToRefresh";
 import { useAuthStore } from "../../store/authStore";
 import {
   showErrorToast,
@@ -111,6 +113,49 @@ export default function Orders() {
   const [lot, setLot] = useState(0.01);
   const [tp, setTp] = useState("");
   const [sl, setSl] = useState("");
+
+  const { refreshing: symbolsRefreshing, runRefresh: runSymbolsRefresh } =
+    usePullToRefresh();
+
+  const handleSymbolsRefresh = () =>
+    runSymbolsRefresh(async () => {
+      if (!selectedAccountId) return;
+      try {
+        const data = await getAllCurrencyListFromDB(selectedAccountId);
+        const mapped = (Array.isArray(data) ? data : [])
+          .filter((item) => item && item.symbol)
+          .filter((item) => item.isSymbolVisible !== false)
+          .map((item) => ({
+            id: String(item.id),
+            symbol: String(item.symbol),
+            description: item.description ?? "",
+            digits: Number.isFinite(Number(item.digits))
+              ? parseInt(item.digits, 10)
+              : 2,
+            minLotSize: item.minLotSize ?? null,
+            maxLotSize: item.maxLotSize ?? null,
+            lotStepSize: item.lotStepSize ?? null,
+
+            contractSize: item.contractSize ?? null,
+            contractValue: item.contractValue ?? null,
+            marginCalculationType: item.marginCalculationType ?? null,
+            marginPercentage: item.marginPercentage ?? null,
+            marginInUsdCode:
+              item.marginInUsdCode ??
+              item.marginInUSD ??
+              item.marginInUsd ??
+              null,
+          }));
+
+        setSymbols(mapped);
+        if (!mapped.length) return;
+        setSymbol((prev) =>
+          mapped.some((x) => x.symbol === prev) ? prev : mapped[0].symbol,
+        );
+      } catch (e) {
+        console.warn("OrderScreen - failed to refresh symbols", e);
+      }
+    });
 
   // Animate on mount
   useEffect(() => {
@@ -1219,7 +1264,15 @@ export default function Orders() {
               </View>
 
               {/* Symbols List */}
-              <ScrollView style={{ flex: 1 }}>
+              <ScrollView
+                style={{ flex: 1 }}
+                refreshControl={
+                  <RefreshControl
+                    refreshing={symbolsRefreshing}
+                    onRefresh={handleSymbolsRefresh}
+                  />
+                }
+              >
                 {(Array.isArray(symbols) && symbols.length
                   ? symbols
                   : [{ symbol, description }]

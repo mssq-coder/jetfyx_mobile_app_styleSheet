@@ -1,7 +1,8 @@
 import { useAuthStore } from "@/store/authStore";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Modal,
+  RefreshControl,
   ScrollView,
   Text,
   TextInput,
@@ -11,9 +12,11 @@ import {
 import { getAllCurrencyListFromDB } from "../../api/getServices";
 import TradingViewChart from "../../components/TradingViewChart";
 import { useAppTheme } from "../../contexts/ThemeContext";
+import usePullToRefresh from "../../hooks/usePullToRefresh";
 
 export default function ChartScreen() {
   const { theme } = useAppTheme();
+  const { refreshing, runRefresh } = usePullToRefresh();
   const chartRef = useRef(null);
   const selectedAccountId = useAuthStore((state) => state.selectedAccountId);
   const accounts = useAuthStore((state) => state.accounts);
@@ -57,35 +60,37 @@ export default function ChartScreen() {
     );
   }, [resolution, timeframes]);
 
-  useEffect(() => {
+  const loadSymbols = useCallback(async () => {
     if (!selectedAccountId) return;
+    const data = await getAllCurrencyListFromDB(selectedAccountId);
+    const list = (Array.isArray(data) ? data : [])
+      .filter((x) => x && x.symbol)
+      .filter((x) => x.isSymbolVisible !== false)
+      .map((x) => ({
+        symbol: String(x.symbol),
+        description: x.description ?? "",
+      }));
+    setSymbols(list);
+    setSymbol((prev) =>
+      list.some((s) => s.symbol === prev) ? prev : (list[0]?.symbol ?? prev),
+    );
+  }, [selectedAccountId]);
+
+  useEffect(() => {
     let cancelled = false;
-    const load = async () => {
+    (async () => {
       try {
-        const data = await getAllCurrencyListFromDB(selectedAccountId);
-        const list = (Array.isArray(data) ? data : [])
-          .filter((x) => x && x.symbol)
-          .filter((x) => x.isSymbolVisible !== false)
-          .map((x) => ({
-            symbol: String(x.symbol),
-            description: x.description ?? "",
-          }));
-        if (cancelled) return;
-        setSymbols(list);
-        setSymbol((prev) =>
-          list.some((s) => s.symbol === prev)
-            ? prev
-            : (list[0]?.symbol ?? prev),
-        );
+        await loadSymbols();
       } catch (e) {
-        console.warn("ChartScreen - failed to load symbols", e);
+        if (!cancelled) {
+          console.warn("ChartScreen - failed to load symbols", e);
+        }
       }
-    };
-    load();
+    })();
     return () => {
       cancelled = true;
     };
-  }, [selectedAccountId]);
+  }, [loadSymbols]);
 
   const filteredSymbols = useMemo(() => {
     const term = String(search || "")
@@ -122,7 +127,18 @@ export default function ChartScreen() {
   );
 
   return (
-    <View style={{ flex: 1, backgroundColor: theme.background }}>
+    <ScrollView
+      style={{ flex: 1, backgroundColor: theme.background }}
+      contentContainerStyle={{ flexGrow: 1 }}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={() => runRefresh(loadSymbols)}
+          tintColor={theme.primary}
+        />
+      }
+    >
+      <View style={{ flex: 1, backgroundColor: theme.background }}>
       {/* Header with symbol changer */}
       <View
         style={{
@@ -501,6 +517,7 @@ export default function ChartScreen() {
           </TouchableOpacity>
         </TouchableOpacity>
       </Modal>
-    </View>
+      </View>
+    </ScrollView>
   );
 }

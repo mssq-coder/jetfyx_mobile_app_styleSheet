@@ -4,6 +4,7 @@ import {
   ActivityIndicator,
   Animated,
   Modal,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -22,6 +23,8 @@ import {
   showInfoToast,
   showSuccessToast,
 } from "../../utils/toast";
+
+import usePullToRefresh from "../../hooks/usePullToRefresh";
 
 import {
   followCopyTrade,
@@ -316,6 +319,7 @@ function FollowModal({
 export default function CopyTradeScreen() {
   const router = useRouter();
   const { theme } = useAppTheme();
+  const { refreshing, runRefresh } = usePullToRefresh();
 
   const accounts = useAuthStore((s) => s.accounts);
   const sharedAccounts = useAuthStore((s) => s.sharedAccounts);
@@ -442,6 +446,14 @@ export default function CopyTradeScreen() {
       setFollowingError(e?.message || "Failed to load masters");
     } finally {
       setFollowingLoading(false);
+    }
+  };
+
+  const handleRefresh = async () => {
+    if (activeTab === "strategies") {
+      await fetchStrategies();
+    } else {
+      await fetchFollowing();
     }
   };
 
@@ -751,7 +763,16 @@ export default function CopyTradeScreen() {
       />
 
       <Animated.View style={{ flex: 1, opacity: fadeAnim }}>
-        <ScrollView contentContainerStyle={{ paddingBottom: 20 }}>
+        <ScrollView
+          contentContainerStyle={{ paddingBottom: 20 }}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={() => runRefresh(handleRefresh)}
+              tintColor={theme.primary}
+            />
+          }
+        >
           {activeTab === "strategies" ? (
             <>
               <View
@@ -947,7 +968,7 @@ export default function CopyTradeScreen() {
           setAccountModalOpen(false);
           if (!id) return;
         }}
-        onRefresh={() => {}}
+        onRefresh={() => runRefresh(handleRefresh)}
       />
     </SafeAreaView>
   );

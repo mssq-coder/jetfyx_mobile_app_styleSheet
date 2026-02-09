@@ -3,6 +3,7 @@ import { useState } from "react";
 import {
   Modal,
   Pressable,
+  RefreshControl,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -15,13 +16,17 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import AppIcon from "../../components/AppIcon";
 import { useAppTheme } from "../../contexts/ThemeContext";
 import { useAuthStore } from "../../store/authStore";
+import usePullToRefresh from "../../hooks/usePullToRefresh";
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 export default function Dashboard() {
   const { theme, themeName, setAppTheme } = useAppTheme();
+  const { refreshing, runRefresh } = usePullToRefresh();
   const [themePickerOpen, setThemePickerOpen] = useState(false);
   const fullName = useAuthStore((state) => state.fullName);
+  const userId = useAuthStore((state) => state.userId);
+  const refreshProfile = useAuthStore((state) => state.refreshProfile);
 
   const dashboardThemes = ["light", "dark", "green", "purple"];
 
@@ -68,6 +73,15 @@ export default function Dashboard() {
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() =>
+              runRefresh(() => (userId ? refreshProfile() : Promise.resolve()))
+            }
+            tintColor={theme.primary}
+          />
+        }
       >
         {/* Enhanced Header Section */}
         <View style={[styles.headerSection, { 
@@ -304,7 +318,7 @@ export default function Dashboard() {
               title="IB Activity" 
               description="Become IB & track referrals"
               color={theme.secondary}
-              onPress={() => router.push("/ibActivity")}
+              onPress={() => router.push("/ibPortal")}
             />
             <FeatureCard 
               icon="support-agent" 
@@ -377,7 +391,7 @@ export default function Dashboard() {
               icon="notifications" 
               label="Notifications" 
               badge={3}
-              onPress={() => router.push("/notifications")}
+              onPress={() => router.push("/mailbox")}
               theme={theme}
             />
             <QuickAction 

@@ -1,21 +1,20 @@
-import React from "react";
-import { 
-  View, 
-  Text, 
-  Image, 
-  TouchableOpacity, 
-  StyleSheet, 
-  StatusBar,
-  Platform 
-} from "react-native";
+import { useAuthStore } from "@/store/authStore";
 import {
   DrawerContentScrollView,
   DrawerItemList,
 } from "@react-navigation/drawer";
 import { LinearGradient } from "expo-linear-gradient";
-import { useAppTheme } from "../contexts/ThemeContext";
-import { useAuthStore } from "@/store/authStore";
 import { useRouter } from "expo-router";
+import React from "react";
+import {
+  Platform,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
+} from "react-native";
+import { useAppTheme } from "../contexts/ThemeContext";
 import AppIcon from "./AppIcon";
 
 export default function CustomDrawerContent(props) {
@@ -24,6 +23,13 @@ export default function CustomDrawerContent(props) {
   const fullName = useAuthStore((s) => s.fullName);
   const email = useAuthStore((s) => s.email);
   const router = useRouter();
+
+  const pushAndClose = (href) => {
+    try {
+      props?.navigation?.closeDrawer?.();
+    } catch (_e) {}
+    router.push(href);
+  };
 
   const getInitials = (name) => {
     if (!name) return "U";
@@ -37,12 +43,12 @@ export default function CustomDrawerContent(props) {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <StatusBar 
-        barStyle={theme.isDark ? "light-content" : "dark-content"} 
-        backgroundColor="transparent" 
-        translucent 
+      <StatusBar
+        barStyle={theme.isDark ? "light-content" : "dark-content"}
+        backgroundColor="transparent"
+        translucent
       />
-      
+
       <DrawerContentScrollView
         {...props}
         contentContainerStyle={styles.contentContainer}
@@ -51,9 +57,10 @@ export default function CustomDrawerContent(props) {
       >
         {/* ================= USER PROFILE SECTION ================= */}
         <LinearGradient
-          colors={theme.isDark 
-            ? [theme.primary, theme.primary + 'CC']
-            : [theme.primary + '20', theme.primary + '10']
+          colors={
+            theme.isDark
+              ? [theme.primary, theme.primary + "CC"]
+              : [theme.primary + "20", theme.primary + "10"]
           }
           style={styles.profileContainer}
           start={{ x: 0, y: 0 }}
@@ -61,9 +68,19 @@ export default function CustomDrawerContent(props) {
         >
           <View style={styles.profileContent}>
             {/* Avatar with fallback to initials */}
-            <View style={[styles.avatarContainer, { backgroundColor: theme.primary + '30' }]}>
+            <View
+              style={[
+                styles.avatarContainer,
+                { backgroundColor: theme.primary + "30" },
+              ]}
+            >
               {fullName ? (
-                <View style={[styles.avatarFallback, { backgroundColor: theme.primary }]}>
+                <View
+                  style={[
+                    styles.avatarFallback,
+                    { backgroundColor: theme.primary },
+                  ]}
+                >
                   <Text style={styles.avatarText}>{getInitials(fullName)}</Text>
                 </View>
               ) : (
@@ -72,15 +89,25 @@ export default function CustomDrawerContent(props) {
             </View>
 
             <View style={styles.userInfo}>
-              <Text 
-                style={[styles.name, { color: theme.isDark ? '#fff' : theme.text }]} 
+              <Text
+                style={[
+                  styles.name,
+                  { color: theme.isDark ? "#fff" : theme.text },
+                ]}
                 numberOfLines={1}
               >
                 {fullName || "Welcome Back"}
               </Text>
-              
+
               <Text
-                style={[styles.email, { color: theme.isDark ? 'rgba(255,255,255,0.8)' : theme.secondary }]}
+                style={[
+                  styles.email,
+                  {
+                    color: theme.isDark
+                      ? "rgba(255,255,255,0.8)"
+                      : theme.secondary,
+                  },
+                ]}
                 numberOfLines={1}
               >
                 {email || "User"}
@@ -88,56 +115,131 @@ export default function CustomDrawerContent(props) {
             </View>
 
             {/* Edit Profile Button */}
-            <TouchableOpacity 
-              style={[styles.editButton, { backgroundColor: theme.isDark ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.3)' }]}
+            <TouchableOpacity
+              style={[
+                styles.editButton,
+                {
+                  backgroundColor: theme.isDark
+                    ? "rgba(255,255,255,0.15)"
+                    : "rgba(255,255,255,0.3)",
+                },
+              ]}
               activeOpacity={0.7}
             >
-              <AppIcon name="edit" size={16} color={theme.isDark ? '#fff' : theme.primary} />
+              <AppIcon
+                name="edit"
+                size={16}
+                color={theme.isDark ? "#fff" : theme.primary}
+              />
             </TouchableOpacity>
           </View>
         </LinearGradient>
 
         {/* ================= DRAWER MENU ================= */}
         <View style={styles.menuContainer}>
-          <View style={[styles.menuHeader, { borderBottomColor: theme.border }]}>
+          <View
+            style={[styles.menuHeader, { borderBottomColor: theme.border }]}
+          >
             <Text style={[styles.menuTitle, { color: theme.secondary }]}>
               NAVIGATION
             </Text>
           </View>
-          
+
           <View style={styles.menu}>
-            <DrawerItemList 
+            <DrawerItemList
               {...props}
-              activeBackgroundColor={theme.primary + '15'}
+              activeBackgroundColor={theme.primary + "15"}
               activeTintColor={theme.primary}
-              inactiveTintColor={theme.text + '90'}
+              inactiveTintColor={theme.text + "90"}
               labelStyle={styles.drawerLabel}
               itemStyle={styles.drawerItem}
             />
+
+            {/* (tabs2) screens: show as explicit links instead of the '(tabs2)' group */}
+            <TouchableOpacity
+              style={[
+                styles.customNavItem,
+                { backgroundColor: theme.primary + "08" },
+              ]}
+              activeOpacity={0.75}
+              onPress={() => pushAndClose("/withdrawal")}
+            >
+              <AppIcon
+                name="account-balance-wallet"
+                size={20}
+                color={theme.text}
+              />
+              <Text style={[styles.customNavLabel, { color: theme.text }]}>
+                Withdrawal
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.customNavItem,
+                { backgroundColor: theme.primary + "08" },
+              ]}
+              activeOpacity={0.75}
+              onPress={() => pushAndClose("/internalTransfer")}
+            >
+              <AppIcon name="swap-horiz" size={20} color={theme.text} />
+              <Text style={[styles.customNavLabel, { color: theme.text }]}>
+                Internal Transfer
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.customNavItem,
+                { backgroundColor: theme.primary + "08" },
+              ]}
+              activeOpacity={0.75}
+              onPress={() => pushAndClose("/copyTrade")}
+            >
+              <AppIcon name="content-copy" size={20} color={theme.text} />
+              <Text style={[styles.customNavLabel, { color: theme.text }]}>
+                Copy Trade
+              </Text>
+            </TouchableOpacity>
           </View>
         </View>
 
         {/* ================= QUICK ACTIONS ================= */}
-        <View style={[styles.actionsContainer, { backgroundColor: theme.card, borderColor: theme.border }]}>
+        <View
+          style={[
+            styles.actionsContainer,
+            { backgroundColor: theme.card, borderColor: theme.border },
+          ]}
+        >
           <Text style={[styles.actionsTitle, { color: theme.secondary }]}>
             QUICK ACTIONS
           </Text>
-          
+
           <View style={styles.actionsRow}>
-            <TouchableOpacity 
-              style={[styles.actionButton, { backgroundColor: theme.primary + '10' }]}
+            <TouchableOpacity
+              style={[
+                styles.actionButton,
+                { backgroundColor: theme.primary + "10" },
+              ]}
               activeOpacity={0.7}
             >
               <AppIcon name="settings" size={20} color={theme.primary} />
-              <Text style={[styles.actionText, { color: theme.text }]}>Settings</Text>
+              <Text style={[styles.actionText, { color: theme.text }]}>
+                Settings
+              </Text>
             </TouchableOpacity>
-            
-            <TouchableOpacity 
-              style={[styles.actionButton, { backgroundColor: theme.primary + '10' }]}
+
+            <TouchableOpacity
+              style={[
+                styles.actionButton,
+                { backgroundColor: theme.primary + "10" },
+              ]}
               activeOpacity={0.7}
             >
               <AppIcon name="help" size={20} color={theme.primary} />
-              <Text style={[styles.actionText, { color: theme.text }]}>Help</Text>
+              <Text style={[styles.actionText, { color: theme.text }]}>
+                Help
+              </Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -161,7 +263,7 @@ export default function CustomDrawerContent(props) {
             <Text style={styles.logoutText}>Logout</Text>
           </View>
         </TouchableOpacity>
-        
+
         <Text style={[styles.versionText, { color: theme.secondary }]}>
           Version 1.0.0
         </Text>
@@ -173,7 +275,7 @@ export default function CustomDrawerContent(props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
+    paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
   },
   contentContainer: {
     paddingBottom: 20,
@@ -186,17 +288,17 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   profileContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
   },
   avatarContainer: {
     width: 60,
     height: 60,
     borderRadius: 30,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     marginRight: 16,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
@@ -206,13 +308,13 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
     borderRadius: 30,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   avatarText: {
-    color: '#fff',
+    color: "#fff",
     fontSize: 20,
-    fontWeight: '700',
+    fontWeight: "700",
     letterSpacing: 1,
   },
   userInfo: {
@@ -233,8 +335,8 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     marginLeft: 8,
   },
   menuContainer: {
@@ -250,20 +352,33 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "700",
     letterSpacing: 1.5,
-    textTransform: 'uppercase',
+    textTransform: "uppercase",
   },
   menu: {
     paddingHorizontal: 12,
   },
   drawerLabel: {
     fontSize: 15,
-    fontWeight: '600',
+    fontWeight: "600",
     marginLeft: -16,
   },
   drawerItem: {
     borderRadius: 12,
     marginVertical: 4,
     paddingHorizontal: 12,
+  },
+  customNavItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    borderRadius: 12,
+    marginVertical: 4,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  customNavLabel: {
+    fontSize: 15,
+    fontWeight: "600",
   },
   actionsContainer: {
     marginHorizontal: 20,
@@ -276,25 +391,25 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "700",
     letterSpacing: 1.5,
-    textTransform: 'uppercase',
+    textTransform: "uppercase",
     marginBottom: 16,
   },
   actionsRow: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 12,
   },
   actionButton: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     paddingVertical: 12,
     borderRadius: 12,
     gap: 8,
   },
   actionText: {
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   footer: {
     padding: 20,
@@ -306,15 +421,15 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 6,
     elevation: 3,
   },
   logoutContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 10,
   },
   logoutText: {
@@ -324,7 +439,7 @@ const styles = StyleSheet.create({
   },
   versionText: {
     fontSize: 11,
-    textAlign: 'center',
-    fontWeight: '500',
+    textAlign: "center",
+    fontWeight: "500",
   },
 });

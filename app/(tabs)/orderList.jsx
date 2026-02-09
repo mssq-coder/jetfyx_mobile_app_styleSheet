@@ -22,6 +22,7 @@ import TabNavigation from "../../components/OrderComponents/TabNavigation";
 import { useOrderManagement } from "../../hooks/order/useOrderManagement";
 import { useOrdersData } from "../../hooks/order/useOrdersData";
 import { useTargetsManagement } from "../../hooks/order/useTargetsManagement";
+import usePullToRefresh from "../../hooks/usePullToRefresh";
 import {
   extractTargetsFromOrder,
   getTargetId,
@@ -37,6 +38,7 @@ import { showErrorToast, showSuccessToast } from "../../utils/toast";
 const OrderListScreen = () => {
   const router = useRouter();
   const { theme } = useAppTheme();
+  const { refreshing, runRefresh } = usePullToRefresh();
   const [tab, setTab] = useState("market");
   const [summaryOpen, setSummaryOpen] = useState(false);
   const [summaryContentReady, setSummaryContentReady] = useState(false);
@@ -257,6 +259,7 @@ const OrderListScreen = () => {
     validateSlTp,
     patchOrderInLists,
     removeOrderFromLists,
+    reloadSymbols,
   } = useOrdersData({
     tab,
   });
@@ -548,6 +551,8 @@ const OrderListScreen = () => {
           ListHeaderComponent={listHeader}
           renderItem={renderOrderItem}
           ListEmptyComponent={() => <EmptyState theme={theme} />}
+          refreshing={refreshing}
+          onRefresh={() => runRefresh(reloadSymbols)}
         />
 
         <FloatingHistoryButton router={router} theme={theme} />

@@ -128,11 +128,42 @@ export const confirmWithdrawal = async (payload) => {
   );
 };
 
+export const confirmIbWithdrawal = async (payload) => {
+  // IB withdrawal route follows the same backend pattern as withdrawal/deposit.
+  // Use multipart/form-data for best compatibility on React Native.
+  const fd = new FormData();
+  Object.entries(payload || {}).forEach(([key, value]) => {
+    if (value === undefined || value === null) return;
+
+    if (key === "DetailsJson") {
+      if (typeof value === "object") fd.append(key, JSON.stringify(value));
+      else fd.append(key, String(value));
+      return;
+    }
+
+    fd.append(key, String(value));
+  });
+
+  return await fetchPostFormData(
+    `account/ClientAccountTransactions/ib-withdrawal`,
+    fd,
+  );
+};
+
 export const createInternalTransfer = async (payload) => {
   // Web portal uses JSON body for this route.
   // Keep JSON by default; if the backend changes to multipart later we can align.
   const response = await api.post(
     `account/ClientAccountTransactions/internal-transfer`,
+    payload,
+  );
+  return response.data;
+};
+
+export const createIbInternalTransfer = async (payload) => {
+  // IB internal transfer uses JSON on the web portal.
+  const response = await api.post(
+    `account/ClientAccountTransactions/ib-internal-transfer`,
     payload,
   );
   return response.data;

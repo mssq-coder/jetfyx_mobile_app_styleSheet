@@ -1,8 +1,9 @@
 import * as DocumentPicker from "expo-document-picker";
 import { router } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Image,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -32,6 +33,7 @@ import AppIcon from "../../components/AppIcon";
 import { useAppTheme } from "../../contexts/ThemeContext";
 import { useAuthStore } from "../../store/authStore";
 import { useUserStore } from "../../store/userStore";
+import usePullToRefresh from "../../hooks/usePullToRefresh";
 import {
   showErrorToast,
   showInfoToast,
@@ -300,9 +302,11 @@ const EnhancedSectionHeader = ({ title, subtitle, theme, icon }) => (
 
 export default function AccountSettingsScreen() {
   const { theme } = useAppTheme();
+  const { refreshing, runRefresh } = usePullToRefresh();
   const userData = useUserStore((s) => s.userData);
   const setUserData = useUserStore((s) => s.setUserData);
   const userId = useAuthStore((s) => s.userId);
+  const refreshProfile = useAuthStore((s) => s.refreshProfile);
 
   const user = useMemo(() => userData?.data ?? userData ?? {}, [userData]);
 
@@ -427,24 +431,33 @@ export default function AccountSettingsScreen() {
     setIdProofPathOverride(null);
   }, [user?.idProofPath]);
 
+  const loadCountries = useCallback(async () => {
+    setCountriesLoading(true);
+    try {
+      const data = await getCountries();
+      setCountries(normalizeCountries(data));
+    } catch (_e) {
+      // non-blocking
+    } finally {
+      setCountriesLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     let mounted = true;
     (async () => {
       try {
-        setCountriesLoading(true);
-        const data = await getCountries();
-        if (!mounted) return;
-        setCountries(normalizeCountries(data));
+        await loadCountries();
       } catch (_e) {
         // non-blocking
       } finally {
-        if (mounted) setCountriesLoading(false);
+        if (!mounted) return;
       }
     })();
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [loadCountries]);
 
   useEffect(() => {
     if (formInitialized) return;
@@ -622,6 +635,20 @@ export default function AccountSettingsScreen() {
       <ScrollView
         contentContainerStyle={enhancedStyles.scrollContent}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() =>
+              runRefresh(async () => {
+                await Promise.all([
+                  userId ? refreshProfile() : Promise.resolve(),
+                  loadCountries(),
+                ]);
+              })
+            }
+            tintColor={theme.primary}
+          />
+        }
       >
         {/* Profile Section */}
         <View style={enhancedStyles.sectionCard}>

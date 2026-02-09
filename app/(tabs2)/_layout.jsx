@@ -14,6 +14,8 @@ export default function Layout() {
       <Stack.Screen name="passwordChange" options={{ headerShown: false }} />
       <Stack.Screen name="leverageSettings" options={{ headerShown: false }} />
       <Stack.Screen name="supportTickets" options={{ headerShown: false }} />
+      <Stack.Screen name="ibPortal" options={{ headerShown: false }} />
+      <Stack.Screen name="mailbox" options={{ headerShown: false }} />
     </Stack>
   );
 }

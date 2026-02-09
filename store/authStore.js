@@ -9,6 +9,7 @@ export const useAuthStore = create(
   persist(
     (set, get) => ({
       token: null,
+      refreshToken: null,
       accounts: [],
       selectedAccountId: null,
       sharedAccounts: [],
@@ -34,6 +35,8 @@ export const useAuthStore = create(
             data?.accessToken ||
             data?.token ||
             null;
+          const refreshToken =
+            data?.data?.refreshToken || data?.refreshToken || null;
           const accounts = data?.data?.accounts || [];
           const sharedAccounts = data?.data?.sharedAccounts || [];
           const fullName = data?.data?.fullName || null;
@@ -46,6 +49,7 @@ export const useAuthStore = create(
 
           set({
             token,
+            refreshToken,
             accounts,
             sharedAccounts,
             fullName,
@@ -91,6 +95,7 @@ export const useAuthStore = create(
 
         set({
           token: null,
+          refreshToken: null,
           accounts: [],
           sharedAccounts: [],
           fullName: null,

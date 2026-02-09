@@ -5,6 +5,7 @@ import {
   KeyboardAvoidingView,
   Modal,
   Platform,
+  RefreshControl,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -20,6 +21,7 @@ import AppIcon from "../../components/AppIcon";
 import { useAppTheme } from "../../contexts/ThemeContext";
 import { useAuthStore } from "../../store/authStore";
 import { showErrorToast, showSuccessToast } from "../../utils/toast";
+import usePullToRefresh from "../../hooks/usePullToRefresh";
 
 const TABS = {
   profile: "profile",
@@ -117,6 +119,7 @@ function getPasswordProgress(pwd) {
 
 export default function PasswordChange() {
   const { theme } = useAppTheme();
+  const { refreshing, runRefresh } = usePullToRefresh();
   const { accounts, sharedAccounts, fullName, selectedAccountId, userEmail } =
     useAuthStore();
 
@@ -335,6 +338,13 @@ export default function PasswordChange() {
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={() => runRefresh()}
+              tintColor={theme.primary}
+            />
+          }
         >
           <Text style={[styles.subtitle, { color: theme.secondary }]}>
             Manage your profile and account passwords securely.

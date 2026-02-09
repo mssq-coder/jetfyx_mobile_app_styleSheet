@@ -15,7 +15,9 @@ import { useAuthStore } from "../../store/authStore";
 import { useSettingsStore } from "../../store/settingsStore";
 import {
   getBiometricCredentials,
+  getLastLoginCredentials,
   saveBiometricCredentials,
+  saveLastLoginCredentials,
 } from "../../utils/secureAuth";
 
 import LogoComp from "../../components/LogoComp";
@@ -41,10 +43,36 @@ export default function Login() {
 
   const promptedRef = useRef(false);
 
+  // Autofill last used login credentials
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const creds = await getLastLoginCredentials();
+        if (!mounted || !creds) return;
+        // Don't clobber if user already started typing
+        setUsername((prev) => (prev ? prev : creds.email || ""));
+        setPassword((prev) => (prev ? prev : creds.password || ""));
+        if (creds.email && creds.password) setRemember(true);
+      } catch (_e) {
+        // ignore
+      }
+    })();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
   const onSubmit = async () => {
     const result = await login({ email: username, password });
     console.log("Login result:", result);
     if (result.success) {
+      // Always store last successful login for autofill
+      try {
+        await saveLastLoginCredentials({ email: username, password });
+      } catch (_e) {}
+
       // If user enabled biometrics OR opted to remember, store creds securely
       // so biometric login can re-auth even after logout/fresh install.
       if (biometricEnabled || remember) {

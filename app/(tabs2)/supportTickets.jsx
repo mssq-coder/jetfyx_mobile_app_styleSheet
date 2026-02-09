@@ -8,6 +8,7 @@ import {
   KeyboardAvoidingView,
   Modal,
   Platform,
+  RefreshControl,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -28,6 +29,7 @@ import {
 } from "../../api/supportTickets";
 import AppIcon from "../../components/AppIcon";
 import { useAppTheme } from "../../contexts/ThemeContext";
+import usePullToRefresh from "../../hooks/usePullToRefresh";
 import {
   showErrorToast,
   showInfoToast,
@@ -304,6 +306,8 @@ function ImagePreviewModal({ open, title, localUri, onClose, theme }) {
 export default function SupportTicketsScreen() {
   const { theme } = useAppTheme();
 
+  const { refreshing, runRefresh } = usePullToRefresh();
+
   const [tickets, setTickets] = useState([]);
   const [selectedTicket, setSelectedTicket] = useState(null);
 
@@ -420,6 +424,18 @@ export default function SupportTicketsScreen() {
       setLoading(false);
     }
   };
+
+  const handleRefresh = () =>
+    runRefresh(async () => {
+      await Promise.all([
+        loadStats(),
+        loadTickets({ nextPage: 1, replace: true }),
+      ]);
+
+      if (selectedTicket?.id != null) {
+        await onSelectTicket({ id: selectedTicket.id });
+      }
+    });
 
   useEffect(() => {
     loadStats();
@@ -1287,6 +1303,9 @@ export default function SupportTicketsScreen() {
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+        }
       >
         {selectedTicket ? renderChat() : renderList()}
       </ScrollView>

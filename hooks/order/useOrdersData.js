@@ -16,30 +16,34 @@ export const useOrdersData = ({ tab }) => {
 
   useOrderHub(accountId, setOrders, setPendingOrders);
 
-  useEffect(() => {
+  const reloadSymbols = useCallback(async () => {
     if (accountId == null) {
       setSymbolsBySymbol({});
       return;
     }
 
+    const response = await getAllCurrencyListFromDB(accountId);
+    const list = Array.isArray(response?.data)
+      ? response.data
+      : Array.isArray(response)
+        ? response
+        : [];
+
+    const next = {};
+    for (const item of list) {
+      const sym = item?.symbol;
+      if (!sym) continue;
+      next[String(sym).toUpperCase()] = item;
+    }
+
+    setSymbolsBySymbol(next);
+  }, [accountId]);
+
+  useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const response = await getAllCurrencyListFromDB(accountId);
-        const list = Array.isArray(response?.data)
-          ? response.data
-          : Array.isArray(response)
-            ? response
-            : [];
-
-        const next = {};
-        for (const item of list) {
-          const sym = item?.symbol;
-          if (!sym) continue;
-          next[String(sym).toUpperCase()] = item;
-        }
-
-        if (!cancelled) setSymbolsBySymbol(next);
+        await reloadSymbols();
       } catch {
         if (!cancelled) setSymbolsBySymbol({});
       }
@@ -48,7 +52,7 @@ export const useOrdersData = ({ tab }) => {
     return () => {
       cancelled = true;
     };
-  }, [accountId]);
+  }, [reloadSymbols]);
 
   const selectedAccount = useMemo(() => {
     if (!accountId) return null;
@@ -381,5 +385,7 @@ export const useOrdersData = ({ tab }) => {
     validateSlTp,
     patchOrderInLists,
     removeOrderFromLists,
+
+    reloadSymbols,
   };
 };

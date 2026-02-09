@@ -1,10 +1,11 @@
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Image,
   KeyboardAvoidingView,
   Platform,
+  RefreshControl,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -15,16 +16,24 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
+  getClientAccountTransactions,
   getDetailsByAmountAndCategory,
   getFinanceOptions,
   previewFile,
 } from "../../api/getServices";
+import { getIbOverviewDetails, getIbOverviewFinance } from "../../api/ibPortal";
+import { confirmIbWithdrawal } from "../../api/Services";
 import AccountSelectorModal from "../../components/Accounts/AccountSelectorModal";
 import AppIcon from "../../components/AppIcon";
 import WithdrawalDetailsModal from "../../components/WithdrawalDetailsModal";
 import { useAppTheme } from "../../contexts/ThemeContext";
+import usePullToRefresh from "../../hooks/usePullToRefresh";
 import { useAuthStore } from "../../store/authStore";
-import { showErrorToast, showInfoToast } from "../../utils/toast";
+import {
+  showErrorToast,
+  showInfoToast,
+  showSuccessToast,
+} from "../../utils/toast";
 
 const MODE = "withdrawal";
 
@@ -117,6 +126,318 @@ function PreviewedImage({ uriOrPath, style, theme, fallbackIcon = "image" }) {
 }
 
 export default function WithdrawalScreen() {
+  const params = useLocalSearchParams();
+  const flow = String(params?.flow || "").toLowerCase();
+  if (flow === "ib") {
+    return <IbWithdrawalScreen />;
+  }
+
+  return <StandardWithdrawalScreen />;
+}
+
+function IbWithdrawalScreen() {
+  const { theme } = useAppTheme();
+  const { accounts, selectedAccountId } = useAuthStore();
+
+  const { refreshing, runRefresh } = usePullToRefresh();
+
+  const selectedAccount = useMemo(() => {
+    const id = selectedAccountId;
+    const found = (accounts || []).find(
+      (a) => String(a.accountId ?? a.id) === String(id),
+    );
+    return found || accounts?.[0] || null;
+  }, [accounts, selectedAccountId]);
+
+  const accountId = selectedAccount?.accountId ?? selectedAccount?.id ?? null;
+
+  const [ibDetails, setIbDetails] = useState(null);
+  const [ibFinance, setIbFinance] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  const [amount, setAmount] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [history, setHistory] = useState([]);
+
+  const availableBalance = useMemo(() => {
+    const f = ibFinance || {};
+    const v =
+      f?.availableBalance ??
+      f?.availableToWithdrawal ??
+      f?.availableToWithdraw ??
+      f?.available ??
+      f?.availableBalanceToWithdraw ??
+      0;
+    const n = Number(v);
+    return Number.isFinite(n) ? n : 0;
+  }, [ibFinance]);
+
+  const displayIbAccountNumber =
+    ibDetails?.displayAccountNumber ||
+    ibDetails?.accountNumber ||
+    ibDetails?.ibAccountNumber ||
+    ibDetails?.referenceId ||
+    "—";
+
+  const loadIb = async () => {
+    if (!accountId) return;
+    setLoading(true);
+    try {
+      const [d, f] = await Promise.all([
+        getIbOverviewDetails(accountId),
+        getIbOverviewFinance(accountId),
+      ]);
+      setIbDetails(d);
+      setIbFinance(f);
+    } catch (e) {
+      showErrorToast(
+        e?.response?.data?.message || e?.message || "Failed to load IB balance",
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadHistory = async () => {
+    if (!accountId) return;
+    setHistoryLoading(true);
+    try {
+      const resp = await getClientAccountTransactions({
+        accountId,
+        transactionType: "IBwithdrawal",
+        includePending: true,
+      });
+      const rows = Array.isArray(resp?.data) ? resp.data : [];
+      const filtered = rows.filter(
+        (tx) =>
+          String(tx?.transactionType || "") === "IBwithdrawal" &&
+          String(tx?.paymentMethod || "") === "IBBalance",
+      );
+      setHistory(filtered);
+    } catch (e) {
+      setHistory([]);
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  const handleRefresh = () =>
+    runRefresh(async () => {
+      await Promise.all([loadIb(), loadHistory()]);
+    });
+
+  useEffect(() => {
+    loadIb();
+    loadHistory();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [accountId]);
+
+  const handleSubmit = async () => {
+    if (submitting) return;
+    if (!accountId) {
+      showInfoToast("Please select an account.");
+      return;
+    }
+
+    const amt = Number(String(amount).replace(/[^0-9.]/g, ""));
+    if (!amount || !Number.isFinite(amt) || amt < 10) {
+      showInfoToast("Enter minimum amount 10.");
+      return;
+    }
+    if (amt > availableBalance) {
+      showInfoToast(
+        `Insufficient available balance. Max: $${availableBalance.toFixed(2)}`,
+      );
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      await confirmIbWithdrawal({
+        AccountId: accountId,
+        AccountNumber: String(selectedAccount?.accountNumber || ""),
+        Amount: amt,
+        Currency: "USD",
+        PaymentMethod: "IBBalance",
+        DetailsJson: {
+          paymentMethod: "IBBalance",
+          transactionType: "IBwithdrawal",
+        },
+      });
+
+      showSuccessToast("IB withdrawal request submitted.");
+      setAmount("");
+      await loadIb();
+      await loadHistory();
+    } catch (e) {
+      showErrorToast(
+        e?.response?.data?.message || e?.message || "IB withdrawal failed.",
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: theme.background }]}
+    >
+      <StatusBar backgroundColor={theme.primary} barStyle="light-content" />
+
+      <View style={[styles.header, { backgroundColor: theme.primary }]}>
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={styles.backButton}
+        >
+          <AppIcon name="arrow-back" color="#fff" size={24} />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>IB Withdrawal</Text>
+      </View>
+
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+        }
+      >
+        <View
+          style={[
+            styles.card,
+            { backgroundColor: theme.card, borderColor: theme.border },
+          ]}
+        >
+          <View style={styles.rowCenter}>
+            <AppIcon name="badge" color={theme.primary} size={20} />
+            <View style={{ flex: 1 }}>
+              <Text
+                style={[styles.cardTitle, { color: theme.text }]}
+                numberOfLines={1}
+              >
+                IB Account Number
+              </Text>
+              <Text
+                style={[styles.cardSub, { color: theme.secondary }]}
+                numberOfLines={1}
+              >
+                {displayIbAccountNumber}
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        <View
+          style={[
+            styles.card,
+            { backgroundColor: theme.card, borderColor: theme.border },
+          ]}
+        >
+          <Text style={[styles.sectionTitle, { color: theme.text }]}>
+            Available
+          </Text>
+          <Text style={[styles.bigValue, { color: theme.text }]}>
+            ${availableBalance.toFixed(2)}
+          </Text>
+          {loading ? <ActivityIndicator color={theme.primary} /> : null}
+        </View>
+
+        <View
+          style={[
+            styles.card,
+            { backgroundColor: theme.card, borderColor: theme.border },
+          ]}
+        >
+          <Text style={[styles.sectionTitle, { color: theme.text }]}>
+            Amount (USD)
+          </Text>
+          <View
+            style={[
+              styles.inputRow,
+              { borderColor: theme.border, backgroundColor: theme.background },
+            ]}
+          >
+            <Text style={[styles.dollar, { color: theme.secondary }]}>$</Text>
+            <TextInput
+              value={amount}
+              onChangeText={(t) =>
+                setAmount(String(t || "").replace(/[^0-9.]/g, ""))
+              }
+              keyboardType="decimal-pad"
+              placeholder="Enter amount"
+              placeholderTextColor={theme.secondary}
+              style={[styles.amountInput, { color: theme.text }]}
+            />
+          </View>
+
+          <TouchableOpacity
+            onPress={handleSubmit}
+            disabled={submitting}
+            style={[
+              styles.primaryBtn,
+              { backgroundColor: theme.primary, opacity: submitting ? 0.7 : 1 },
+            ]}
+          >
+            <Text style={styles.primaryBtnText}>
+              {submitting ? "Submitting…" : "Request IB Withdrawal"}
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        <View
+          style={[
+            styles.card,
+            { backgroundColor: theme.card, borderColor: theme.border },
+          ]}
+        >
+          <View style={[styles.rowBetween, { marginBottom: 8 }]}>
+            <Text style={[styles.sectionTitle, { color: theme.text }]}>
+              History
+            </Text>
+            <TouchableOpacity onPress={loadHistory} activeOpacity={0.85}>
+              <AppIcon name="refresh" size={18} color={theme.primary} />
+            </TouchableOpacity>
+          </View>
+
+          {historyLoading ? <ActivityIndicator color={theme.primary} /> : null}
+          {history.length ? (
+            history.slice(0, 10).map((tx, idx) => (
+              <View
+                key={String(tx?.id ?? idx)}
+                style={[styles.historyRow, { borderColor: theme.border }]}
+              >
+                <View style={{ flex: 1 }}>
+                  <Text
+                    style={[styles.historyTitle, { color: theme.text }]}
+                    numberOfLines={1}
+                  >
+                    {String(tx?.status || tx?.state || "Pending")}
+                  </Text>
+                  <Text
+                    style={[styles.historySub, { color: theme.secondary }]}
+                    numberOfLines={1}
+                  >
+                    {String(tx?.createdAt || tx?.date || tx?.time || "")}
+                  </Text>
+                </View>
+                <Text style={[styles.historyAmt, { color: theme.text }]}>
+                  ${Number(tx?.amount || 0).toFixed(2)}
+                </Text>
+              </View>
+            ))
+          ) : (
+            <Text style={[styles.cardSub, { color: theme.secondary }]}>
+              No IB withdrawals found.
+            </Text>
+          )}
+        </View>
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+function StandardWithdrawalScreen() {
   const { theme } = useAppTheme();
   const {
     accounts,
@@ -125,6 +446,8 @@ export default function WithdrawalScreen() {
     selectedAccountId,
     setSelectedAccount,
   } = useAuthStore();
+
+  const { refreshing, runRefresh } = usePullToRefresh();
 
   const selectedAccount = useMemo(() => {
     const id = selectedAccountId;
@@ -241,6 +564,76 @@ export default function WithdrawalScreen() {
       mounted = false;
     };
   }, []);
+
+  const handleRefresh = () =>
+    runRefresh(async () => {
+      try {
+        setLoadingOptions(true);
+        setOptionsError(null);
+
+        const res = await getFinanceOptions(MODE);
+        const list = res?.categories || res?.data?.categories || [];
+        const safe = Array.isArray(list) ? list : [];
+        setCategories(safe);
+
+        setSelectedCategoryId((prev) => {
+          if (prev == null) return safe?.[0]?.id ?? null;
+          const exists = safe.some((c) => String(c?.id) === String(prev));
+          return exists ? prev : safe?.[0]?.id ?? null;
+        });
+
+        setSelectedMethodName((prev) => {
+          if (prev == null) return safe?.[0]?.methods?.[0]?.name ?? null;
+          const flatMethods = safe.flatMap((c) => c?.methods || []);
+          const exists = flatMethods.some(
+            (m) => String(m?.name) === String(prev),
+          );
+          return exists ? prev : safe?.[0]?.methods?.[0]?.name ?? null;
+        });
+
+        // Keep currency if still supported; otherwise reset.
+        setSelectedCurrency((prev) => {
+          if (!prev) {
+            const firstCategory = safe[0] || null;
+            const firstCategoryCurrencies = Array.from(
+              new Set(
+                (firstCategory?.methods || [])
+                  .flatMap((m) => parseCurrenciesCsv(m?.currenciesCsv))
+                  .map((c) => String(c).toUpperCase()),
+              ),
+            ).filter(Boolean);
+            return firstCategoryCurrencies[0] ?? null;
+          }
+
+          const selectedCategory = safe.find(
+            (c) => String(c?.id) === String(selectedCategoryId),
+          );
+          const methods = selectedCategory?.methods || [];
+          const isSupported = methods.some((m) =>
+            methodSupportsCurrency(m, prev),
+          );
+          if (isSupported) return prev;
+
+          const firstCategory = safe[0] || null;
+          const firstCategoryCurrencies = Array.from(
+            new Set(
+              (firstCategory?.methods || [])
+                .flatMap((m) => parseCurrenciesCsv(m?.currenciesCsv))
+                .map((c) => String(c).toUpperCase()),
+            ),
+          ).filter(Boolean);
+          return firstCategoryCurrencies[0] ?? null;
+        });
+      } catch (e) {
+        setOptionsError(
+          e?.response?.data?.message ||
+            e?.message ||
+            "Failed to load finance options",
+        );
+      } finally {
+        setLoadingOptions(false);
+      }
+    });
 
   // Determine payment type based on category name
   const getPaymentType = (categoryName) => {
@@ -515,6 +908,9 @@ export default function WithdrawalScreen() {
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+          }
         >
           <Text style={[styles.sectionTitle, { color: theme.text }]}>
             Account
@@ -1254,4 +1650,37 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     marginBottom: 10,
   },
+
+  bigValue: {
+    fontSize: 28,
+    fontWeight: "800",
+    marginTop: 6,
+  },
+  inputRow: {
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 10,
+  },
+  dollar: { fontSize: 16, fontWeight: "800" },
+  amountInput: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: "700",
+    padding: 0,
+  },
+  historyRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 10,
+    borderTopWidth: 1,
+  },
+  historyTitle: { fontSize: 13, fontWeight: "900" },
+  historySub: { marginTop: 2, fontSize: 11, fontWeight: "700" },
+  historyAmt: { fontSize: 13, fontWeight: "900" },
 });

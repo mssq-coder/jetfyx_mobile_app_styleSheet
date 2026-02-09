@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   Animated,
   Dimensions,
+  RefreshControl,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -17,6 +18,7 @@ import AppIcon from "../../components/AppIcon";
 import { useAppTheme } from "../../contexts/ThemeContext";
 import { useAuthStore } from "../../store/authStore";
 import { useUserStore } from "../../store/userStore";
+import usePullToRefresh from "../../hooks/usePullToRefresh";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const CARD_WIDTH = SCREEN_WIDTH - 40;
@@ -24,12 +26,14 @@ const ACTION_CARD_WIDTH = (SCREEN_WIDTH - 48) / 2;
 
 export default function RealAccountsScreen() {
   const { theme } = useAppTheme();
+  const { refreshing, runRefresh } = usePullToRefresh();
   const [activeTab, setActiveTab] = useState("ACTIONS");
   const balanceScale = useRef(new Animated.Value(1)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(50)).current;
 
   const { accounts, selectedAccountId, userId } = useAuthStore();
+  const refreshProfile = useAuthStore((s) => s.refreshProfile);
   const selectedAccount =
     accounts.find((acc) => (acc.accountId || acc.id) === selectedAccountId) ||
     accounts[0];
@@ -301,6 +305,15 @@ export default function RealAccountsScreen() {
         style={[styles.scrollView, { backgroundColor: theme.background }]}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() =>
+              runRefresh(() => (userId ? refreshProfile() : Promise.resolve()))
+            }
+            tintColor={theme.primary}
+          />
+        }
       >
         {/* Tab Navigation */}
         <View style={[styles.tabsContainer, { backgroundColor: theme.card }]}>

@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Modal,
+  RefreshControl,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -19,6 +20,7 @@ import {
 } from "../../api/leverage";
 import AppIcon from "../../components/AppIcon";
 import { useAppTheme } from "../../contexts/ThemeContext";
+import usePullToRefresh from "../../hooks/usePullToRefresh";
 import { useAuthStore } from "../../store/authStore";
 import { showErrorToast, showSuccessToast } from "../../utils/toast";
 
@@ -177,6 +179,8 @@ export default function LeverageSettingsScreen() {
   const { theme } = useAppTheme();
   const { userId } = useAuthStore();
 
+  const { refreshing, runRefresh } = usePullToRefresh();
+
   const [activeTab, setActiveTab] = useState(TABS.details);
 
   // Details
@@ -297,6 +301,16 @@ export default function LeverageSettingsScreen() {
       setHistoryLoading(false);
     }
   };
+
+  const handleRefresh = () =>
+    runRefresh(async () => {
+      if (activeTab === TABS.history) {
+        setPageNumber(1);
+        await fetchHistory({ page: 1, size: pageSize });
+      } else {
+        await fetchAccounts();
+      }
+    });
 
   useEffect(() => {
     fetchAccounts();
@@ -504,7 +518,12 @@ export default function LeverageSettingsScreen() {
         <Text style={styles.headerTitle}>Leverage Settings</Text>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+        }
+      >
         <Text style={[styles.subtitle, { color: theme.secondary }]}>
           View and update leverage for your trading accounts.
         </Text>

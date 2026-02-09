@@ -47,6 +47,30 @@ export async function getClientAccountTransactions({
   return response.data;
 }
 
+export async function getIbInternalTransfers({
+  accountId,
+  pageNumber,
+  pageSize,
+  includePending,
+} = {}) {
+  if (accountId == null) {
+    throw new Error("accountId is required");
+  }
+
+  const response = await api.get(
+    "/account/ClientAccountTransactions/ib-internal-transfers",
+    {
+      params: {
+        accountId,
+        ...(pageNumber != null ? { pageNumber } : {}),
+        ...(pageSize != null ? { pageSize } : {}),
+        ...(includePending != null ? { includePending } : {}),
+      },
+    },
+  );
+  return response.data;
+}
+
 export async function getCountries() {
   const response = await api.get("/countries");
   return response.data;
@@ -338,6 +362,7 @@ export default {
   getAllCurrencyListFromDB,
   getOrderHistory,
   getClientAccountTransactions,
+  getIbInternalTransfers,
   getUserDetails,
   updateUser,
   previewFile,

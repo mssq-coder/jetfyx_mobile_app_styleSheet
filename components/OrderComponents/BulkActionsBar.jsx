@@ -85,7 +85,7 @@ const BulkActionsBar = ({
       <View
         style={{
           borderRadius: 16,
-          padding: 14,
+          padding: 16,
           backgroundColor: theme.card,
           borderWidth: 1,
           borderColor: theme.border,
@@ -114,7 +114,7 @@ const BulkActionsBar = ({
             accessibilityLabel={bulkMode ? undefined : "Collapse quick actions"}
           >
             <AppIcon
-              name={bulkMode ? "checklist" : "bolt"}
+              name={bulkMode ? "checklist" : "tune"}
               color={theme.icon}
               size={18}
             />

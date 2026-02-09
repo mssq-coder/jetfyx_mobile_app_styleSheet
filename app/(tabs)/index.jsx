@@ -1,7 +1,7 @@
 import { useAuthStore } from "@/store/authStore";
 import { useRouter } from "expo-router";
 import * as SecureStore from "expo-secure-store";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   LayoutAnimation,
   StatusBar,
@@ -23,6 +23,7 @@ import InstrumentInfoModal from "../../components/InstrumentInfoModal";
 import AllSymbolsSectionList from "../../components/MarketViewComponents/AllSymbolsSectionList";
 import ExpandedRow from "../../components/MarketViewComponents/expandedRow";
 import { useAppTheme } from "../../contexts/ThemeContext";
+import usePullToRefresh from "../../hooks/usePullToRefresh";
 import {
   showErrorToast,
   showInfoToast,
@@ -36,6 +37,7 @@ export default function Trade() {
   const { theme } = useAppTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { refreshing, runRefresh } = usePullToRefresh();
   const [activeTab, setActiveTab] = useState("Favourites");
   const [expandedId, setExpandedId] = useState(null);
   const [lots, setLots] = useState({});
@@ -71,6 +73,70 @@ export default function Trade() {
   const [allSymbolsCount, setAllSymbolsCount] = useState(0);
   const connectionRef = useRef(null);
 
+  // ============================
+  // ✅ MAP ALL SYMBOLS (CurrencyPair) TO INSTRUMENTS
+  // ============================
+  const mapCurrencyListToInstruments = useCallback((list = []) => {
+    return (Array.isArray(list) ? list : [])
+      .filter((item) => item && item.symbol)
+      .filter((item) => item.isSymbolVisible !== false)
+      .map((item) => ({
+        // Keep ID + key fields for later use
+        id: String(item.id),
+        symbol: String(item.symbol),
+        description: item.description ?? null,
+        currencyGroupId: item.currencyGroupId ?? null,
+        currencyGroupName: item.currencyGroupName ?? null,
+        categoryName: item.categoryName ?? null,
+        sectorName: item.sectorName ?? null,
+
+        // Trading constraints / metadata you said you need later
+        digits: Number.isFinite(Number(item.digits))
+          ? parseInt(item.digits, 10)
+          : 5,
+        minLotSize: item.minLotSize ?? null,
+        maxLotSize: item.maxLotSize ?? null,
+        lotStepSize: item.lotStepSize ?? null,
+        contractSize: item.contractSize ?? null,
+        contractValue: item.contractValue ?? null,
+        executionType: item.executionType ?? null,
+        tradeAccess: item.tradeAccess ?? null,
+        spreadType: item.spreadType ?? null,
+        hedgeMargin: item.marginHedge ?? null,
+        fixedSpread: item.fixedSpread ?? null,
+        buySpread: item.buySpread ?? null,
+        sellSpread: item.sellSpread ?? null,
+        commission: item.commission ?? null,
+        swapLong: item.swapLong ?? null,
+        swapShort: item.swapShort ?? null,
+        contractUnits: item.contractUnits ?? null,
+        baseCurrency: item.baseCurrency ?? null,
+        marginCurrency: item.marginCurrency ?? null,
+        profitCurrency: item.profitCurrency ?? null,
+        marginCalculationType: item.marginCalculationType ?? null,
+        marginPercentage: item.marginPercentage ?? null,
+        limitAndStopLevelPoints: item.limitAndStopLevelPoints ?? null,
+        orderType: item.orderType ?? null,
+        sessionQuotes: item.sessionQuotes ?? null,
+        threeDaySwapDay: item.threeDaySwapDay ?? null,
+
+        // Initial values — will update live from SignalR
+        price: null,
+        bid: null,
+        ask: null,
+        _rawPrice: null,
+        _rawBid: null,
+        _rawAsk: null,
+        change: null,
+        time: null,
+        high: null,
+        low: null,
+        highValue: null,
+        isPositive: true,
+        spread: null,
+      }));
+  }, []);
+
   // ⚠️ Replace with your backend API domain
   const API_BASE_URL =
     "https://jetwebapp-api-dev-e4bpepgaeaaxgecr.centralindia-01.azurewebsites.net/api";
@@ -79,47 +145,50 @@ export default function Trade() {
   // ============================
   // ✅ LOAD DATA
   // ============================
-  useEffect(() => {
+  const loadData = useCallback(async () => {
     if (!selectedAccountId) return;
 
-    const loadData = async () => {
-      try {
-        // Always load currency list
-        const currencyData = await getAllCurrencyListFromDB(selectedAccountId);
-        const allMapped = mapCurrencyListToInstruments(currencyData);
-        setAllSymbols(allMapped);
-        setAllSymbolsCount(allMapped.length);
+    try {
+      // Always load currency list
+      const currencyData = await getAllCurrencyListFromDB(selectedAccountId);
+      const allMapped = mapCurrencyListToInstruments(currencyData);
+      setAllSymbols(allMapped);
+      setAllSymbolsCount(allMapped.length);
 
-        if (activeTab === "Favourites") {
-          const watchlistData =
-            await getFavouriteWatchlistSymbols(selectedAccountId);
-          const watchlistSymbols = new Set(
-            watchlistData.map((item) => item.symbol),
-          );
-          const sortOrderMap = new Map(
-            watchlistData.map((item) => [item.symbol, item.sortOrderId || 0]),
-          );
+      if (activeTab === "Favourites") {
+        const watchlistData = await getFavouriteWatchlistSymbols(selectedAccountId);
+        const rows = Array.isArray(watchlistData)
+          ? watchlistData
+          : Array.isArray(watchlistData?.data)
+            ? watchlistData.data
+            : [];
 
-          const favouritesMapped = allMapped
-            .filter((item) => watchlistSymbols.has(item.symbol))
-            .sort((a, b) => {
-              const aOrder = sortOrderMap.get(a.symbol) || 0;
-              const bOrder = sortOrderMap.get(b.symbol) || 0;
-              return aOrder - bOrder;
-            });
+        const watchlistSymbols = new Set(rows.map((item) => item.symbol));
+        const sortOrderMap = new Map(
+          rows.map((item) => [item.symbol, item.sortOrderId || 0]),
+        );
 
-          setInstruments(favouritesMapped);
-          setFavouritesCount(favouritesMapped.length);
-        } else if (activeTab === "All Symbols") {
-          setInstruments(allMapped);
-        }
-      } catch (error) {
-        console.error("API error:", error);
+        const favouritesMapped = allMapped
+          .filter((item) => watchlistSymbols.has(item.symbol))
+          .sort((a, b) => {
+            const aOrder = sortOrderMap.get(a.symbol) || 0;
+            const bOrder = sortOrderMap.get(b.symbol) || 0;
+            return aOrder - bOrder;
+          });
+
+        setInstruments(favouritesMapped);
+        setFavouritesCount(favouritesMapped.length);
+      } else if (activeTab === "All Symbols") {
+        setInstruments(allMapped);
       }
-    };
+    } catch (error) {
+      console.error("API error:", error);
+    }
+  }, [activeTab, mapCurrencyListToInstruments, selectedAccountId]);
 
+  useEffect(() => {
     loadData();
-  }, [selectedAccountId, activeTab]);
+  }, [loadData]);
 
   // ============================
   // ✅ SIGNALR LIVE PRICE CONNECTION
@@ -353,70 +422,6 @@ export default function Trade() {
 
   const tabs = ["Favourites", "All Symbols"];
   // ============================
-  // ✅ MAP ALL SYMBOLS (CurrencyPair) TO INSTRUMENTS
-  // ============================
-  const mapCurrencyListToInstruments = (list = []) => {
-    return (Array.isArray(list) ? list : [])
-      .filter((item) => item && item.symbol)
-      .filter((item) => item.isSymbolVisible !== false)
-      .map((item) => ({
-        // Keep ID + key fields for later use
-        id: String(item.id),
-        symbol: String(item.symbol),
-        description: item.description ?? null,
-        currencyGroupId: item.currencyGroupId ?? null,
-        currencyGroupName: item.currencyGroupName ?? null,
-        categoryName: item.categoryName ?? null,
-        sectorName: item.sectorName ?? null,
-
-        // Trading constraints / metadata you said you need later
-        digits: Number.isFinite(Number(item.digits))
-          ? parseInt(item.digits, 10)
-          : 5,
-        minLotSize: item.minLotSize ?? null,
-        maxLotSize: item.maxLotSize ?? null,
-        lotStepSize: item.lotStepSize ?? null,
-        contractSize: item.contractSize ?? null,
-        contractValue: item.contractValue ?? null,
-        executionType: item.executionType ?? null,
-        tradeAccess: item.tradeAccess ?? null,
-        spreadType: item.spreadType ?? null,
-        hedgeMargin: item.marginHedge ?? null,
-        fixedSpread: item.fixedSpread ?? null,
-        buySpread: item.buySpread ?? null,
-        sellSpread: item.sellSpread ?? null,
-        commission: item.commission ?? null,
-        swapLong: item.swapLong ?? null,
-        swapShort: item.swapShort ?? null,
-        contractUnits: item.contractUnits ?? null,
-        baseCurrency: item.baseCurrency ?? null,
-        marginCurrency: item.marginCurrency ?? null,
-        profitCurrency: item.profitCurrency ?? null,
-        marginCalculationType: item.marginCalculationType ?? null,
-        marginPercentage: item.marginPercentage ?? null,
-        limitAndStopLevelPoints: item.limitAndStopLevelPoints ?? null,
-        orderType: item.orderType ?? null,
-        sessionQuotes: item.sessionQuotes ?? null,
-        threeDaySwapDay: item.threeDaySwapDay ?? null,
-
-        // Initial values — will update live from SignalR
-        price: null,
-        bid: null,
-        ask: null,
-        _rawPrice: null,
-        _rawBid: null,
-        _rawAsk: null,
-        change: null,
-        time: null,
-        high: null,
-        low: null,
-        highValue: null,
-        isPositive: true,
-        spread: null,
-      }));
-  };
-
-  // ============================
   // ✅ SPREAD HELPER
   // ============================
   const getSpreadText = (symbol) => {
@@ -527,6 +532,8 @@ export default function Trade() {
           placingOrderForId={placingOrderForId}
           onOpenInfo={openInfo}
           bottomPadding={listBottomPadding}
+          refreshing={refreshing}
+          onRefresh={() => runRefresh(loadData)}
           onBuy={({ instrumentId, symbol, lotSize }) =>
             placeOrder({ instrumentId, symbol, lotSize, side: "BUY" })
           }
@@ -541,6 +548,8 @@ export default function Trade() {
             keyExtractor={(item) => String(item.id)}
             onDragEnd={({ data }) => setInstruments(data)}
             contentContainerStyle={{ paddingBottom: listBottomPadding }}
+            refreshing={refreshing}
+            onRefresh={() => runRefresh(loadData)}
             renderItem={({ item, drag, isActive }) => (
               <ScaleDecorator>
                 {(() => {

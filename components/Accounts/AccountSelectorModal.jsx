@@ -38,12 +38,24 @@ export default function AccountSelectorModal({
   onRefresh,
 }) {
   const { theme } = useAppTheme();
+  const refreshProfile = useAuthStore((s) => s.refreshProfile);
+
+  const [pendingOwnerEmail, setPendingOwnerEmail] = useState(null);
   const owners = useMemo(() => {
     const currentUser = { id: "currentUser", name: fullName || "My Accounts" };
-    const shared = (sharedAccounts || []).map((sharedAccount) => ({
-      id: String(sharedAccount?.accountOwner?.userId ?? "shared"),
-      name: sharedAccount?.accountOwner?.fullName ?? "Shared Account",
-    }));
+    const shared = (sharedAccounts || []).map((sharedAccount, idx) => {
+      const owner = sharedAccount?.accountOwner ?? {};
+      const ownerUserId = owner?.userId ?? owner?.id;
+      const ownerEmail = owner?.email;
+      const ownerKey = String(ownerUserId ?? ownerEmail ?? `shared-${idx}`);
+
+      return {
+        id: ownerKey,
+        name: owner?.fullName ?? owner?.name ?? ownerEmail ?? "Shared Account",
+        userId: ownerUserId != null ? String(ownerUserId) : null,
+        email: ownerEmail != null ? String(ownerEmail) : null,
+      };
+    });
     return [currentUser, ...shared];
   }, [fullName, sharedAccounts]);
 
@@ -69,6 +81,20 @@ export default function AccountSelectorModal({
       setActiveOwner(owners.length ? owners[0].id : "currentUser");
     }
   }, [owners, activeOwner]);
+
+  // If we just added a user, try to auto-select them once they appear
+  useEffect(() => {
+    if (!pendingOwnerEmail) return;
+    const next = owners.find(
+      (o) =>
+        o.email && o.email.toLowerCase() === pendingOwnerEmail.toLowerCase(),
+    );
+    if (next?.id) {
+      setActiveOwner(next.id);
+      setOwnersOpen(true);
+      setPendingOwnerEmail(null);
+    }
+  }, [owners, pendingOwnerEmail]);
 
   // Animate modal on open/close
   useEffect(() => {
@@ -100,7 +126,10 @@ export default function AccountSelectorModal({
     const entry = (sharedAccounts || []).find(
       (s) =>
         String(
-          s?.accountOwner?.userId ?? s?.accountOwner?.email ?? "shared",
+          s?.accountOwner?.userId ??
+            s?.accountOwner?.id ??
+            s?.accountOwner?.email ??
+            "",
         ) === String(activeOwner),
     );
     return entry?.accounts ?? [];
@@ -140,9 +169,18 @@ export default function AccountSelectorModal({
         result,
       });
       setAddUserModalVisible(false);
+
+      // Kick a store refresh so `sharedAccounts` updates and the new user can appear.
+      try {
+        await refreshProfile?.();
+      } catch {}
+      try {
+        await onRefresh?.();
+      } catch {}
+
+      setPendingOwnerEmail(addEmail);
       setAddEmail("");
       setAddPassword("");
-      onRefresh && onRefresh();
       showSuccessToast("User added to profile.", "Success");
     } catch (err) {
       console.error("Error adding user to profile", err);

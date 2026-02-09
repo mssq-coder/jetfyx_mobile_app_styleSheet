@@ -7,15 +7,20 @@ import {
 import { useFonts } from "expo-font";
 import { Drawer } from "expo-router/drawer";
 import * as SplashScreen from "expo-splash-screen";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import "react-native-gesture-handler";
 import "react-native-reanimated";
 import Toast from "react-native-toast-message";
+import { useRouter } from "expo-router";
 
 import { useColorScheme } from "@/components/useColorScheme";
+import AppSplashScreen from "@/components/AppSplashScreen";
 import CustomDrawerContent from "../components/CustomDrawerContent";
 import { toastConfig } from "../components/ToastConfig";
-import { ThemeProvider as AppThemeProvider } from "../contexts/ThemeContext";
+import { ThemeProvider as AppThemeProvider, useAppTheme } from "../contexts/ThemeContext";
+import AppIcon from "@/components/AppIcon";
+import { setOnAuthFailure } from "../utils/authSession";
+import { useAuthStore } from "../store/authStore";
 
 export {
   // Catch any errors thrown by the Layout component.
@@ -31,15 +36,31 @@ export const unstable_settings = {
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
+  const router = useRouter();
   const [loaded, error] = useFonts({
     SpaceMono: require("../assets/fonts/SpaceMono-Regular.ttf"),
     ...FontAwesome.font,
   });
 
+  const [appReady, setAppReady] = useState(false);
+
   // Expo Router uses Error Boundaries to catch errors in the navigation tree.
   useEffect(() => {
     if (error) throw error;
   }, [error]);
+
+  useEffect(() => {
+    setOnAuthFailure(() => {
+      try {
+        useAuthStore.getState()?.logout?.();
+      } catch (_e) {}
+      router.replace("/(auth)/login");
+    });
+
+    return () => {
+      setOnAuthFailure(null);
+    };
+  }, [router]);
 
   useEffect(() => {
     if (loaded) {
@@ -51,38 +72,66 @@ export default function RootLayout() {
     return null;
   }
 
-  return <RootLayoutNav />;
+  return (
+    <AppThemeProvider>
+      {appReady ? (
+        <RootLayoutNav />
+      ) : (
+        <AppSplashScreen onReady={() => setAppReady(true)} />
+      )}
+    </AppThemeProvider>
+  );
 }
 
 function RootLayoutNav() {
   const colorScheme = useColorScheme();
+  const { theme } = useAppTheme();
 
   return (
-    <AppThemeProvider>
-      <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
-        <Drawer
-          screenOptions={{ headerShown: false }}
-          drawerContent={(props) => <CustomDrawerContent {...props} />}
-        >
-          <Drawer.Screen name="(tabs)" options={{ title: "Home" }} />
-          <Drawer.Screen name="history" options={{ title: "History" }} />
-          <Drawer.Screen name="(tabs2)/more" options={{ title: "More" }} />
+    <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
+      <Drawer
+        screenOptions={{ headerShown: false }}
+        drawerContent={(props) => <CustomDrawerContent {...props} />}
+      >
+        <Drawer.Screen
+          name="(tabs)"
+          options={{
+            title: "Home",
+            drawerIcon: () => (
+              <AppIcon name="home" size={16} color={theme.positive} />
+            ),
+          }}
+        />
+        <Drawer.Screen
+          name="history"
+          options={{
+            title: "History",
+            drawerIcon: () => (
+              <AppIcon name="history" size={16} color={theme.positive} />
+            ),
+          }}
+        />
 
-          {/* Hide auth + internal routes from the drawer list */}
-          <Drawer.Screen
-            name="(auth)"
-            options={{
-              drawerItemStyle: { display: "none" },
-              swipeEnabled: false,
-            }}
-          />
-          <Drawer.Screen
-            name="+not-found"
-            options={{ drawerItemStyle: { display: "none" } }}
-          />
-        </Drawer>
-        <Toast config={toastConfig} />
-      </ThemeProvider>
-    </AppThemeProvider>
+        {/* (tabs2) is a nested Stack group; hide it and link to its screens from CustomDrawerContent */}
+        <Drawer.Screen
+          name="(tabs2)"
+          options={{ drawerItemStyle: { display: "none" } }}
+        />
+
+        {/* Hide auth + internal routes from the drawer list */}
+        <Drawer.Screen
+          name="(auth)"
+          options={{
+            drawerItemStyle: { display: "none" },
+            swipeEnabled: false,
+          }}
+        />
+        <Drawer.Screen
+          name="+not-found"
+          options={{ drawerItemStyle: { display: "none" } }}
+        />
+      </Drawer>
+      <Toast config={toastConfig} />
+    </ThemeProvider>
   );
 }

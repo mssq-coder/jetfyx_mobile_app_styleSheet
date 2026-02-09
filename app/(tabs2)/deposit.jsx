@@ -8,6 +8,7 @@ import {
   Image,
   KeyboardAvoidingView,
   Platform,
+  RefreshControl,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -30,6 +31,7 @@ import AccountSelectorModal from "../../components/Accounts/AccountSelectorModal
 import AppIcon from "../../components/AppIcon";
 import DepositDetailsModal from "../../components/DepositDetailsModal";
 import { useAppTheme } from "../../contexts/ThemeContext";
+import usePullToRefresh from "../../hooks/usePullToRefresh";
 import { useAuthStore } from "../../store/authStore";
 import {
   showErrorToast,
@@ -139,7 +141,10 @@ export default function DepositScreen() {
     fullName,
     selectedAccountId,
     setSelectedAccount,
+    refreshProfile,
   } = useAuthStore();
+
+  const { refreshing, runRefresh } = usePullToRefresh();
 
   const selectedAccount = useMemo(() => {
     const id = selectedAccountId;
@@ -306,6 +311,44 @@ export default function DepositScreen() {
       mounted = false;
     };
   }, []);
+
+  const handleRefresh = () =>
+    runRefresh(async () => {
+      try {
+        setLoadingOptions(true);
+        setOptionsError(null);
+
+        await refreshProfile?.();
+
+        const res = await getFinanceOptions(MODE);
+        const list = res?.categories || res?.data?.categories || [];
+        const safe = Array.isArray(list) ? list : [];
+        setCategories(safe);
+
+        setSelectedCategoryId((prev) => {
+          if (prev == null) return safe?.[0]?.id ?? null;
+          const exists = safe.some((c) => String(c?.id) === String(prev));
+          return exists ? prev : safe?.[0]?.id ?? null;
+        });
+
+        setSelectedMethodName((prev) => {
+          if (prev == null) return safe?.[0]?.methods?.[0]?.name ?? null;
+          const flatMethods = safe.flatMap((c) => c?.methods || []);
+          const exists = flatMethods.some(
+            (m) => String(m?.name) === String(prev),
+          );
+          return exists ? prev : safe?.[0]?.methods?.[0]?.name ?? null;
+        });
+      } catch (e) {
+        setOptionsError(
+          e?.response?.data?.message ||
+            e?.message ||
+            "Failed to load deposit options",
+        );
+      } finally {
+        setLoadingOptions(false);
+      }
+    });
 
   const animateButton = () => {
     Animated.sequence([
@@ -634,6 +677,9 @@ export default function DepositScreen() {
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+          }
         >
           {/* Account Selection Card */}
           <TouchableOpacity

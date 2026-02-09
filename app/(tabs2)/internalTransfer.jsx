@@ -1,33 +1,38 @@
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  ActivityIndicator,
-  Animated,
-  Modal,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Animated,
+    Modal,
+    RefreshControl,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import {
-  getClientAccountTransactions,
-  getUserDetails,
+    getClientAccountTransactions,
+    getIbInternalTransfers,
+    getUserDetails,
 } from "../../api/getServices";
-import { createInternalTransfer } from "../../api/Services";
+import { getIbOverviewDetails, getIbOverviewFinance } from "../../api/ibPortal";
+import {
+    createIbInternalTransfer,
+    createInternalTransfer,
+} from "../../api/Services";
 import AppIcon from "../../components/AppIcon";
 import { useAppTheme } from "../../contexts/ThemeContext";
 import useAccountSummary from "../../hooks/useAccountSummary";
 import { useAuthStore } from "../../store/authStore";
 import { useUserStore } from "../../store/userStore";
 import {
-  showErrorToast,
-  showInfoToast,
-  showSuccessToast,
+    showErrorToast,
+    showInfoToast,
+    showSuccessToast,
 } from "../../utils/toast";
 
 const MINIMUM_TRANSFER_AMOUNT = 10;
@@ -170,6 +175,717 @@ function AccountSelectModal({
 }
 
 export default function InternalTransferScreen() {
+  const params = useLocalSearchParams();
+  const flow = String(params?.flow || "").toLowerCase();
+  if (flow === "ib") {
+    return <IbInternalTransferScreen />;
+  }
+
+  return <StandardInternalTransferScreen />;
+}
+
+function IbInternalTransferScreen() {
+  const router = useRouter();
+  const { theme } = useAppTheme();
+
+  const accounts = useAuthStore((s) => s.accounts);
+  const selectedAccountId = useAuthStore((s) => s.selectedAccountId);
+  const userId = useAuthStore((s) => s.userId);
+
+  const userData = useUserStore((s) => s.userData);
+  const setUserData = useUserStore((s) => s.setUserData);
+
+  const user = useMemo(() => userData?.data ?? userData ?? {}, [userData]);
+  const isKycApproved =
+    String(user?.overallStatus || "").toLowerCase() === "approved";
+
+  const selectedAccount = useMemo(() => {
+    const id = selectedAccountId;
+    const list = Array.isArray(accounts) ? accounts : [];
+    return (
+      list.find((a) => String(getAccountId(a)) === String(id)) ||
+      list[0] ||
+      null
+    );
+  }, [accounts, selectedAccountId]);
+
+  const accountId = getAccountId(selectedAccount);
+
+  const [ibDetails, setIbDetails] = useState(null);
+  const [ibFinance, setIbFinance] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  const [mode, setMode] = useState("between");
+  const [toAccountId, setToAccountId] = useState(null);
+  const [toOtherAccNumber, setToOtherAccNumber] = useState("");
+  const [toOtherEmail, setToOtherEmail] = useState("");
+  const [amount, setAmount] = useState("");
+  const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState("");
+  const [historyRows, setHistoryRows] = useState([]);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+
+  const availableBalance = useMemo(() => {
+    const f = ibFinance || {};
+    const v =
+      f?.availableBalance ??
+      f?.availableToWithdrawal ??
+      f?.availableToWithdraw ??
+      f?.available ??
+      0;
+    const n = Number(v);
+    return Number.isFinite(n) ? n : 0;
+  }, [ibFinance]);
+
+  const displayIbAccountNumber =
+    ibDetails?.displayAccountNumber ||
+    ibDetails?.accountNumber ||
+    ibDetails?.ibAccountNumber ||
+    "—";
+
+  const toAccount = useMemo(() => {
+    const list = Array.isArray(accounts) ? accounts : [];
+    if (!toAccountId) return null;
+    return (
+      list.find((a) => String(getAccountId(a)) === String(toAccountId)) || null
+    );
+  }, [accounts, toAccountId]);
+
+  const selectableToAccounts = useMemo(() => {
+    const list = Array.isArray(accounts) ? accounts : [];
+    return list.filter((a) => String(getAccountId(a)) !== String(accountId));
+  }, [accounts, accountId]);
+
+  const loadIb = async () => {
+    if (!accountId) return;
+    setLoading(true);
+    try {
+      const [d, f] = await Promise.all([
+        getIbOverviewDetails(accountId),
+        getIbOverviewFinance(accountId),
+      ]);
+      setIbDetails(d);
+      setIbFinance(f);
+    } catch (e) {
+      showErrorToast(
+        e?.response?.data?.message || e?.message || "Failed to load IB details",
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadHistory = async (nextPage = 1) => {
+    if (!accountId) return;
+    setHistoryLoading(true);
+    setHistoryError("");
+    try {
+      const resp = await getIbInternalTransfers({
+        accountId,
+        pageNumber: nextPage,
+        pageSize: 20,
+        includePending: true,
+      });
+
+      const root = resp?.data ?? resp;
+      const items = Array.isArray(root?.items)
+        ? root.items
+        : Array.isArray(root)
+          ? root
+          : [];
+      setHistoryRows(items);
+      setPage(Number(root?.pageNumber ?? root?.page ?? nextPage) || nextPage);
+      setTotalPages(Number(root?.totalPages ?? 1) || 1);
+    } catch (e) {
+      setHistoryRows([]);
+      setHistoryError(
+        e?.response?.data?.message || e?.message || "Failed to load transfers",
+      );
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    let mounted = true;
+    const run = async () => {
+      if (!userId) return;
+      try {
+        const data = await getUserDetails(userId);
+        if (mounted) setUserData(data);
+      } catch (_e) {}
+    };
+    run();
+    return () => {
+      mounted = false;
+    };
+  }, [userId, setUserData]);
+
+  useEffect(() => {
+    loadIb();
+    loadHistory(1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [accountId]);
+
+  useEffect(() => {
+    // Default destination to the first other account
+    if (mode !== "between") return;
+    if (toAccountId) return;
+    const first = selectableToAccounts[0];
+    if (first) setToAccountId(getAccountId(first));
+  }, [mode, toAccountId, selectableToAccounts]);
+
+  useEffect(() => {
+    // validation
+    const amt = Number(String(amount).replace(/[^0-9.]/g, ""));
+    if (!amount) {
+      setError("");
+      return;
+    }
+    if (!Number.isFinite(amt) || amt < MINIMUM_TRANSFER_AMOUNT) {
+      setError(`Minimum transfer amount is $${MINIMUM_TRANSFER_AMOUNT}`);
+      return;
+    }
+    if (amt > availableBalance) {
+      setError(
+        `Insufficient available balance. Maximum transferable amount is: $${formatMoney(availableBalance)}`,
+      );
+      return;
+    }
+    if (mode === "between" && !toAccountId) {
+      setError("Please select a destination account");
+      return;
+    }
+    if (mode === "toAnother") {
+      if (!toOtherAccNumber || String(toOtherAccNumber).length < 6) {
+        setError("Enter a valid target account number");
+        return;
+      }
+      if (
+        !toOtherEmail ||
+        !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(toOtherEmail))
+      ) {
+        setError("Enter a valid email");
+        return;
+      }
+    }
+    setError("");
+  }, [
+    amount,
+    availableBalance,
+    mode,
+    toAccountId,
+    toOtherAccNumber,
+    toOtherEmail,
+  ]);
+
+  const handleSubmit = async () => {
+    if (!isKycApproved) {
+      showInfoToast(
+        "Please complete KYC verification to proceed.",
+        "KYC Required",
+      );
+      return;
+    }
+    if (submitting) return;
+    if (!accountId) {
+      showInfoToast("Please select an account.");
+      return;
+    }
+    if (error) {
+      showInfoToast(error);
+      return;
+    }
+
+    const amt = Number(String(amount).replace(/[^0-9.]/g, ""));
+    if (!Number.isFinite(amt) || amt < MINIMUM_TRANSFER_AMOUNT) {
+      showInfoToast(`Minimum transfer amount is $${MINIMUM_TRANSFER_AMOUNT}`);
+      return;
+    }
+
+    const targetAccountNumber =
+      mode === "between"
+        ? String(toAccount?.accountNumber || "")
+        : String(toOtherAccNumber).trim();
+
+    if (!targetAccountNumber) {
+      showInfoToast("Missing target account number.");
+      return;
+    }
+
+    const detailsJson =
+      mode === "toAnother"
+        ? JSON.stringify({
+            toOtherAccountEmail: String(toOtherEmail).trim(),
+            Portal: "client",
+          })
+        : "";
+
+    const payload = {
+      accountId,
+      accountNumber: String(
+        selectedAccount?.accountNumber || displayIbAccountNumber || "",
+      ),
+      targetAccountNumber,
+      amount: amt,
+      currency: "USD",
+      paymentMethod: "internal",
+      comment: "",
+      ...(mode === "toAnother"
+        ? { targetEmail: String(toOtherEmail).trim() }
+        : {}),
+      ...(detailsJson ? { detailsJson, DetailsJson: detailsJson } : {}),
+    };
+
+    setSubmitting(true);
+    try {
+      const resp = await createIbInternalTransfer(payload);
+      showSuccessToast(resp?.message || "IB internal transfer submitted!");
+      setAmount("");
+      setToOtherAccNumber("");
+      setToOtherEmail("");
+      await loadIb();
+      await loadHistory(1);
+    } catch (e) {
+      showErrorToast(
+        e?.response?.data?.message || e?.message || "Transfer failed",
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (!isKycApproved) {
+    return (
+      <SafeAreaView
+        style={[styles.screen, { backgroundColor: theme.background }]}
+      >
+        <View style={styles.headerRow}>
+          <TouchableOpacity
+            onPress={() => router.back()}
+            style={[styles.backButton, { backgroundColor: theme.card }]}
+          >
+            <AppIcon name="arrow-back" size={20} color={theme.text} />
+          </TouchableOpacity>
+          <Text style={[styles.headerTitle, { color: theme.text }]}>
+            IB Internal Transfer
+          </Text>
+        </View>
+
+        <View
+          style={[
+            styles.kycCard,
+            { backgroundColor: theme.card, borderColor: theme.border },
+          ]}
+        >
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+            <View
+              style={[
+                styles.kycIcon,
+                { backgroundColor: `${theme.warning}18` },
+              ]}
+            >
+              <AppIcon name="info" size={18} color={theme.warning} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.kycTitle, { color: theme.text }]}>
+                KYC Verification Required
+              </Text>
+              <Text style={[styles.kycDesc, { color: theme.secondary }]}>
+                To proceed with IB transfers, please complete KYC verification.
+              </Text>
+            </View>
+          </View>
+
+          <TouchableOpacity
+            onPress={() => router.push("/(tabs2)/accountSettings")}
+            style={[
+              styles.primaryBtn,
+              { backgroundColor: theme.primary, marginTop: 14 },
+            ]}
+          >
+            <Text style={styles.primaryBtnText}>Go to KYC</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  return (
+    <SafeAreaView
+      style={[styles.screen, { backgroundColor: theme.background }]}
+    >
+      <View style={styles.headerRow}>
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={[styles.backButton, { backgroundColor: theme.card }]}
+        >
+          <AppIcon name="arrow-back" size={20} color={theme.text} />
+        </TouchableOpacity>
+        <Text style={[styles.headerTitle, { color: theme.text }]}>
+          IB Internal Transfer
+        </Text>
+      </View>
+
+      <ScrollView
+        contentContainerStyle={{ paddingBottom: 24 }}
+        refreshControl={
+          <RefreshControl
+            refreshing={historyLoading}
+            onRefresh={() => loadHistory(1)}
+          />
+        }
+      >
+        <View
+          style={[
+            styles.card,
+            { backgroundColor: theme.card, borderColor: theme.border },
+          ]}
+        >
+          <Text style={[styles.sectionTitle, { color: theme.text }]}>
+            IB Account
+          </Text>
+          <Text style={[styles.cardHint, { color: theme.secondary }]}>
+            Account Number: {displayIbAccountNumber}
+          </Text>
+          <Text style={[styles.cardHint, { color: theme.secondary }]}>
+            Available: ${formatMoney(availableBalance)}
+          </Text>
+          {loading ? (
+            <ActivityIndicator
+              color={theme.primary}
+              style={{ marginTop: 10 }}
+            />
+          ) : null}
+        </View>
+
+        <View
+          style={[
+            styles.card,
+            { backgroundColor: theme.card, borderColor: theme.border },
+          ]}
+        >
+          <Text style={[styles.sectionTitle, { color: theme.text }]}>
+            Transfer Options
+          </Text>
+          <View style={styles.modeRow}>
+            <TouchableOpacity
+              onPress={() => setMode("between")}
+              style={[
+                styles.modeCard,
+                {
+                  backgroundColor:
+                    mode === "between"
+                      ? `${theme.primary}12`
+                      : theme.background,
+                  borderColor:
+                    mode === "between" ? theme.primary : theme.border,
+                },
+              ]}
+              activeOpacity={0.85}
+            >
+              <AppIcon name="swap-horiz" size={22} color={theme.primary} />
+              <Text style={[styles.modeTitle, { color: theme.text }]}>
+                Between Your Accounts
+              </Text>
+              <Text style={[styles.modeSub, { color: theme.secondary }]}>
+                Transfer to your other account
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => setMode("toAnother")}
+              style={[
+                styles.modeCard,
+                {
+                  backgroundColor:
+                    mode === "toAnother"
+                      ? `${theme.primary}12`
+                      : theme.background,
+                  borderColor:
+                    mode === "toAnother" ? theme.primary : theme.border,
+                },
+              ]}
+              activeOpacity={0.85}
+            >
+              <AppIcon name="people" size={22} color={theme.primary} />
+              <Text style={[styles.modeTitle, { color: theme.text }]}>
+                To Another Account
+              </Text>
+              <Text style={[styles.modeSub, { color: theme.secondary }]}>
+                Transfer to another user
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        <View
+          style={[
+            styles.card,
+            { backgroundColor: theme.card, borderColor: theme.border },
+          ]}
+        >
+          <Text style={[styles.sectionTitle, { color: theme.text }]}>
+            Details
+          </Text>
+
+          {mode === "between" ? (
+            <>
+              <Text style={[styles.label, { color: theme.secondary }]}>
+                To Account
+              </Text>
+              <View
+                style={[
+                  styles.selectField,
+                  {
+                    borderColor: theme.border,
+                    backgroundColor: theme.background,
+                  },
+                ]}
+              >
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={{ gap: 10 }}
+                >
+                  {selectableToAccounts.map((acc) => {
+                    const id = getAccountId(acc);
+                    const active = String(id) === String(toAccountId);
+                    return (
+                      <TouchableOpacity
+                        key={String(id)}
+                        onPress={() => setToAccountId(id)}
+                        style={{
+                          paddingVertical: 10,
+                          paddingHorizontal: 12,
+                          borderRadius: 12,
+                          borderWidth: 1,
+                          borderColor: active ? theme.primary : theme.border,
+                          backgroundColor: active
+                            ? `${theme.primary}12`
+                            : theme.background,
+                        }}
+                      >
+                        <Text
+                          style={{
+                            color: theme.text,
+                            fontWeight: "800",
+                            fontSize: 12,
+                          }}
+                        >
+                          {String(acc?.accountNumber ?? id ?? "—")}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+              </View>
+            </>
+          ) : (
+            <>
+              <Text style={[styles.label, { color: theme.secondary }]}>
+                Target Account Number
+              </Text>
+              <TextInput
+                value={toOtherAccNumber}
+                onChangeText={setToOtherAccNumber}
+                placeholder="Enter account number"
+                placeholderTextColor={theme.secondary}
+                keyboardType="number-pad"
+                style={[
+                  styles.ibTextInput,
+                  {
+                    borderColor: theme.border,
+                    color: theme.text,
+                    backgroundColor: theme.background,
+                  },
+                ]}
+              />
+              <Text
+                style={[
+                  styles.label,
+                  { color: theme.secondary, marginTop: 10 },
+                ]}
+              >
+                Target Email
+              </Text>
+              <TextInput
+                value={toOtherEmail}
+                onChangeText={setToOtherEmail}
+                placeholder="Enter email"
+                placeholderTextColor={theme.secondary}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                style={[
+                  styles.ibTextInput,
+                  {
+                    borderColor: theme.border,
+                    color: theme.text,
+                    backgroundColor: theme.background,
+                  },
+                ]}
+              />
+            </>
+          )}
+
+          <Text
+            style={[styles.label, { color: theme.secondary, marginTop: 10 }]}
+          >
+            Amount (USD)
+          </Text>
+          <TextInput
+            value={amount}
+            onChangeText={(t) =>
+              setAmount(String(t || "").replace(/[^0-9.]/g, ""))
+            }
+            placeholder="0.00"
+            placeholderTextColor={theme.secondary}
+            keyboardType="decimal-pad"
+            style={[
+              styles.ibTextInput,
+              {
+                borderColor: theme.border,
+                color: theme.text,
+                backgroundColor: theme.background,
+              },
+            ]}
+          />
+
+          {!!error && (
+            <Text
+              style={{
+                marginTop: 8,
+                color: theme.danger || "#ef4444",
+                fontWeight: "800",
+              }}
+            >
+              {error}
+            </Text>
+          )}
+
+          <TouchableOpacity
+            onPress={handleSubmit}
+            disabled={submitting}
+            style={[
+              styles.primaryBtn,
+              {
+                backgroundColor: theme.primary,
+                marginTop: 12,
+                opacity: submitting ? 0.7 : 1,
+              },
+            ]}
+          >
+            <Text style={styles.primaryBtnText}>
+              {submitting ? "Submitting…" : "Submit Transfer"}
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        <View
+          style={[
+            styles.card,
+            { backgroundColor: theme.card, borderColor: theme.border },
+          ]}
+        >
+          <View style={[styles.rowBetween, { marginBottom: 8 }]}>
+            <Text style={[styles.sectionTitle, { color: theme.text }]}>
+              Transfer History
+            </Text>
+            <TouchableOpacity
+              onPress={() => loadHistory(1)}
+              activeOpacity={0.85}
+            >
+              <AppIcon name="refresh" size={18} color={theme.primary} />
+            </TouchableOpacity>
+          </View>
+
+          {!!historyError && (
+            <Text
+              style={{ color: theme.danger || "#ef4444", fontWeight: "700" }}
+            >
+              {historyError}
+            </Text>
+          )}
+
+          {historyRows.length ? (
+            historyRows.slice(0, 10).map((tx, idx) => (
+              <View
+                key={String(tx?.id ?? idx)}
+                style={[styles.historyRow, { borderColor: theme.border }]}
+              >
+                <View style={{ flex: 1 }}>
+                  <Text
+                    style={[styles.historyTitle, { color: theme.text }]}
+                    numberOfLines={1}
+                  >
+                    {String(
+                      tx?.targetAccountNumber ||
+                        tx?.toAccountNumber ||
+                        "Transfer",
+                    )}
+                  </Text>
+                  <Text
+                    style={[styles.historySub, { color: theme.secondary }]}
+                    numberOfLines={1}
+                  >
+                    {String(tx?.createdAt || tx?.date || tx?.time || "")}
+                  </Text>
+                </View>
+                <Text style={[styles.historyAmt, { color: theme.text }]}>
+                  ${formatMoney(tx?.amount || 0)}
+                </Text>
+              </View>
+            ))
+          ) : (
+            <Text style={[styles.cardHint, { color: theme.secondary }]}>
+              No IB internal transfers found.
+            </Text>
+          )}
+
+          <View style={[styles.rowBetween, { marginTop: 10 }]}>
+            <TouchableOpacity
+              onPress={() => {
+                const prev = Math.max(1, page - 1);
+                if (prev !== page) loadHistory(prev);
+              }}
+              disabled={page <= 1}
+              style={[
+                styles.pageBtn,
+                { borderColor: theme.border, opacity: page <= 1 ? 0.5 : 1 },
+              ]}
+            >
+              <AppIcon name="chevron-left" size={18} color={theme.text} />
+            </TouchableOpacity>
+            <Text style={{ color: theme.secondary, fontWeight: "800" }}>
+              Page {page} / {totalPages}
+            </Text>
+            <TouchableOpacity
+              onPress={() => {
+                const next = Math.min(totalPages, page + 1);
+                if (next !== page) loadHistory(next);
+              }}
+              disabled={page >= totalPages}
+              style={[
+                styles.pageBtn,
+                {
+                  borderColor: theme.border,
+                  opacity: page >= totalPages ? 0.5 : 1,
+                },
+              ]}
+            >
+              <AppIcon name="chevron-right" size={18} color={theme.text} />
+            </TouchableOpacity>
+          </View>
+        </View>
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+function StandardInternalTransferScreen() {
   const router = useRouter();
   const { theme } = useAppTheme();
 
@@ -1426,6 +2142,11 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   selectText: { fontSize: 13, fontWeight: "700", flex: 1 },
+  rowBetween: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
   swapBtn: {
     width: 44,
     height: 44,
@@ -1451,6 +2172,16 @@ const styles = StyleSheet.create({
   helper: { fontSize: 12, fontWeight: "600" },
   helperWarn: { marginTop: 8, fontSize: 12, fontWeight: "700" },
   helperError: { marginTop: 8, fontSize: 12, fontWeight: "700" },
+  cardHint: { marginTop: 6, fontSize: 12, fontWeight: "700" },
+  ibTextInput: {
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
+    fontWeight: "800",
+    marginTop: 6,
+  },
   primaryBtn: {
     marginTop: 14,
     borderRadius: 12,
@@ -1474,6 +2205,16 @@ const styles = StyleSheet.create({
   txId: { fontSize: 13, fontWeight: "900" },
   txAmount: { fontSize: 14, fontWeight: "900" },
   txMeta: { fontSize: 11, fontWeight: "700" },
+  historyRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 10,
+    borderTopWidth: 1,
+  },
+  historyTitle: { fontSize: 13, fontWeight: "900" },
+  historySub: { marginTop: 2, fontSize: 11, fontWeight: "700" },
+  historyAmt: { fontSize: 13, fontWeight: "900" },
   paginationRow: {
     marginTop: 10,
     flexDirection: "row",

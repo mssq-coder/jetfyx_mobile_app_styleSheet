@@ -55,8 +55,8 @@ const OrderCard = ({
         flexDirection: "row",
         alignItems: "stretch",
         justifyContent: "flex-end",
-        marginVertical: 6,
-        marginRight: 12,
+        marginVertical: 8,
+        marginRight: 16,
         gap: 10,
       }}
     >
@@ -136,8 +136,8 @@ const OrderCard = ({
           setExpandedOrderId(isExpanded ? null : orderId);
         }}
         style={{
-          marginHorizontal: 12,
-          marginVertical: 6,
+          marginHorizontal: 16,
+          marginVertical: 8,
           borderRadius: 12,
           backgroundColor: theme.card,
           borderWidth: isExpanded ? 1.5 : 1,
