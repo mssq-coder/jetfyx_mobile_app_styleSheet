@@ -3,24 +3,21 @@ import { router } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Image,
+  Platform,
   RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
-  TextInput,
-  Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { getCountries, previewFile, updateUser } from "../../api/getServices";
 import {
   AccountSettingsHeader,
   DocumentPreview,
-  InputRow,
-  Row,
-  Section,
-  StatusBadge,
+  StatusBadge
 } from "../../components/AccountSettings";
 import {
   CountryPickerModal,
@@ -31,9 +28,9 @@ import {
 } from "../../components/AccountSettings/modals";
 import AppIcon from "../../components/AppIcon";
 import { useAppTheme } from "../../contexts/ThemeContext";
+import usePullToRefresh from "../../hooks/usePullToRefresh";
 import { useAuthStore } from "../../store/authStore";
 import { useUserStore } from "../../store/userStore";
-import usePullToRefresh from "../../hooks/usePullToRefresh";
 import {
   showErrorToast,
   showInfoToast,
@@ -145,34 +142,34 @@ const pickDocuments = async () => {
 };
 
 // Enhanced Input Component
-const EnhancedInput = ({ 
-  label, 
-  value, 
-  onChangeText, 
-  placeholder, 
-  editable = true, 
-  helperText, 
-  icon, 
+const EnhancedInput = ({
+  label,
+  value,
+  onChangeText,
+  placeholder,
+  editable = true,
+  helperText,
+  icon,
   theme,
   multiline = false,
-  keyboardType = 'default',
+  keyboardType = "default",
   secureTextEntry = false,
   containerStyle = {},
   inputStyle = {},
   showBorder = true,
-  variant = 'default' // 'default', 'filled', 'outlined', 'minimal'
+  variant = "default", // 'default', 'filled', 'outlined', 'minimal'
 }) => {
   const [isFocused, setIsFocused] = useState(false);
-  
+
   const getContainerStyle = () => {
     const baseStyle = {
       marginBottom: 16,
       ...containerStyle,
     };
-    
+
     const variants = {
       default: {
-        backgroundColor: 'transparent',
+        backgroundColor: "transparent",
         borderBottomWidth: showBorder ? 1 : 0,
         borderBottomColor: isFocused ? theme.primary : theme.border,
         paddingBottom: 8,
@@ -183,10 +180,10 @@ const EnhancedInput = ({
         paddingHorizontal: 16,
         paddingVertical: 14,
         borderWidth: isFocused ? 1 : 0,
-        borderColor: isFocused ? theme.primary : 'transparent',
+        borderColor: isFocused ? theme.primary : "transparent",
       },
       outlined: {
-        backgroundColor: 'transparent',
+        backgroundColor: "transparent",
         borderRadius: 12,
         paddingHorizontal: 16,
         paddingVertical: 14,
@@ -194,40 +191,40 @@ const EnhancedInput = ({
         borderColor: isFocused ? theme.primary : theme.border,
       },
       minimal: {
-        backgroundColor: 'transparent',
+        backgroundColor: "transparent",
         borderBottomWidth: 1,
         borderBottomColor: isFocused ? theme.primary : `${theme.border}40`,
         paddingBottom: 8,
-      }
+      },
     };
-    
+
     return {
       ...baseStyle,
       ...variants[variant],
     };
   };
-  
+
   const getInputStyle = () => {
     const baseStyle = {
       flex: 1,
       color: editable ? theme.text : `${theme.text}80`,
       fontSize: 16,
-      fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
+      fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
       padding: 0,
       ...inputStyle,
     };
-    
+
     if (multiline) {
       baseStyle.minHeight = 80;
-      baseStyle.textAlignVertical = 'top';
+      baseStyle.textAlignVertical = "top";
     }
-    
+
     return baseStyle;
   };
-  
+
   const getLabelStyle = () => ({
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: "600",
     color: isFocused ? theme.primary : `${theme.text}60`,
     marginBottom: 4,
     letterSpacing: 0.5,
@@ -235,20 +232,20 @@ const EnhancedInput = ({
 
   return (
     <View style={getContainerStyle()}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+      <View
+        style={{ flexDirection: "row", alignItems: "center", marginBottom: 4 }}
+      >
         {icon && (
-          <AppIcon 
-            name={icon} 
-            size={16} 
+          <AppIcon
+            name={icon}
+            size={16}
             color={isFocused ? theme.primary : `${theme.text}50`}
             style={{ marginRight: 8 }}
           />
         )}
-        <Text style={getLabelStyle()}>
-          {label}
-        </Text>
+        <Text style={getLabelStyle()}>{label}</Text>
       </View>
-      
+
       <TextInput
         value={value}
         onChangeText={onChangeText}
@@ -262,14 +259,16 @@ const EnhancedInput = ({
         onFocus={() => setIsFocused(true)}
         onBlur={() => setIsFocused(false)}
       />
-      
+
       {helperText && (
-        <Text style={{
-          fontSize: 11,
-          color: editable ? `${theme.text}50` : theme.negative,
-          marginTop: 4,
-          fontStyle: editable ? 'normal' : 'italic',
-        }}>
+        <Text
+          style={{
+            fontSize: 11,
+            color: editable ? `${theme.text}50` : theme.negative,
+            marginTop: 4,
+            fontStyle: editable ? "normal" : "italic",
+          }}
+        >
           {helperText}
         </Text>
       )}
@@ -280,9 +279,14 @@ const EnhancedInput = ({
 // Enhanced Section Header
 const EnhancedSectionHeader = ({ title, subtitle, theme, icon }) => (
   <View style={enhancedStyles.sectionHeader}>
-    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
       {icon && (
-        <View style={[enhancedStyles.sectionIcon, { backgroundColor: `${theme.primary}15` }]}>
+        <View
+          style={[
+            enhancedStyles.sectionIcon,
+            { backgroundColor: `${theme.primary}15` },
+          ]}
+        >
           <AppIcon name={icon} size={18} color={theme.primary} />
         </View>
       )}
@@ -291,7 +295,9 @@ const EnhancedSectionHeader = ({ title, subtitle, theme, icon }) => (
           {title}
         </Text>
         {subtitle && (
-          <Text style={[enhancedStyles.sectionSubtitle, { color: theme.secondary }]}>
+          <Text
+            style={[enhancedStyles.sectionSubtitle, { color: theme.secondary }]}
+          >
             {subtitle}
           </Text>
         )}
@@ -601,9 +607,9 @@ export default function AccountSettingsScreen() {
             }
           : {}),
       };
-      console.log("Updating user with payload:", payload);
+      //console.log("Updating user with payload:", payload);
       const updated = await updateUser(userId, payload);
-      console.log("Update response:", updated);
+      //console.log("Update response:", updated);
       setUserData(updated);
       setIdProofUploads([]);
       setAddressProofUploads([]);
@@ -652,22 +658,25 @@ export default function AccountSettingsScreen() {
       >
         {/* Profile Section */}
         <View style={enhancedStyles.sectionCard}>
-          <EnhancedSectionHeader 
-            title="Profile Information" 
+          <EnhancedSectionHeader
+            title="Profile Information"
             subtitle="Update your personal details"
             theme={theme}
             icon="person"
           />
-          
+
           <View style={enhancedStyles.profileCard}>
             <View style={enhancedStyles.avatarContainer}>
               {avatarUri ? (
-                <Image source={{ uri: avatarUri }} style={enhancedStyles.avatar} />
+                <Image
+                  source={{ uri: avatarUri }}
+                  style={enhancedStyles.avatar}
+                />
               ) : (
                 <View
                   style={[
                     enhancedStyles.avatarFallback,
-                    { 
+                    {
                       backgroundColor: theme.primary,
                       shadowColor: theme.primary,
                       shadowOffset: { width: 0, height: 4 },
@@ -683,13 +692,25 @@ export default function AccountSettingsScreen() {
                 </View>
               )}
               <View style={enhancedStyles.profileTextContainer}>
-                <Text style={[enhancedStyles.profileName, { color: theme.text }]}>
+                <Text
+                  style={[enhancedStyles.profileName, { color: theme.text }]}
+                >
                   {displayName}
                 </Text>
                 <View style={enhancedStyles.statusRow}>
-                  <View style={[enhancedStyles.verifiedBadge, { backgroundColor: `${theme.positive}15` }]}>
+                  <View
+                    style={[
+                      enhancedStyles.verifiedBadge,
+                      { backgroundColor: `${theme.positive}15` },
+                    ]}
+                  >
                     <AppIcon name="verified" color={theme.positive} size={14} />
-                    <Text style={[enhancedStyles.verifiedText, { color: theme.positive }]}>
+                    <Text
+                      style={[
+                        enhancedStyles.verifiedText,
+                        { color: theme.positive },
+                      ]}
+                    >
                       Verified Account
                     </Text>
                   </View>
@@ -706,13 +727,15 @@ export default function AccountSettingsScreen() {
                 onChangeText={setFirstName}
                 placeholder="John"
                 editable={canEditProfile}
-                helperText={isKycApproved ? "Locked after verification" : "Required"}
+                helperText={
+                  isKycApproved ? "Locked after verification" : "Required"
+                }
                 icon="person"
                 theme={theme}
                 variant="filled"
               />
             </View>
-            
+
             <View style={enhancedStyles.formColumn}>
               <EnhancedInput
                 label="Last Name"
@@ -753,17 +776,32 @@ export default function AccountSettingsScreen() {
             variant="outlined"
           />
 
-          <View style={[enhancedStyles.infoCard, { backgroundColor: `${theme.primary}05`, borderColor: `${theme.primary}15` }]}>
+          <View
+            style={[
+              enhancedStyles.infoCard,
+              {
+                backgroundColor: `${theme.primary}05`,
+                borderColor: `${theme.primary}15`,
+              },
+            ]}
+          >
             <View style={enhancedStyles.infoCardHeader}>
               <AppIcon name="info" size={18} color={theme.primary} />
-              <Text style={[enhancedStyles.infoCardTitle, { color: theme.text }]}>
+              <Text
+                style={[enhancedStyles.infoCardTitle, { color: theme.text }]}
+              >
                 System Information
               </Text>
             </View>
             <View style={enhancedStyles.infoRow}>
               <View style={enhancedStyles.infoLabel}>
                 <AppIcon name="badge" size={16} color={`${theme.text}60`} />
-                <Text style={[enhancedStyles.infoLabelText, { color: `${theme.text}60` }]}>
+                <Text
+                  style={[
+                    enhancedStyles.infoLabelText,
+                    { color: `${theme.text}60` },
+                  ]}
+                >
                   Username
                 </Text>
               </View>
@@ -774,7 +812,12 @@ export default function AccountSettingsScreen() {
             <View style={enhancedStyles.infoRow}>
               <View style={enhancedStyles.infoLabel}>
                 <AppIcon name="email" size={16} color={`${theme.text}60`} />
-                <Text style={[enhancedStyles.infoLabelText, { color: `${theme.text}60` }]}>
+                <Text
+                  style={[
+                    enhancedStyles.infoLabelText,
+                    { color: `${theme.text}60` },
+                  ]}
+                >
                   Email
                 </Text>
               </View>
@@ -784,7 +827,9 @@ export default function AccountSettingsScreen() {
             </View>
           </View>
 
-          <Text style={[enhancedStyles.sectionSubHeader, { color: theme.primary }]}>
+          <Text
+            style={[enhancedStyles.sectionSubHeader, { color: theme.primary }]}
+          >
             Address Details
           </Text>
 
@@ -801,7 +846,7 @@ export default function AccountSettingsScreen() {
                 variant="minimal"
               />
             </View>
-            
+
             <View style={enhancedStyles.formColumn}>
               <EnhancedInput
                 label="City"
@@ -829,7 +874,7 @@ export default function AccountSettingsScreen() {
                 variant="minimal"
               />
             </View>
-            
+
             <View style={enhancedStyles.formColumn}>
               <EnhancedInput
                 label="ZIP Code"
@@ -848,22 +893,35 @@ export default function AccountSettingsScreen() {
           <TouchableOpacity
             style={[
               enhancedStyles.selectInput,
-              { 
-                backgroundColor: canEditProfile ? `${theme.primary}05` : `${theme.border}20`,
-                borderColor: isKycApproved ? `${theme.border}50` : theme.primary,
-              }
+              {
+                backgroundColor: canEditProfile
+                  ? `${theme.primary}05`
+                  : `${theme.border}20`,
+                borderColor: isKycApproved
+                  ? `${theme.border}50`
+                  : theme.primary,
+              },
             ]}
             onPress={() => setCountryModalOpen(true)}
             disabled={!canEditProfile}
           >
             <View style={enhancedStyles.selectInputContent}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <View
+                style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
+              >
                 <AppIcon name="public" size={18} color={`${theme.text}60`} />
-                <Text style={[enhancedStyles.selectInputLabel, { color: `${theme.text}60` }]}>
+                <Text
+                  style={[
+                    enhancedStyles.selectInputLabel,
+                    { color: `${theme.text}60` },
+                  ]}
+                >
                   Country
                 </Text>
               </View>
-              <Text style={[enhancedStyles.selectInputValue, { color: theme.text }]}>
+              <Text
+                style={[enhancedStyles.selectInputValue, { color: theme.text }]}
+              >
                 {country || "Select country"}
               </Text>
             </View>
@@ -872,7 +930,12 @@ export default function AccountSettingsScreen() {
             )}
           </TouchableOpacity>
 
-          <Text style={[enhancedStyles.sectionSubHeader, { color: theme.primary, marginTop: 24 }]}>
+          <Text
+            style={[
+              enhancedStyles.sectionSubHeader,
+              { color: theme.primary, marginTop: 24 },
+            ]}
+          >
             Additional Information
           </Text>
 
@@ -881,56 +944,108 @@ export default function AccountSettingsScreen() {
               <TouchableOpacity
                 style={[
                   enhancedStyles.selectInput,
-                  { 
-                    backgroundColor: canEditProfile ? `${theme.primary}05` : `${theme.border}20`,
-                    borderColor: isKycApproved ? `${theme.border}50` : theme.primary,
-                  }
+                  {
+                    backgroundColor: canEditProfile
+                      ? `${theme.primary}05`
+                      : `${theme.border}20`,
+                    borderColor: isKycApproved
+                      ? `${theme.border}50`
+                      : theme.primary,
+                  },
                 ]}
                 onPress={() => setGenderModalOpen(true)}
                 disabled={!canEditProfile}
               >
                 <View style={enhancedStyles.selectInputContent}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 8,
+                    }}
+                  >
                     <AppIcon name="wc" size={18} color={`${theme.text}60`} />
-                    <Text style={[enhancedStyles.selectInputLabel, { color: `${theme.text}60` }]}>
+                    <Text
+                      style={[
+                        enhancedStyles.selectInputLabel,
+                        { color: `${theme.text}60` },
+                      ]}
+                    >
                       Gender
                     </Text>
                   </View>
-                  <Text style={[enhancedStyles.selectInputValue, { color: theme.text }]}>
+                  <Text
+                    style={[
+                      enhancedStyles.selectInputValue,
+                      { color: theme.text },
+                    ]}
+                  >
                     {gender || "Select"}
                   </Text>
                 </View>
                 {canEditProfile && (
-                  <AppIcon name="expand-more" size={20} color={`${theme.text}40`} />
+                  <AppIcon
+                    name="expand-more"
+                    size={20}
+                    color={`${theme.text}40`}
+                  />
                 )}
               </TouchableOpacity>
             </View>
-            
+
             <View style={enhancedStyles.formColumn}>
               <TouchableOpacity
                 style={[
                   enhancedStyles.selectInput,
-                  { 
-                    backgroundColor: canEditProfile ? `${theme.primary}05` : `${theme.border}20`,
-                    borderColor: isKycApproved ? `${theme.border}50` : theme.primary,
-                  }
+                  {
+                    backgroundColor: canEditProfile
+                      ? `${theme.primary}05`
+                      : `${theme.border}20`,
+                    borderColor: isKycApproved
+                      ? `${theme.border}50`
+                      : theme.primary,
+                  },
                 ]}
                 onPress={() => setIncomeModalOpen(true)}
                 disabled={!canEditProfile}
               >
                 <View style={enhancedStyles.selectInputContent}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                    <AppIcon name="attach-money" size={18} color={`${theme.text}60`} />
-                    <Text style={[enhancedStyles.selectInputLabel, { color: `${theme.text}60` }]}>
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 8,
+                    }}
+                  >
+                    <AppIcon
+                      name="attach-money"
+                      size={18}
+                      color={`${theme.text}60`}
+                    />
+                    <Text
+                      style={[
+                        enhancedStyles.selectInputLabel,
+                        { color: `${theme.text}60` },
+                      ]}
+                    >
                       Income
                     </Text>
                   </View>
-                  <Text style={[enhancedStyles.selectInputValue, { color: theme.text }]}>
+                  <Text
+                    style={[
+                      enhancedStyles.selectInputValue,
+                      { color: theme.text },
+                    ]}
+                  >
                     {income || "Select"}
                   </Text>
                 </View>
                 {canEditProfile && (
-                  <AppIcon name="expand-more" size={20} color={`${theme.text}40`} />
+                  <AppIcon
+                    name="expand-more"
+                    size={20}
+                    color={`${theme.text}40`}
+                  />
                 )}
               </TouchableOpacity>
             </View>
@@ -939,23 +1054,38 @@ export default function AccountSettingsScreen() {
           <TouchableOpacity
             style={[
               enhancedStyles.selectInput,
-              { 
-                backgroundColor: canEditProfile ? `${theme.primary}05` : `${theme.border}20`,
-                borderColor: isKycApproved ? `${theme.border}50` : theme.primary,
-              }
+              {
+                backgroundColor: canEditProfile
+                  ? `${theme.primary}05`
+                  : `${theme.border}20`,
+                borderColor: isKycApproved
+                  ? `${theme.border}50`
+                  : theme.primary,
+              },
             ]}
             onPress={() => setInterestsModalOpen(true)}
             disabled={!canEditProfile}
           >
             <View style={enhancedStyles.selectInputContent}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <View
+                style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
+              >
                 <AppIcon name="favorite" size={18} color={`${theme.text}60`} />
-                <Text style={[enhancedStyles.selectInputLabel, { color: `${theme.text}60` }]}>
+                <Text
+                  style={[
+                    enhancedStyles.selectInputLabel,
+                    { color: `${theme.text}60` },
+                  ]}
+                >
                   Interests
                 </Text>
               </View>
-              <Text style={[enhancedStyles.selectInputValue, { color: theme.text }]}>
-                {interests.length > 0 ? `${interests.length} selected` : "Select interests"}
+              <Text
+                style={[enhancedStyles.selectInputValue, { color: theme.text }]}
+              >
+                {interests.length > 0
+                  ? `${interests.length} selected`
+                  : "Select interests"}
               </Text>
             </View>
             {canEditProfile && (
@@ -980,34 +1110,51 @@ export default function AccountSettingsScreen() {
 
         {/* KYC Section */}
         <View style={[enhancedStyles.sectionCard, { marginTop: 20 }]}>
-          <EnhancedSectionHeader 
-            title="KYC Verification" 
+          <EnhancedSectionHeader
+            title="KYC Verification"
             subtitle="Complete your identity verification"
             theme={theme}
             icon="verified-user"
           />
-          
-          <View style={[
-            enhancedStyles.kycStatusCard,
-            { 
-              backgroundColor: isKycApproved ? `${theme.positive}08` : `${theme.warning}08`,
-              borderColor: isKycApproved ? `${theme.positive}20` : `${theme.warning}20`,
-            }
-          ]}>
+
+          <View
+            style={[
+              enhancedStyles.kycStatusCard,
+              {
+                backgroundColor: isKycApproved
+                  ? `${theme.positive}08`
+                  : `${theme.warning}08`,
+                borderColor: isKycApproved
+                  ? `${theme.positive}20`
+                  : `${theme.warning}20`,
+              },
+            ]}
+          >
             <View style={enhancedStyles.kycStatusHeader}>
               <View style={enhancedStyles.kycStatusTitleRow}>
-                <AppIcon 
-                  name={isKycApproved ? "verified" : "pending-actions"} 
-                  size={24} 
-                  color={isKycApproved ? theme.positive : theme.warning} 
+                <AppIcon
+                  name={isKycApproved ? "verified" : "pending-actions"}
+                  size={24}
+                  color={isKycApproved ? theme.positive : theme.warning}
                 />
-                <Text style={[enhancedStyles.kycStatusTitle, { color: theme.text }]}>
+                <Text
+                  style={[enhancedStyles.kycStatusTitle, { color: theme.text }]}
+                >
                   Verification Status
                 </Text>
               </View>
-              <StatusBadge status={user?.overallStatus} theme={theme} size="lg" />
+              <StatusBadge
+                status={user?.overallStatus}
+                theme={theme}
+                size="lg"
+              />
             </View>
-            <Text style={[enhancedStyles.kycStatusDescription, { color: theme.secondary }]}>
+            <Text
+              style={[
+                enhancedStyles.kycStatusDescription,
+                { color: theme.secondary },
+              ]}
+            >
               {isKycApproved
                 ? "Your account is fully verified and secure. All features are unlocked."
                 : "Complete KYC verification to unlock all features and enhance security."}
@@ -1015,45 +1162,79 @@ export default function AccountSettingsScreen() {
           </View>
 
           <View style={enhancedStyles.kycDocumentSection}>
-            <Text style={[enhancedStyles.documentSectionTitle, { color: theme.text }]}>
+            <Text
+              style={[
+                enhancedStyles.documentSectionTitle,
+                { color: theme.text },
+              ]}
+            >
               ID Verification
             </Text>
-            
-            <View style={[
-              enhancedStyles.documentStatusCard,
-              { borderColor: `${theme.border}30` }
-            ]}>
+
+            <View
+              style={[
+                enhancedStyles.documentStatusCard,
+                { borderColor: `${theme.border}30` },
+              ]}
+            >
               <View style={enhancedStyles.documentStatusHeader}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <View
+                  style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
+                >
                   <AppIcon name="credit-card" size={20} color={theme.primary} />
-                  <Text style={[enhancedStyles.documentStatusTitle, { color: theme.text }]}>
+                  <Text
+                    style={[
+                      enhancedStyles.documentStatusTitle,
+                      { color: theme.text },
+                    ]}
+                  >
                     ID Proof Status
                   </Text>
                 </View>
                 <StatusBadge status={user?.idProofStatus} theme={theme} />
               </View>
-              
+
               {user?.idProofRejectionReason && (
-                <View style={[
-                  enhancedStyles.rejectionBox,
-                  { backgroundColor: `${theme.negative}08`, borderColor: `${theme.negative}20` }
-                ]}>
+                <View
+                  style={[
+                    enhancedStyles.rejectionBox,
+                    {
+                      backgroundColor: `${theme.negative}08`,
+                      borderColor: `${theme.negative}20`,
+                    },
+                  ]}
+                >
                   <View style={enhancedStyles.rejectionHeader}>
                     <AppIcon name="error" color={theme.negative} size={18} />
-                    <Text style={[enhancedStyles.rejectionTitle, { color: theme.negative }]}>
+                    <Text
+                      style={[
+                        enhancedStyles.rejectionTitle,
+                        { color: theme.negative },
+                      ]}
+                    >
                       Rejection Reason
                     </Text>
                   </View>
-                  <Text style={[enhancedStyles.rejectionText, { color: theme.text }]}>
+                  <Text
+                    style={[
+                      enhancedStyles.rejectionText,
+                      { color: theme.text },
+                    ]}
+                  >
                     {user.idProofRejectionReason}
                   </Text>
                 </View>
               )}
 
-              <Text style={[enhancedStyles.documentSubtitle, { color: theme.secondary }]}>
+              <Text
+                style={[
+                  enhancedStyles.documentSubtitle,
+                  { color: theme.secondary },
+                ]}
+              >
                 Uploaded Documents
               </Text>
-              
+
               <DocumentPreview
                 paths={currentIdProofPaths}
                 title="ID Proof"
@@ -1068,14 +1249,22 @@ export default function AccountSettingsScreen() {
                       onPress={() =>
                         setIdProofPathOverride(idProofWasCleared ? null : [])
                       }
-                      style={[enhancedStyles.clearButton, { borderColor: theme.border }]}
+                      style={[
+                        enhancedStyles.clearButton,
+                        { borderColor: theme.border },
+                      ]}
                     >
                       <AppIcon
                         name={idProofWasCleared ? "undo" : "delete"}
                         color={theme.secondary}
                         size={16}
                       />
-                      <Text style={[enhancedStyles.clearButtonText, { color: theme.secondary }]}>
+                      <Text
+                        style={[
+                          enhancedStyles.clearButtonText,
+                          { color: theme.secondary },
+                        ]}
+                      >
                         {idProofWasCleared ? "Restore" : "Clear Current"}
                       </Text>
                     </TouchableOpacity>
@@ -1085,28 +1274,48 @@ export default function AccountSettingsScreen() {
                     onPress={() => pickAndAppendUploads(setIdProofUploads)}
                     style={[
                       enhancedStyles.uploadCard,
-                      { 
+                      {
                         backgroundColor: `${theme.primary}05`,
                         borderColor: `${theme.primary}20`,
-                      }
+                      },
                     ]}
                   >
                     <View style={enhancedStyles.uploadCardContent}>
-                      <View style={[
-                        enhancedStyles.uploadIcon,
-                        { backgroundColor: `${theme.primary}15` }
-                      ]}>
-                        <AppIcon name="cloud-upload" color={theme.primary} size={24} />
+                      <View
+                        style={[
+                          enhancedStyles.uploadIcon,
+                          { backgroundColor: `${theme.primary}15` },
+                        ]}
+                      >
+                        <AppIcon
+                          name="cloud-upload"
+                          color={theme.primary}
+                          size={24}
+                        />
                       </View>
                       <View style={{ flex: 1 }}>
-                        <Text style={[enhancedStyles.uploadTitle, { color: theme.text }]}>
+                        <Text
+                          style={[
+                            enhancedStyles.uploadTitle,
+                            { color: theme.text },
+                          ]}
+                        >
                           Upload New ID Proof
                         </Text>
-                        <Text style={[enhancedStyles.uploadSubtitle, { color: theme.secondary }]}>
+                        <Text
+                          style={[
+                            enhancedStyles.uploadSubtitle,
+                            { color: theme.secondary },
+                          ]}
+                        >
                           Passport, driver's license or national ID
                         </Text>
                       </View>
-                      <AppIcon name="add-circle" color={theme.primary} size={24} />
+                      <AppIcon
+                        name="add-circle"
+                        color={theme.primary}
+                        size={24}
+                      />
                     </View>
                   </TouchableOpacity>
                 </>
@@ -1115,13 +1324,21 @@ export default function AccountSettingsScreen() {
 
             {idProofUploads.length > 0 && (
               <View style={enhancedStyles.uploadList}>
-                <Text style={[enhancedStyles.uploadListTitle, { color: theme.text }]}>
+                <Text
+                  style={[
+                    enhancedStyles.uploadListTitle,
+                    { color: theme.text },
+                  ]}
+                >
                   Selected Files ({idProofUploads.length})
                 </Text>
                 {idProofUploads.map((file, index) => (
                   <View
                     key={index}
-                    style={[enhancedStyles.fileItem, { borderColor: `${theme.primary}20` }]}
+                    style={[
+                      enhancedStyles.fileItem,
+                      { borderColor: `${theme.primary}20` },
+                    ]}
                   >
                     <TouchableOpacity
                       style={enhancedStyles.fileInfo}
@@ -1149,7 +1366,10 @@ export default function AccountSettingsScreen() {
                           prev.filter((_, i) => i !== index),
                         );
                       }}
-                      style={[enhancedStyles.deleteButton, { backgroundColor: `${theme.negative}10` }]}
+                      style={[
+                        enhancedStyles.deleteButton,
+                        { backgroundColor: `${theme.negative}10` },
+                      ]}
                     >
                       <AppIcon name="close" color={theme.negative} size={16} />
                     </TouchableOpacity>
@@ -1160,45 +1380,79 @@ export default function AccountSettingsScreen() {
           </View>
 
           <View style={[enhancedStyles.kycDocumentSection, { marginTop: 24 }]}>
-            <Text style={[enhancedStyles.documentSectionTitle, { color: theme.text }]}>
+            <Text
+              style={[
+                enhancedStyles.documentSectionTitle,
+                { color: theme.text },
+              ]}
+            >
               Address Verification
             </Text>
-            
-            <View style={[
-              enhancedStyles.documentStatusCard,
-              { borderColor: `${theme.border}30` }
-            ]}>
+
+            <View
+              style={[
+                enhancedStyles.documentStatusCard,
+                { borderColor: `${theme.border}30` },
+              ]}
+            >
               <View style={enhancedStyles.documentStatusHeader}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <View
+                  style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
+                >
                   <AppIcon name="home" size={20} color={theme.primary} />
-                  <Text style={[enhancedStyles.documentStatusTitle, { color: theme.text }]}>
+                  <Text
+                    style={[
+                      enhancedStyles.documentStatusTitle,
+                      { color: theme.text },
+                    ]}
+                  >
                     Address Proof Status
                   </Text>
                 </View>
                 <StatusBadge status={user?.addressProofStatus} theme={theme} />
               </View>
-              
+
               {user?.addressProofRejectionReason && (
-                <View style={[
-                  enhancedStyles.rejectionBox,
-                  { backgroundColor: `${theme.negative}08`, borderColor: `${theme.negative}20` }
-                ]}>
+                <View
+                  style={[
+                    enhancedStyles.rejectionBox,
+                    {
+                      backgroundColor: `${theme.negative}08`,
+                      borderColor: `${theme.negative}20`,
+                    },
+                  ]}
+                >
                   <View style={enhancedStyles.rejectionHeader}>
                     <AppIcon name="error" color={theme.negative} size={18} />
-                    <Text style={[enhancedStyles.rejectionTitle, { color: theme.negative }]}>
+                    <Text
+                      style={[
+                        enhancedStyles.rejectionTitle,
+                        { color: theme.negative },
+                      ]}
+                    >
                       Rejection Reason
                     </Text>
                   </View>
-                  <Text style={[enhancedStyles.rejectionText, { color: theme.text }]}>
+                  <Text
+                    style={[
+                      enhancedStyles.rejectionText,
+                      { color: theme.text },
+                    ]}
+                  >
                     {user.addressProofRejectionReason}
                   </Text>
                 </View>
               )}
 
-              <Text style={[enhancedStyles.documentSubtitle, { color: theme.secondary }]}>
+              <Text
+                style={[
+                  enhancedStyles.documentSubtitle,
+                  { color: theme.secondary },
+                ]}
+              >
                 Uploaded Documents
               </Text>
-              
+
               <DocumentPreview
                 paths={currentAddressProofPaths}
                 title="Address Proof"
@@ -1211,16 +1465,26 @@ export default function AccountSettingsScreen() {
                   {hasOriginalAddressProof && (
                     <TouchableOpacity
                       onPress={() =>
-                        setAddressProofPathOverride(addressProofWasCleared ? null : [])
+                        setAddressProofPathOverride(
+                          addressProofWasCleared ? null : [],
+                        )
                       }
-                      style={[enhancedStyles.clearButton, { borderColor: theme.border }]}
+                      style={[
+                        enhancedStyles.clearButton,
+                        { borderColor: theme.border },
+                      ]}
                     >
                       <AppIcon
                         name={addressProofWasCleared ? "undo" : "delete"}
                         color={theme.secondary}
                         size={16}
                       />
-                      <Text style={[enhancedStyles.clearButtonText, { color: theme.secondary }]}>
+                      <Text
+                        style={[
+                          enhancedStyles.clearButtonText,
+                          { color: theme.secondary },
+                        ]}
+                      >
                         {addressProofWasCleared ? "Restore" : "Clear Current"}
                       </Text>
                     </TouchableOpacity>
@@ -1230,28 +1494,48 @@ export default function AccountSettingsScreen() {
                     onPress={() => pickAndAppendUploads(setAddressProofUploads)}
                     style={[
                       enhancedStyles.uploadCard,
-                      { 
+                      {
                         backgroundColor: `${theme.primary}05`,
                         borderColor: `${theme.primary}20`,
-                      }
+                      },
                     ]}
                   >
                     <View style={enhancedStyles.uploadCardContent}>
-                      <View style={[
-                        enhancedStyles.uploadIcon,
-                        { backgroundColor: `${theme.primary}15` }
-                      ]}>
-                        <AppIcon name="cloud-upload" color={theme.primary} size={24} />
+                      <View
+                        style={[
+                          enhancedStyles.uploadIcon,
+                          { backgroundColor: `${theme.primary}15` },
+                        ]}
+                      >
+                        <AppIcon
+                          name="cloud-upload"
+                          color={theme.primary}
+                          size={24}
+                        />
                       </View>
                       <View style={{ flex: 1 }}>
-                        <Text style={[enhancedStyles.uploadTitle, { color: theme.text }]}>
+                        <Text
+                          style={[
+                            enhancedStyles.uploadTitle,
+                            { color: theme.text },
+                          ]}
+                        >
                           Upload New Address Proof
                         </Text>
-                        <Text style={[enhancedStyles.uploadSubtitle, { color: theme.secondary }]}>
+                        <Text
+                          style={[
+                            enhancedStyles.uploadSubtitle,
+                            { color: theme.secondary },
+                          ]}
+                        >
                           Utility bill, bank statement or tax document
                         </Text>
                       </View>
-                      <AppIcon name="add-circle" color={theme.primary} size={24} />
+                      <AppIcon
+                        name="add-circle"
+                        color={theme.primary}
+                        size={24}
+                      />
                     </View>
                   </TouchableOpacity>
                 </>
@@ -1260,13 +1544,21 @@ export default function AccountSettingsScreen() {
 
             {addressProofUploads.length > 0 && (
               <View style={enhancedStyles.uploadList}>
-                <Text style={[enhancedStyles.uploadListTitle, { color: theme.text }]}>
+                <Text
+                  style={[
+                    enhancedStyles.uploadListTitle,
+                    { color: theme.text },
+                  ]}
+                >
                   Selected Files ({addressProofUploads.length})
                 </Text>
                 {addressProofUploads.map((file, index) => (
                   <View
                     key={index}
-                    style={[enhancedStyles.fileItem, { borderColor: `${theme.primary}20` }]}
+                    style={[
+                      enhancedStyles.fileItem,
+                      { borderColor: `${theme.primary}20` },
+                    ]}
                   >
                     <TouchableOpacity
                       style={enhancedStyles.fileInfo}
@@ -1294,7 +1586,10 @@ export default function AccountSettingsScreen() {
                           prev.filter((_, i) => i !== index),
                         );
                       }}
-                      style={[enhancedStyles.deleteButton, { backgroundColor: `${theme.negative}10` }]}
+                      style={[
+                        enhancedStyles.deleteButton,
+                        { backgroundColor: `${theme.negative}10` },
+                      ]}
                     >
                       <AppIcon name="close" color={theme.negative} size={16} />
                     </TouchableOpacity>
@@ -1358,11 +1653,11 @@ const enhancedStyles = StyleSheet.create({
     paddingBottom: 40,
   },
   sectionCard: {
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     borderRadius: 20,
     padding: 20,
     marginBottom: 16,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
     shadowRadius: 8,
@@ -1375,12 +1670,12 @@ const enhancedStyles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   sectionTitle: {
     fontSize: 20,
-    fontWeight: '800',
+    fontWeight: "800",
     letterSpacing: -0.5,
   },
   sectionSubtitle: {
@@ -1390,7 +1685,7 @@ const enhancedStyles = StyleSheet.create({
   },
   sectionSubHeader: {
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: "700",
     marginVertical: 16,
     marginTop: 24,
   },
@@ -1398,16 +1693,16 @@ const enhancedStyles = StyleSheet.create({
     marginBottom: 24,
   },
   avatarContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
   },
   avatar: {
     width: 80,
     height: 80,
     borderRadius: 40,
     borderWidth: 4,
-    borderColor: '#fff',
-    shadowColor: '#000',
+    borderColor: "#fff",
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
@@ -1417,14 +1712,14 @@ const enhancedStyles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   avatarFallbackText: {
-    color: '#fff',
+    color: "#fff",
     fontSize: 32,
-    fontWeight: '800',
-    textShadowColor: 'rgba(0,0,0,0.2)',
+    fontWeight: "800",
+    textShadowColor: "rgba(0,0,0,0.2)",
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 4,
   },
@@ -1434,30 +1729,30 @@ const enhancedStyles = StyleSheet.create({
   },
   profileName: {
     fontSize: 22,
-    fontWeight: '800',
+    fontWeight: "800",
     marginBottom: 8,
     letterSpacing: -0.5,
   },
   statusRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 8,
   },
   verifiedBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 6,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 16,
-    alignSelf: 'flex-start',
+    alignSelf: "flex-start",
   },
   verifiedText: {
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   formGrid: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 16,
     marginBottom: 8,
   },
@@ -1472,26 +1767,26 @@ const enhancedStyles = StyleSheet.create({
     borderWidth: 1,
   },
   infoCardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 8,
     marginBottom: 12,
   },
   infoCardTitle: {
     fontSize: 15,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   infoRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     paddingVertical: 10,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0,0,0,0.05)',
+    borderBottomColor: "rgba(0,0,0,0.05)",
   },
   infoLabel: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 8,
   },
   infoLabelText: {
@@ -1499,15 +1794,15 @@ const enhancedStyles = StyleSheet.create({
   },
   infoValue: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   selectInput: {
     borderRadius: 12,
     padding: 16,
     borderWidth: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     marginBottom: 16,
   },
   selectInputContent: {
@@ -1515,13 +1810,13 @@ const enhancedStyles = StyleSheet.create({
   },
   selectInputLabel: {
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: "600",
     marginBottom: 4,
     letterSpacing: 0.5,
   },
   selectInputValue: {
     fontSize: 16,
-    fontWeight: '500',
+    fontWeight: "500",
   },
   kycStatusCard: {
     borderRadius: 16,
@@ -1530,19 +1825,19 @@ const enhancedStyles = StyleSheet.create({
     marginBottom: 24,
   },
   kycStatusHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: 12,
   },
   kycStatusTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 8,
   },
   kycStatusTitle: {
     fontSize: 18,
-    fontWeight: '800',
+    fontWeight: "800",
   },
   kycStatusDescription: {
     fontSize: 14,
@@ -1553,7 +1848,7 @@ const enhancedStyles = StyleSheet.create({
   },
   documentSectionTitle: {
     fontSize: 18,
-    fontWeight: '700',
+    fontWeight: "700",
     marginBottom: 16,
     letterSpacing: -0.3,
   },
@@ -1563,18 +1858,18 @@ const enhancedStyles = StyleSheet.create({
     borderWidth: 1,
   },
   documentStatusHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: 20,
   },
   documentStatusTitle: {
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   documentSubtitle: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: "600",
     marginBottom: 12,
     marginTop: 8,
   },
@@ -1585,33 +1880,33 @@ const enhancedStyles = StyleSheet.create({
     marginBottom: 16,
   },
   rejectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 8,
     marginBottom: 8,
   },
   rejectionTitle: {
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   rejectionText: {
     fontSize: 14,
     lineHeight: 20,
   },
   clearButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 8,
     paddingVertical: 10,
     paddingHorizontal: 16,
     borderWidth: 1,
     borderRadius: 10,
-    alignSelf: 'flex-start',
+    alignSelf: "flex-start",
     marginTop: 12,
   },
   clearButtonText: {
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   uploadCard: {
     borderRadius: 16,
@@ -1620,20 +1915,20 @@ const enhancedStyles = StyleSheet.create({
     marginTop: 16,
   },
   uploadCardContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 16,
   },
   uploadIcon: {
     width: 48,
     height: 48,
     borderRadius: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   uploadTitle: {
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: "700",
     marginBottom: 4,
   },
   uploadSubtitle: {
@@ -1644,34 +1939,34 @@ const enhancedStyles = StyleSheet.create({
   },
   uploadListTitle: {
     fontSize: 15,
-    fontWeight: '700',
+    fontWeight: "700",
     marginBottom: 12,
   },
   fileItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     padding: 14,
     borderWidth: 1,
     borderRadius: 12,
     marginBottom: 8,
   },
   fileInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 12,
     flex: 1,
   },
   fileName: {
     flex: 1,
     fontSize: 14,
-    fontWeight: '500',
+    fontWeight: "500",
   },
   deleteButton: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
 });

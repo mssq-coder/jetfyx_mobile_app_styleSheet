@@ -1,11 +1,21 @@
+import { ResizeMode, Video } from "expo-av";
+import { BlurView } from "expo-blur";
+import * as FileSystem from "expo-file-system";
+import { LinearGradient } from "expo-linear-gradient";
+import { router } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Animated,
+  Dimensions,
   Image,
+  Linking,
   Modal,
+  Platform,
   RefreshControl,
   ScrollView,
+  StatusBar,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -13,11 +23,14 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { getMessages, markMessageAsRead, previewFile } from "../../api/mailbox";
+import AccountSelectorModal from "../../components/Accounts/AccountSelectorModal";
 import AppIcon from "../../components/AppIcon";
 import { useAppTheme } from "../../contexts/ThemeContext";
+import usePullToRefresh from "../../hooks/usePullToRefresh";
 import { useAuthStore } from "../../store/authStore";
 import { showErrorToast } from "../../utils/toast";
-import usePullToRefresh from "../../hooks/usePullToRefresh";
+
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 const getFileType = (url = "") => {
   if (!url) return "file";
@@ -68,7 +81,15 @@ const getAttachmentsFromEmail = (email) => {
   push(email.attachmentPaths);
   push(email.attachments);
 
-  // Some backends embed attachmentUrls inside a JSON body
+  try {
+    Object.keys(email || {}).forEach((key) => {
+      if (!/attachment/i.test(key)) return;
+      push(email[key]);
+    });
+  } catch {
+    // ignore
+  }
+
   const tryParse = (text) => {
     if (!text || typeof text !== "string") return;
     try {
@@ -90,7 +111,23 @@ const getAttachmentsFromEmail = (email) => {
 function formatDateTime(value) {
   if (!value) return "-";
   try {
-    return new Date(value).toLocaleString();
+    const date = new Date(value);
+    const now = new Date();
+    const diffMs = now - date;
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+    if (diffDays === 0) {
+      return date.toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    } else if (diffDays === 1) {
+      return "Yesterday";
+    } else if (diffDays < 7) {
+      return date.toLocaleDateString([], { weekday: "short" });
+    } else {
+      return date.toLocaleDateString([], { month: "short", day: "numeric" });
+    }
   } catch {
     return String(value);
   }
@@ -100,13 +137,52 @@ export default function Mailbox() {
   const { theme } = useAppTheme();
   const { refreshing, runRefresh } = usePullToRefresh();
   const selectedAccountId = useAuthStore((s) => s.selectedAccountId);
+  const accounts = useAuthStore((s) => s.accounts);
+  const sharedAccounts = useAuthStore((s) => s.sharedAccounts);
+  const fullName = useAuthStore((s) => s.fullName);
+  const setSelectedAccount = useAuthStore((s) => s.setSelectedAccount);
+  const refreshProfile = useAuthStore((s) => s.refreshProfile);
+  const [accountPickerOpen, setAccountPickerOpen] = useState(false);
   const [imagePreviewUri, setImagePreviewUri] = useState(null);
+  const [videoPreviewUri, setVideoPreviewUri] = useState(null);
+  const [androidDownloadDirUri, setAndroidDownloadDirUri] = useState(null);
+
+  const selectedAccount = useMemo(() => {
+    const sharedList = (sharedAccounts || []).flatMap((s) => s?.accounts || []);
+    const list = [...(Array.isArray(accounts) ? accounts : []), ...sharedList];
+    if (selectedAccountId == null) return null;
+    return (
+      list.find(
+        (a) => String(a?.accountId ?? a?.id) === String(selectedAccountId),
+      ) || null
+    );
+  }, [accounts, sharedAccounts, selectedAccountId]);
+
+  const selectedAccountNumber =
+    selectedAccount?.accountNumber ?? selectedAccountId ?? null;
 
   const [emails, setEmails] = useState([]);
   const [loading, setLoading] = useState(false);
   const [pageNumber, setPageNumber] = useState(1);
   const [pageSize, setPageSize] = useState(25);
   const [totalCount, setTotalCount] = useState(0);
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(50)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 600,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 500,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, []);
 
   const totalPages = useMemo(
     () => Math.max(1, Math.ceil((totalCount || 0) / pageSize)),
@@ -116,6 +192,7 @@ export default function Mailbox() {
   const [showModal, setShowModal] = useState(false);
   const [selectedEmail, setSelectedEmail] = useState(null);
   const [showAttachments, setShowAttachments] = useState(false);
+  const [attachmentPaths, setAttachmentPaths] = useState([]);
   const [previewUrls, setPreviewUrls] = useState({});
 
   const fetchRef = useRef(null);
@@ -177,15 +254,18 @@ export default function Mailbox() {
   const handleView = async (email) => {
     setSelectedEmail(email);
     setShowModal(true);
-    setShowAttachments(false);
+    setImagePreviewUri(null);
+    setVideoPreviewUri(null);
+    const paths = getAttachmentsFromEmail(email);
+    setAttachmentPaths(paths);
+    setShowAttachments(paths.length > 0);
     setPreviewUrls({});
 
-    const attachmentPaths = getAttachmentsFromEmail(email);
-    if (attachmentPaths.length > 0) {
+    if (paths.length > 0) {
       const urls = {};
-      for (let i = 0; i < attachmentPaths.length; i += 1) {
+      for (let i = 0; i < paths.length; i += 1) {
         try {
-          urls[i] = await previewFile(attachmentPaths[i]);
+          urls[i] = await previewFile(paths[i]);
         } catch (_err) {
           urls[i] = null;
         }
@@ -217,14 +297,100 @@ export default function Mailbox() {
       const url = previewUrls?.[index] || (await previewFile(attachmentPath));
       if (!url) return;
 
-      // expo-web-browser cannot reliably open local file:// URIs.
-      if (fileType === "image" && String(url).startsWith("file:")) {
+      const isLocalFile = String(url).startsWith("file:");
+      const filename = getFilename(attachmentPath);
+
+      if (fileType === "image" && isLocalFile) {
         setImagePreviewUri(url);
         return;
       }
 
+      if (fileType === "video" && isLocalFile) {
+        setVideoPreviewUri(url);
+        return;
+      }
+
+      if (isLocalFile) {
+        if (Platform.OS === "android") {
+          const contentUri = await FileSystem.getContentUriAsync(url);
+
+          try {
+            const IntentLauncher = await import("expo-intent-launcher");
+            const mimeType = fileType === "pdf" ? "application/pdf" : "*/*";
+            await IntentLauncher.startActivityAsync(
+              "android.intent.action.VIEW",
+              {
+                data: contentUri,
+                flags: IntentLauncher.Flags.GRANT_READ_URI_PERMISSION,
+                type: mimeType,
+              },
+            );
+            return;
+          } catch (_intentErr) {
+            // Fall back to Linking / SAF
+          }
+
+          try {
+            await Linking.openURL(contentUri);
+            return;
+          } catch (_linkErr) {
+            if (fileType === "pdf") {
+              const requestDir = async () => {
+                const perm =
+                  await FileSystem.StorageAccessFramework.requestDirectoryPermissionsAsync();
+                if (!perm?.granted) return null;
+                return perm.directoryUri;
+              };
+
+              const directoryUri =
+                androidDownloadDirUri || (await requestDir());
+              if (!directoryUri) {
+                showErrorToast(
+                  "Folder permission is required to save the PDF.",
+                  "Mailbox",
+                );
+                return;
+              }
+              if (!androidDownloadDirUri)
+                setAndroidDownloadDirUri(directoryUri);
+
+              const safeName = filename.toLowerCase().endsWith(".pdf")
+                ? filename
+                : `${filename}.pdf`;
+
+              const base64 = await FileSystem.readAsStringAsync(url, {
+                encoding: FileSystem.EncodingType.Base64,
+              });
+              const destUri =
+                await FileSystem.StorageAccessFramework.createFileAsync(
+                  directoryUri,
+                  safeName,
+                  "application/pdf",
+                );
+              await FileSystem.writeAsStringAsync(destUri, base64, {
+                encoding: FileSystem.EncodingType.Base64,
+              });
+              await Linking.openURL(destUri);
+              return;
+            }
+
+            throw _linkErr;
+          }
+        }
+
+        await Linking.openURL(url);
+        return;
+      }
+
       await WebBrowser.openBrowserAsync(url);
-    } catch (_e) {}
+    } catch (_e) {
+      const message =
+        _e?.message ||
+        _e?.response?.data?.message ||
+        _e?.response?.data?.title ||
+        "Failed to open attachment";
+      showErrorToast(message, "Mailbox");
+    }
   };
 
   const renderRow = (email) => {
@@ -232,41 +398,83 @@ export default function Mailbox() {
     const stableKey =
       email?.id ??
       `${email?.subject || ""}_${email?.sentAt || email?.date || ""}_${email?.fromAddress || ""}`;
+
     return (
-      <TouchableOpacity
+      <Animated.View
         key={String(stableKey)}
-        style={[styles.row, { borderBottomColor: theme.border }]}
-        onPress={() => handleView(email)}
-        activeOpacity={0.7}
+        style={[
+          {
+            opacity: fadeAnim,
+            transform: [{ translateY: slideAnim }],
+          },
+        ]}
       >
-        <View style={styles.rowLeft}>
-          {!isRead ? (
-            <View
-              style={[styles.unreadDot, { backgroundColor: theme.primary }]}
-            />
-          ) : null}
-          <View style={{ flex: 1 }}>
-            <Text
-              style={[styles.subject, { color: theme.text }]}
-              numberOfLines={1}
-            >
-              {email?.subject || "(No subject)"}
-            </Text>
-            <Text
-              style={[styles.from, { color: theme.secondary }]}
-              numberOfLines={1}
-            >
-              {email?.fromAddress || email?.from || "-"}
-            </Text>
-          </View>
-        </View>
-        <Text
-          style={[styles.time, { color: theme.secondary }]}
-          numberOfLines={1}
+        <TouchableOpacity
+          style={[
+            styles.row,
+            {
+              backgroundColor: isRead ? "transparent" : theme.card + "80",
+              borderBottomColor: theme.border,
+            },
+          ]}
+          onPress={() => handleView(email)}
+          activeOpacity={0.7}
         >
-          {formatDateTime(email?.sentAt || email?.date)}
-        </Text>
-      </TouchableOpacity>
+          <View style={styles.rowLeft}>
+            <View
+              style={[
+                styles.avatarContainer,
+                { backgroundColor: theme.primary + "20" },
+              ]}
+            >
+              <Text style={[styles.avatarText, { color: theme.primary }]}>
+                {(email?.fromAddress || email?.from || "?")
+                  .charAt(0)
+                  .toUpperCase()}
+              </Text>
+            </View>
+            <View style={{ flex: 1 }}>
+              <View style={styles.subjectContainer}>
+                <Text
+                  style={[
+                    styles.subject,
+                    { color: theme.text },
+                    !isRead && styles.unreadSubject,
+                  ]}
+                  numberOfLines={1}
+                >
+                  {email?.subject || "(No subject)"}
+                </Text>
+                {!isRead && (
+                  <View
+                    style={[
+                      styles.unreadBadge,
+                      { backgroundColor: theme.primary },
+                    ]}
+                  >
+                    <Text style={styles.unreadBadgeText}>New</Text>
+                  </View>
+                )}
+              </View>
+              <Text
+                style={[styles.from, { color: theme.secondary }]}
+                numberOfLines={1}
+              >
+                {email?.fromAddress || email?.from || "-"}
+              </Text>
+            </View>
+          </View>
+          <View style={styles.timeContainer}>
+            <Text
+              style={[styles.time, { color: theme.secondary }]}
+              numberOfLines={1}
+            >
+              {formatDateTime(email?.sentAt || email?.date)}
+            </Text>
+            <AppIcon name="chevron-right" size={16} color={theme.secondary} />
+          </View>
+        </TouchableOpacity>
+      </Animated.View>
     );
   };
 
@@ -274,25 +482,90 @@ export default function Mailbox() {
     <SafeAreaView
       style={[styles.container, { backgroundColor: theme.background }]}
     >
-      <View style={styles.header}>
-        <Text style={[styles.headerTitle, { color: theme.text }]}>Mailbox</Text>
-        <Text style={[styles.headerSub, { color: theme.secondary }]}>
-          {selectedAccountId
-            ? `Account #${selectedAccountId}`
-            : "Select an account"}
-        </Text>
+      <StatusBar backgroundColor={theme.primary} barStyle="light-content" />
+
+      <LinearGradient
+        colors={[theme.primary, theme.primary + "00"]}
+        style={styles.headerGradient}
+      />
+
+      <View style={[styles.header, { backgroundColor: theme.primary }]}>
+        <View style={styles.headerTop}>
+          <TouchableOpacity
+            onPress={() => router.back()}
+            style={styles.backButton}
+            accessibilityRole="button"
+            accessibilityLabel="Go back"
+          >
+            <AppIcon name="arrow-back" color="#fff" size={22} />
+          </TouchableOpacity>
+
+          <Text style={[styles.headerTitle, { color: "#fff", flex: 1 }]}>
+            Mailbox
+          </Text>
+          <TouchableOpacity
+            onPress={() => setAccountPickerOpen(true)}
+            activeOpacity={0.85}
+            style={[
+              styles.accountBadge,
+              { backgroundColor: "rgba(255,255,255,0.18)" },
+            ]}
+            accessibilityRole="button"
+            accessibilityLabel="Select account"
+          >
+            <AppIcon name="account-circle" size={16} color="#fff" />
+            <Text
+              style={[styles.headerSub, { color: "rgba(255,255,255,0.92)" }]}
+            >
+              {selectedAccountNumber
+                ? `Account #${selectedAccountNumber}`
+                : "Select an account"}
+            </Text>
+            <AppIcon name="expand-more" size={18} color="#fff" />
+          </TouchableOpacity>
+        </View>
       </View>
 
-      <View
+      <AccountSelectorModal
+        visible={accountPickerOpen}
+        onClose={() => setAccountPickerOpen(false)}
+        accounts={accounts}
+        sharedAccounts={sharedAccounts}
+        fullName={fullName || ""}
+        selectedAccountId={
+          selectedAccount
+            ? (selectedAccount.accountId ?? selectedAccount.id)
+            : selectedAccountId
+        }
+        onSelectAccount={(a) => {
+          setSelectedAccount?.(a);
+          setAccountPickerOpen(false);
+        }}
+        onRefresh={async () => {
+          try {
+            await refreshProfile?.();
+          } catch {}
+        }}
+      />
+
+      <Animated.View
         style={[
           styles.card,
-          { backgroundColor: theme.card, borderColor: theme.border },
+          {
+            backgroundColor: theme.card,
+            borderColor: theme.border,
+            opacity: fadeAnim,
+            transform: [{ translateY: slideAnim }],
+          },
         ]}
       >
         <View style={styles.cardHeader}>
-          <Text style={[styles.cardTitle, { color: theme.text }]}>
-            Messages
-          </Text>
+          <View style={styles.cardTitleContainer}>
+            <AppIcon name="email" size={20} color={theme.primary} />
+            <Text style={[styles.cardTitle, { color: theme.text }]}>
+              Messages
+            </Text>
+          </View>
           <View style={styles.pageSizePills}>
             {[10, 25, 50].map((n) => (
               <TouchableOpacity
@@ -305,13 +578,17 @@ export default function Mailbox() {
                   styles.pill,
                   {
                     backgroundColor:
-                      pageSize === n ? theme.primary + "22" : theme.background,
-                    borderColor: theme.border,
+                      pageSize === n ? theme.primary : "transparent",
+                    borderColor: pageSize === n ? theme.primary : theme.border,
                   },
                 ]}
               >
                 <Text
-                  style={{ color: theme.text, fontWeight: "700", fontSize: 12 }}
+                  style={{
+                    color: pageSize === n ? "#fff" : theme.text,
+                    fontWeight: pageSize === n ? "800" : "600",
+                    fontSize: 12,
+                  }}
                 >
                   {n}
                 </Text>
@@ -322,7 +599,11 @@ export default function Mailbox() {
 
         <ScrollView
           style={styles.list}
-          contentContainerStyle={{ paddingBottom: 8 }}
+          contentContainerStyle={{
+            paddingBottom: 8,
+            paddingHorizontal: 12,
+          }}
+          showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -332,21 +613,38 @@ export default function Mailbox() {
                 })
               }
               tintColor={theme.primary}
+              colors={[theme.primary]}
             />
           }
         >
           {loading ? (
             <View style={styles.loadingBox}>
-              <ActivityIndicator color={theme.primary} />
-              <Text style={{ color: theme.secondary, marginTop: 10 }}>
+              <ActivityIndicator size="large" color={theme.primary} />
+              <Text
+                style={{
+                  color: theme.secondary,
+                  marginTop: 16,
+                  fontWeight: "600",
+                }}
+              >
                 Loading messages...
               </Text>
             </View>
           ) : emails.length === 0 ? (
             <View style={styles.emptyBox}>
-              <AppIcon name="mail" size={28} color={theme.secondary} />
-              <Text style={{ color: theme.secondary, marginTop: 10 }}>
+              <View
+                style={[
+                  styles.emptyIconContainer,
+                  { backgroundColor: theme.primary + "10" },
+                ]}
+              >
+                <AppIcon name="inbox" size={48} color={theme.primary} />
+              </View>
+              <Text style={[styles.emptyTitle, { color: theme.text }]}>
                 No messages
+              </Text>
+              <Text style={[styles.emptySubtitle, { color: theme.secondary }]}>
+                Your inbox is clean and ready
               </Text>
             </View>
           ) : (
@@ -360,6 +658,7 @@ export default function Mailbox() {
             disabled={pageNumber <= 1}
             style={[
               styles.footerBtn,
+              styles.footerBtnLeft,
               {
                 opacity: pageNumber <= 1 ? 0.5 : 1,
                 borderColor: theme.border,
@@ -367,16 +666,34 @@ export default function Mailbox() {
               },
             ]}
           >
-            <Text style={{ color: theme.text, fontWeight: "700" }}>Prev</Text>
+            <AppIcon name="chevron-left" size={18} color={theme.text} />
+            <Text
+              style={{ color: theme.text, fontWeight: "700", marginLeft: 4 }}
+            >
+              Prev
+            </Text>
           </TouchableOpacity>
-          <Text style={{ color: theme.secondary, fontWeight: "700" }}>
-            {pageNumber} / {totalPages}
-          </Text>
+
+          <View
+            style={[
+              styles.pageIndicator,
+              { backgroundColor: theme.primary + "10" },
+            ]}
+          >
+            <Text style={{ color: theme.primary, fontWeight: "800" }}>
+              {pageNumber}
+            </Text>
+            <Text style={{ color: theme.secondary, fontWeight: "600" }}>
+              / {totalPages}
+            </Text>
+          </View>
+
           <TouchableOpacity
             onPress={() => setPageNumber((p) => Math.min(totalPages, p + 1))}
             disabled={pageNumber >= totalPages}
             style={[
               styles.footerBtn,
+              styles.footerBtnRight,
               {
                 opacity: pageNumber >= totalPages ? 0.5 : 1,
                 borderColor: theme.border,
@@ -384,193 +701,256 @@ export default function Mailbox() {
               },
             ]}
           >
-            <Text style={{ color: theme.text, fontWeight: "700" }}>Next</Text>
+            <Text
+              style={{ color: theme.text, fontWeight: "700", marginRight: 4 }}
+            >
+              Next
+            </Text>
+            <AppIcon name="chevron-right" size={18} color={theme.text} />
           </TouchableOpacity>
         </View>
-      </View>
+      </Animated.View>
 
       <Modal
         visible={showModal && !!selectedEmail}
         transparent
-        animationType="fade"
+        animationType="slide"
+        onRequestClose={() => setShowModal(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View
-            style={[
-              styles.modalCard,
-              { backgroundColor: theme.card, borderColor: theme.border },
-            ]}
-          >
-            <View style={styles.modalHeader}>
-              <Text
-                style={[styles.modalTitle, { color: theme.text }]}
-                numberOfLines={2}
-              >
-                {selectedEmail?.subject || "(No subject)"}
-              </Text>
-              <TouchableOpacity
-                onPress={() => setShowModal(false)}
-                style={styles.closeBtn}
-              >
-                <AppIcon name="close" size={20} color={theme.text} />
-              </TouchableOpacity>
-            </View>
-
-            <View
+        <BlurView intensity={80} tint="dark" style={StyleSheet.absoluteFill}>
+          <View style={styles.modalOverlay}>
+            <Animated.View
               style={[
-                styles.metaBox,
+                styles.modalCard,
                 {
+                  backgroundColor: theme.card,
                   borderColor: theme.border,
-                  backgroundColor: theme.background,
                 },
               ]}
             >
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.metaLabel, { color: theme.secondary }]}>
-                  From
-                </Text>
-                <Text
-                  style={[styles.metaValue, { color: theme.text }]}
-                  numberOfLines={1}
-                >
-                  {selectedEmail?.fromAddress || selectedEmail?.from || "-"}
-                </Text>
-              </View>
-              <View style={{ alignItems: "flex-end" }}>
-                <Text style={[styles.metaLabel, { color: theme.secondary }]}>
-                  Date and Time
-                </Text>
-                <Text style={[styles.metaValue, { color: theme.text }]}>
-                  {formatDateTime(selectedEmail?.sentAt || selectedEmail?.date)}
-                </Text>
-              </View>
-            </View>
+              <LinearGradient
+                colors={[theme.primary + "20", "transparent"]}
+                style={styles.modalGradient}
+              />
 
-            <ScrollView
-              style={{ flex: 1 }}
-              contentContainerStyle={{ padding: 16 }}
-            >
-              <Text style={[styles.bodyText, { color: theme.text }]}>
-                {selectedEmail?.body || selectedEmail?.message || ""}
-              </Text>
-
-              {getAttachmentsFromEmail(selectedEmail).length > 0 ? (
-                <View style={{ marginTop: 16 }}>
-                  <TouchableOpacity
-                    onPress={() => setShowAttachments((v) => !v)}
+              <View style={styles.modalHeader}>
+                <View style={styles.modalHeaderLeft}>
+                  <View
                     style={[
-                      styles.attachToggle,
-                      { backgroundColor: theme.primary },
+                      styles.modalAvatar,
+                      { backgroundColor: theme.primary + "20" },
                     ]}
-                    activeOpacity={0.8}
                   >
-                    <Text style={{ color: "#fff", fontWeight: "800" }}>
-                      {showAttachments
-                        ? "Hide Attachments"
-                        : `Show Attachments (${getAttachmentsFromEmail(selectedEmail).length})`}
+                    <Text
+                      style={[styles.modalAvatarText, { color: theme.primary }]}
+                    >
+                      {(
+                        selectedEmail?.fromAddress ||
+                        selectedEmail?.from ||
+                        "?"
+                      )
+                        .charAt(0)
+                        .toUpperCase()}
                     </Text>
-                  </TouchableOpacity>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text
+                      style={[styles.modalSubject, { color: theme.text }]}
+                      numberOfLines={2}
+                    >
+                      {selectedEmail?.subject || "(No subject)"}
+                    </Text>
+                  </View>
+                </View>
+                <TouchableOpacity
+                  onPress={() => setShowModal(false)}
+                  style={[
+                    styles.closeBtn,
+                    { backgroundColor: theme.background },
+                  ]}
+                >
+                  <AppIcon name="close" size={18} color={theme.text} />
+                </TouchableOpacity>
+              </View>
 
-                  {showAttachments ? (
-                    <View style={{ marginTop: 12, gap: 10 }}>
-                      {getAttachmentsFromEmail(selectedEmail).map(
-                        (attachmentPath, index) => {
-                          const filename = getFilename(attachmentPath);
-                          const fileType = getFileType(filename);
-                          const isImage = fileType === "image";
-                          const isPdf = fileType === "pdf";
-                          const isVideo = fileType === "video";
+              <ScrollView
+                style={{ flex: 1 }}
+                contentContainerStyle={{ paddingBottom: 20 }}
+                showsVerticalScrollIndicator={false}
+              >
+                <View
+                  style={[
+                    styles.modalMeta,
+                    { backgroundColor: theme.background },
+                  ]}
+                >
+                  <View style={styles.metaRow}>
+                    <AppIcon name="person" size={16} color={theme.secondary} />
+                    <Text style={[styles.metaValue, { color: theme.text }]}>
+                      {selectedEmail?.fromAddress || selectedEmail?.from || "-"}
+                    </Text>
+                  </View>
+                  <View style={styles.metaRow}>
+                    <AppIcon
+                      name="schedule"
+                      size={16}
+                      color={theme.secondary}
+                    />
+                    <Text style={[styles.metaValue, { color: theme.text }]}>
+                      {formatDateTime(
+                        selectedEmail?.sentAt || selectedEmail?.date,
+                      )}
+                    </Text>
+                  </View>
+                </View>
 
-                          return (
-                            <TouchableOpacity
-                              key={`${index}_${filename}`}
-                              onPress={() =>
-                                openAttachment(attachmentPath, index, fileType)
-                              }
-                              style={[
-                                styles.attachmentRow,
-                                {
-                                  borderColor: theme.border,
-                                  backgroundColor: theme.background,
-                                },
-                              ]}
-                              activeOpacity={0.8}
-                            >
-                              {isImage && previewUrls?.[index] ? (
-                                <Image
-                                  source={{ uri: previewUrls[index] }}
-                                  style={styles.attachmentThumb}
-                                  resizeMode="cover"
-                                />
-                              ) : (
-                                <AppIcon
-                                  name={
-                                    isImage
-                                      ? "image"
-                                      : isPdf
-                                        ? "picture-as-pdf"
-                                        : isVideo
-                                          ? "videocam"
-                                          : "attach-file"
-                                  }
-                                  size={20}
-                                  color={theme.primary}
-                                />
-                              )}
-                              <View style={{ flex: 1 }}>
-                                <Text
-                                  style={{
-                                    color: theme.text,
-                                    fontWeight: "700",
-                                  }}
-                                  numberOfLines={1}
+                <View style={styles.modalBody}>
+                  <Text style={[styles.bodyText, { color: theme.text }]}>
+                    {selectedEmail?.body || selectedEmail?.message || ""}
+                  </Text>
+
+                  {attachmentPaths.length > 0 && (
+                    <View style={styles.attachmentsSection}>
+                      <TouchableOpacity
+                        onPress={() => setShowAttachments((v) => !v)}
+                        style={styles.attachToggleWrapper}
+                        activeOpacity={0.8}
+                      >
+                        <LinearGradient
+                          colors={[theme.primary, theme.primary + "dd"]}
+                          start={{ x: 0, y: 0 }}
+                          end={{ x: 1, y: 0 }}
+                          style={styles.attachToggle}
+                        >
+                          <AppIcon
+                            name={
+                              showAttachments ? "expand-less" : "expand-more"
+                            }
+                            size={20}
+                            color="#fff"
+                          />
+                          <Text style={styles.attachToggleText}>
+                            {showAttachments
+                              ? "Hide Attachments"
+                              : `View ${attachmentPaths.length} Attachment${attachmentPaths.length > 1 ? "s" : ""}`}
+                          </Text>
+                        </LinearGradient>
+                      </TouchableOpacity>
+
+                      {showAttachments && (
+                        <Animated.View style={styles.attachmentsList}>
+                          {attachmentPaths.map((attachmentPath, index) => {
+                            const filename = getFilename(attachmentPath);
+                            const fileType = getFileType(filename);
+                            const isImage = fileType === "image";
+                            const isPdf = fileType === "pdf";
+                            const isVideo = fileType === "video";
+
+                            return (
+                              <TouchableOpacity
+                                key={`${index}_${filename}`}
+                                onPress={() =>
+                                  openAttachment(
+                                    attachmentPath,
+                                    index,
+                                    fileType,
+                                  )
+                                }
+                                style={[
+                                  styles.attachmentCard,
+                                  {
+                                    borderColor: theme.border,
+                                    backgroundColor: theme.background,
+                                  },
+                                ]}
+                                activeOpacity={0.7}
+                              >
+                                <View
+                                  style={[
+                                    styles.attachmentIconContainer,
+                                    {
+                                      backgroundColor: isImage
+                                        ? "#3b82f6" + "20"
+                                        : isPdf
+                                          ? "#ef4444" + "20"
+                                          : isVideo
+                                            ? "#8b5cf6" + "20"
+                                            : theme.primary + "20",
+                                    },
+                                  ]}
                                 >
-                                  {filename}
-                                </Text>
-                                <Text
-                                  style={{
-                                    color: theme.secondary,
-                                    fontSize: 12,
-                                  }}
+                                  {isImage && previewUrls?.[index] ? (
+                                    <Image
+                                      source={{ uri: previewUrls[index] }}
+                                      style={styles.attachmentThumb}
+                                      resizeMode="cover"
+                                    />
+                                  ) : (
+                                    <AppIcon
+                                      name={
+                                        isImage
+                                          ? "image"
+                                          : isPdf
+                                            ? "picture-as-pdf"
+                                            : isVideo
+                                              ? "play-circle"
+                                              : "attach-file"
+                                      }
+                                      size={24}
+                                      color={
+                                        isImage
+                                          ? "#3b82f6"
+                                          : isPdf
+                                            ? "#ef4444"
+                                            : isVideo
+                                              ? "#8b5cf6"
+                                              : theme.primary
+                                      }
+                                    />
+                                  )}
+                                </View>
+
+                                <View style={styles.attachmentInfo}>
+                                  <Text
+                                    style={styles.attachmentName}
+                                    numberOfLines={1}
+                                  >
+                                    {filename}
+                                  </Text>
+                                  <Text
+                                    style={[
+                                      styles.attachmentType,
+                                      { color: theme.secondary },
+                                    ]}
+                                  >
+                                    {fileType.toUpperCase()} • Tap to open
+                                  </Text>
+                                </View>
+
+                                <View
+                                  style={[
+                                    styles.attachmentAction,
+                                    { backgroundColor: theme.primary + "10" },
+                                  ]}
                                 >
-                                  Tap to open
-                                </Text>
-                              </View>
-                              <AppIcon
-                                name="open-in-new"
-                                size={18}
-                                color={theme.secondary}
-                              />
-                            </TouchableOpacity>
-                          );
-                        },
+                                  <AppIcon
+                                    name="open-in-new"
+                                    size={18}
+                                    color={theme.primary}
+                                  />
+                                </View>
+                              </TouchableOpacity>
+                            );
+                          })}
+                        </Animated.View>
                       )}
                     </View>
-                  ) : null}
+                  )}
                 </View>
-              ) : null}
-            </ScrollView>
-
-            <View
-              style={[styles.modalFooter, { borderTopColor: theme.border }]}
-            >
-              <TouchableOpacity
-                onPress={() => setShowModal(false)}
-                style={[
-                  styles.footerBtn,
-                  {
-                    borderColor: theme.border,
-                    backgroundColor: theme.background,
-                  },
-                ]}
-              >
-                <Text style={{ color: theme.text, fontWeight: "800" }}>
-                  Close
-                </Text>
-              </TouchableOpacity>
-            </View>
+              </ScrollView>
+            </Animated.View>
           </View>
-        </View>
+        </BlurView>
       </Modal>
 
       <Modal
@@ -579,173 +959,483 @@ export default function Mailbox() {
         animationType="fade"
         onRequestClose={() => setImagePreviewUri(null)}
       >
-        <View style={styles.imageModalOverlay}>
-          <TouchableOpacity
-            style={styles.imageModalClose}
-            onPress={() => setImagePreviewUri(null)}
-            activeOpacity={0.8}
-          >
-            <AppIcon name="close" size={22} color="#fff" />
-          </TouchableOpacity>
-          {imagePreviewUri ? (
-            <Image
-              source={{ uri: imagePreviewUri }}
-              style={styles.imageModalImage}
-              resizeMode="contain"
-            />
-          ) : null}
-        </View>
+        <BlurView intensity={90} tint="dark" style={StyleSheet.absoluteFill}>
+          <View style={styles.imageModalOverlay}>
+            <TouchableOpacity
+              style={styles.imageModalClose}
+              onPress={() => setImagePreviewUri(null)}
+              activeOpacity={0.8}
+            >
+              <BlurView intensity={80} style={styles.closeButtonBlur}>
+                <AppIcon name="close" size={22} color="#fff" />
+              </BlurView>
+            </TouchableOpacity>
+            {imagePreviewUri ? (
+              <Image
+                source={{ uri: imagePreviewUri }}
+                style={styles.imageModalImage}
+                resizeMode="contain"
+              />
+            ) : null}
+          </View>
+        </BlurView>
+      </Modal>
+
+      <Modal
+        visible={!!videoPreviewUri}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setVideoPreviewUri(null)}
+      >
+        <BlurView intensity={90} tint="dark" style={StyleSheet.absoluteFill}>
+          <View style={styles.imageModalOverlay}>
+            <TouchableOpacity
+              style={styles.imageModalClose}
+              onPress={() => setVideoPreviewUri(null)}
+              activeOpacity={0.8}
+            >
+              <BlurView intensity={80} style={styles.closeButtonBlur}>
+                <AppIcon name="close" size={22} color="#fff" />
+              </BlurView>
+            </TouchableOpacity>
+            {videoPreviewUri ? (
+              <View style={styles.videoContainer}>
+                <Video
+                  source={{ uri: videoPreviewUri }}
+                  style={styles.videoPlayer}
+                  resizeMode={ResizeMode.CONTAIN}
+                  useNativeControls
+                  shouldPlay
+                  isLooping={false}
+                />
+              </View>
+            ) : null}
+          </View>
+        </BlurView>
       </Modal>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  header: { paddingHorizontal: 16, paddingTop: 10, paddingBottom: 12 },
-  headerTitle: { fontSize: 22, fontWeight: "900" },
-  headerSub: { marginTop: 4, fontSize: 12, fontWeight: "700" },
+  container: {
+    flex: 1,
+  },
+  headerGradient: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 120,
+  },
+  header: {
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 16,
+  },
+  headerTop: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  headerTitle: {
+    fontSize: 28,
+    fontWeight: "900",
+    letterSpacing: -0.5,
+  },
+  accountBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    gap: 6,
+  },
+  headerSub: {
+    fontSize: 13,
+    fontWeight: "700",
+  },
   card: {
     flex: 1,
     margin: 16,
     borderWidth: 1,
-    borderRadius: 16,
+    borderRadius: 24,
     overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 5,
   },
   cardHeader: {
-    padding: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
   },
-  cardTitle: { fontSize: 16, fontWeight: "900" },
-  pageSizePills: { flexDirection: "row", gap: 8 },
-  pill: {
-    borderWidth: 1,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 999,
+  cardTitleContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
   },
-  list: { flex: 1 },
+  cardTitle: {
+    fontSize: 18,
+    fontWeight: "900",
+    letterSpacing: -0.3,
+  },
+  pageSizePills: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  pill: {
+    borderWidth: 1.5,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    minWidth: 52,
+    alignItems: "center",
+  },
+  list: {
+    flex: 1,
+  },
   row: {
     paddingHorizontal: 14,
-    paddingVertical: 12,
+    paddingVertical: 16,
     borderBottomWidth: 1,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    gap: 10,
+    gap: 12,
+    borderRadius: 16,
+    marginBottom: 4,
   },
-  rowLeft: { flexDirection: "row", alignItems: "center", gap: 10, flex: 1 },
-  unreadDot: { width: 8, height: 8, borderRadius: 10 },
-  subject: { fontSize: 14, fontWeight: "900" },
-  from: { marginTop: 3, fontSize: 12, fontWeight: "700" },
-  time: { fontSize: 12, fontWeight: "800", maxWidth: 120, textAlign: "right" },
+  rowLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    flex: 1,
+  },
+  avatarContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  avatarText: {
+    fontSize: 18,
+    fontWeight: "800",
+  },
+  subjectContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 4,
+  },
+  subject: {
+    fontSize: 15,
+    fontWeight: "700",
+    flex: 1,
+  },
+  unreadSubject: {
+    fontWeight: "900",
+  },
+  unreadBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 12,
+  },
+  unreadBadgeText: {
+    color: "#fff",
+    fontSize: 10,
+    fontWeight: "900",
+  },
+  from: {
+    fontSize: 13,
+    fontWeight: "600",
+    opacity: 0.9,
+  },
+  timeContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  time: {
+    fontSize: 13,
+    fontWeight: "700",
+  },
   loadingBox: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    padding: 18,
+    padding: 32,
+    minHeight: 300,
   },
   emptyBox: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    padding: 18,
+    padding: 32,
+    minHeight: 300,
+  },
+  emptyIconContainer: {
+    width: 96,
+    height: 96,
+    borderRadius: 32,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 16,
+  },
+  emptyTitle: {
+    fontSize: 20,
+    fontWeight: "900",
+    marginBottom: 8,
+  },
+  emptySubtitle: {
+    fontSize: 15,
+    fontWeight: "600",
   },
   footer: {
-    padding: 12,
+    padding: 16,
     borderTopWidth: 1,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
   },
   footerBtn: {
-    borderWidth: 1,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 12,
-    minWidth: 86,
+    borderWidth: 1.5,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 14,
+    flexDirection: "row",
     alignItems: "center",
+  },
+  footerBtnLeft: {
+    borderTopLeftRadius: 20,
+    borderBottomLeftRadius: 20,
+  },
+  footerBtnRight: {
+    borderTopRightRadius: 20,
+    borderBottomRightRadius: 20,
+  },
+  pageIndicator: {
+    flexDirection: "row",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    alignItems: "center",
+    gap: 4,
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.55)",
-    padding: 14,
+    padding: 20,
     justifyContent: "center",
+    alignItems: "stretch",
   },
   modalCard: {
     borderWidth: 1,
-    borderRadius: 18,
+    borderRadius: 28,
+    height: "90%",
     maxHeight: "90%",
     overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.2,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  modalGradient: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 100,
   },
   modalHeader: {
-    padding: 14,
+    padding: 20,
     flexDirection: "row",
     alignItems: "flex-start",
     justifyContent: "space-between",
-    gap: 10,
+    gap: 12,
   },
-  modalTitle: { fontSize: 18, fontWeight: "900", flex: 1 },
-  closeBtn: {
-    width: 36,
-    height: 36,
+  modalHeaderLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    flex: 1,
+  },
+  modalAvatar: {
+    width: 52,
+    height: 52,
     borderRadius: 18,
     alignItems: "center",
     justifyContent: "center",
   },
-  metaBox: {
-    marginHorizontal: 14,
-    marginBottom: 6,
-    borderWidth: 1,
-    borderRadius: 14,
-    padding: 12,
-    flexDirection: "row",
+  modalAvatarText: {
+    fontSize: 22,
+    fontWeight: "800",
+  },
+  modalSubject: {
+    fontSize: 20,
+    fontWeight: "900",
+    letterSpacing: -0.5,
+    lineHeight: 26,
+  },
+  closeBtn: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  modalMeta: {
+    marginHorizontal: 20,
+    marginBottom: 16,
+    borderRadius: 20,
+    padding: 16,
     gap: 12,
   },
-  metaLabel: { fontSize: 12, fontWeight: "800" },
-  metaValue: { marginTop: 2, fontSize: 13, fontWeight: "900" },
-  bodyText: { fontSize: 15, fontWeight: "700", lineHeight: 20 },
-  attachToggle: {
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 12,
-    alignItems: "center",
-  },
-  attachmentRow: {
-    borderWidth: 1,
-    borderRadius: 14,
-    padding: 12,
+  metaRow: {
     flexDirection: "row",
     alignItems: "center",
+    gap: 12,
+  },
+  metaValue: {
+    fontSize: 15,
+    fontWeight: "600",
+    flex: 1,
+  },
+  modalBody: {
+    paddingHorizontal: 20,
+  },
+  bodyText: {
+    fontSize: 16,
+    fontWeight: "500",
+    lineHeight: 24,
+  },
+  attachmentsSection: {
+    marginTop: 24,
+    marginBottom: 8,
+  },
+  attachToggleWrapper: {
+    borderRadius: 16,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  attachToggle: {
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     gap: 10,
   },
+  attachToggleText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "800",
+    letterSpacing: -0.3,
+  },
+  attachmentsList: {
+    marginTop: 16,
+    gap: 12,
+  },
+  attachmentCard: {
+    borderWidth: 1,
+    borderRadius: 18,
+    padding: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  attachmentIconContainer: {
+    width: 52,
+    height: 52,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
+  },
   attachmentThumb: {
+    width: "100%",
+    height: "100%",
+  },
+  attachmentInfo: {
+    flex: 1,
+    gap: 4,
+  },
+  attachmentName: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: "#1e293b",
+  },
+  attachmentType: {
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  attachmentAction: {
     width: 40,
     height: 40,
-    borderRadius: 10,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  modalFooter: { padding: 12, borderTopWidth: 1, alignItems: "flex-end" },
   imageModalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.92)",
-    padding: 14,
+    padding: 20,
     justifyContent: "center",
   },
   imageModalImage: {
     width: "100%",
     height: "80%",
+    borderRadius: 20,
+  },
+  videoContainer: {
+    width: "100%",
+    height: "80%",
+    borderRadius: 20,
+    overflow: "hidden",
+    backgroundColor: "#000",
+  },
+  videoPlayer: {
+    width: "100%",
+    height: "100%",
   },
   imageModalClose: {
     position: "absolute",
-    top: 18,
-    right: 18,
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    top: 20,
+    right: 20,
+    zIndex: 10,
+  },
+  closeButtonBlur: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(0,0,0,0.35)",
+    overflow: "hidden",
   },
 });

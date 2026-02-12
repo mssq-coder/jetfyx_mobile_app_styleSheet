@@ -97,6 +97,7 @@ const BulkEditSlTpModal = ({
   const [contentReady, setContentReady] = useState(false);
   const [activeTab, setActiveTab] = useState("ongoing"); // ongoing|pending
   const [selectedSymbol, setSelectedSymbol] = useState("");
+  const [symbolDropdownOpen, setSymbolDropdownOpen] = useState(false);
   const [selectedOrderType, setSelectedOrderType] = useState("");
   const [slValue, setSlValue] = useState("");
   const [tpValue, setTpValue] = useState("");
@@ -171,6 +172,7 @@ const BulkEditSlTpModal = ({
     if (!visible) {
       setActiveTab("ongoing");
       setSelectedSymbol("");
+      setSymbolDropdownOpen(false);
       setSelectedOrderType("");
       setSlValue("");
       setTpValue("");
@@ -182,6 +184,7 @@ const BulkEditSlTpModal = ({
 
   useEffect(() => {
     setSelectedSymbol("");
+    setSymbolDropdownOpen(false);
     setSelectedOrderType("");
     setSlValue("");
     setTpValue("");
@@ -192,8 +195,10 @@ const BulkEditSlTpModal = ({
   useEffect(() => {
     if (availableSymbols.length === 1) {
       setSelectedSymbol(availableSymbols[0]);
+      setSymbolDropdownOpen(false);
     } else if (selectedSymbol && !availableSymbols.includes(selectedSymbol)) {
       setSelectedSymbol("");
+      setSymbolDropdownOpen(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, availableSymbols.length]);
@@ -336,6 +341,7 @@ const BulkEditSlTpModal = ({
             contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 16 }}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
+            nestedScrollEnabled
           >
             {!contentReady ? (
               <View
@@ -369,29 +375,141 @@ const BulkEditSlTpModal = ({
                     fontWeight: "800",
                   }}
                 >
-                  Symbol
+                  Symbol ({availableSymbols.length})
                 </Text>
                 <View style={{ height: 10 }} />
-                <View
-                  style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}
-                >
-                  {availableSymbols.length ? (
-                    availableSymbols.map((sym) => (
-                      <Chip
-                        key={sym}
-                        theme={theme}
-                        label={sym}
-                        selected={selectedSymbol === sym}
-                        disabled={saving}
-                        onPress={() => setSelectedSymbol(sym)}
-                      />
-                    ))
-                  ) : (
-                    <Text style={{ color: theme.secondary, fontSize: 12 }}>
-                      No symbols available.
-                    </Text>
-                  )}
-                </View>
+                {availableSymbols.length ? (
+                  <>
+                    <TouchableOpacity
+                      disabled={saving || availableSymbols.length === 0}
+                      onPress={() =>
+                        setSymbolDropdownOpen((prev) => !prev)
+                      }
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        gap: 10,
+                        paddingHorizontal: 12,
+                        height: 48,
+                        borderRadius: 12,
+                        backgroundColor: theme.background,
+                        borderWidth: 1,
+                        borderColor: theme.border,
+                        opacity: saving ? 0.6 : 1,
+                      }}
+                      accessibilityRole="button"
+                      accessibilityLabel="Select symbol"
+                    >
+                      <Text
+                        style={{
+                          color: selectedSymbol ? theme.text : theme.secondary,
+                          fontSize: 13,
+                          fontWeight: "900",
+                          flex: 1,
+                        }}
+                        numberOfLines={1}
+                      >
+                        {selectedSymbol || "Select symbol"}
+                      </Text>
+
+                      <View
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                          gap: 6,
+                          flexShrink: 0,
+                        }}
+                      >
+                        <Text
+                          style={{
+                            color: theme.secondary,
+                            fontSize: 11,
+                            fontWeight: "900",
+                          }}
+                        >
+                          {availableSymbols.length}
+                        </Text>
+                        <AppIcon
+                          name={symbolDropdownOpen ? "expand-less" : "expand-more"}
+                          color={theme.secondary}
+                          size={20}
+                        />
+                      </View>
+                    </TouchableOpacity>
+
+                    {symbolDropdownOpen ? (
+                      <View
+                        style={{
+                          marginTop: 10,
+                          borderWidth: 1,
+                          borderColor: theme.border,
+                          borderRadius: 12,
+                          overflow: "hidden",
+                          backgroundColor: theme.card,
+                        }}
+                      >
+                        <View style={{ maxHeight: 220 }}>
+                          <ScrollView
+                            showsVerticalScrollIndicator={false}
+                            keyboardShouldPersistTaps="handled"
+                            nestedScrollEnabled
+                          >
+                            {availableSymbols.map((sym, idx) => {
+                              const selected = selectedSymbol === sym;
+                              return (
+                                <TouchableOpacity
+                                  key={sym}
+                                  disabled={saving}
+                                  onPress={() => {
+                                    setSelectedSymbol(sym);
+                                    setSymbolDropdownOpen(false);
+                                  }}
+                                  style={{
+                                    paddingHorizontal: 12,
+                                    paddingVertical: 12,
+                                    backgroundColor: selected
+                                      ? theme.primary + "15"
+                                      : theme.card,
+                                    borderBottomWidth:
+                                      idx === availableSymbols.length - 1 ? 0 : 1,
+                                    borderBottomColor: theme.border,
+                                    flexDirection: "row",
+                                    alignItems: "center",
+                                    justifyContent: "space-between",
+                                    gap: 10,
+                                    opacity: saving ? 0.6 : 1,
+                                  }}
+                                  accessibilityRole="button"
+                                  accessibilityLabel={`Select symbol ${sym}`}
+                                >
+                                  <Text
+                                    style={{
+                                      color: theme.text,
+                                      fontSize: 13,
+                                      fontWeight: "900",
+                                      flex: 1,
+                                    }}
+                                    numberOfLines={1}
+                                  >
+                                    {sym}
+                                  </Text>
+                                  {selected ? (
+                                    <AppIcon name="check" color={theme.primary} size={18} />
+                                  ) : null}
+                                </TouchableOpacity>
+                              );
+                            })}
+                          </ScrollView>
+                        </View>
+                      </View>
+                    ) : null}
+                  </>
+                ) : (
+                  <Text style={{ color: theme.secondary, fontSize: 12 }}>
+                    No symbols available.
+                  </Text>
+                )}
 
                 <View style={{ height: 16 }} />
 

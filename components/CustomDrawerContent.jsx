@@ -16,12 +16,14 @@ import {
 } from "react-native";
 import { useAppTheme } from "../contexts/ThemeContext";
 import AppIcon from "./AppIcon";
+import { emit } from "../utils/eventBus";
 
 export default function CustomDrawerContent(props) {
   const { theme } = useAppTheme();
   const logout = useAuthStore((s) => s.logout);
+  const refreshProfile = useAuthStore((s) => s.refreshProfile);
   const fullName = useAuthStore((s) => s.fullName);
-  const email = useAuthStore((s) => s.email);
+  const email = useAuthStore((s) => s.userEmail);
   const router = useRouter();
 
   const pushAndClose = (href) => {
@@ -114,24 +116,7 @@ export default function CustomDrawerContent(props) {
               </Text>
             </View>
 
-            {/* Edit Profile Button */}
-            <TouchableOpacity
-              style={[
-                styles.editButton,
-                {
-                  backgroundColor: theme.isDark
-                    ? "rgba(255,255,255,0.15)"
-                    : "rgba(255,255,255,0.3)",
-                },
-              ]}
-              activeOpacity={0.7}
-            >
-              <AppIcon
-                name="edit"
-                size={16}
-                color={theme.isDark ? "#fff" : theme.primary}
-              />
-            </TouchableOpacity>
+           
           </View>
         </LinearGradient>
 
@@ -141,7 +126,7 @@ export default function CustomDrawerContent(props) {
             style={[styles.menuHeader, { borderBottomColor: theme.border }]}
           >
             <Text style={[styles.menuTitle, { color: theme.secondary }]}>
-              NAVIGATION
+               MENU
             </Text>
           </View>
 
@@ -222,10 +207,11 @@ export default function CustomDrawerContent(props) {
                 { backgroundColor: theme.primary + "10" },
               ]}
               activeOpacity={0.7}
+              onPress={() => router.push("/accountSettings")}
             >
               <AppIcon name="settings" size={20} color={theme.primary} />
               <Text style={[styles.actionText, { color: theme.text }]}>
-                Settings
+                KYC
               </Text>
             </TouchableOpacity>
 
@@ -235,6 +221,7 @@ export default function CustomDrawerContent(props) {
                 { backgroundColor: theme.primary + "10" },
               ]}
               activeOpacity={0.7}
+              onPress={() => router.push("/supportTickets")}
             >
               <AppIcon name="help" size={20} color={theme.primary} />
               <Text style={[styles.actionText, { color: theme.text }]}>
@@ -247,6 +234,37 @@ export default function CustomDrawerContent(props) {
 
       {/* ================= LOGOUT SECTION ================= */}
       <View style={[styles.footer, { borderTopColor: theme.border }]}>
+        <TouchableOpacity
+          onPress={async () => {
+            try {
+              props?.navigation?.closeDrawer?.();
+            } catch (_e) {}
+            try {
+              await refreshProfile?.();
+            } catch (_e) {}
+            try {
+              emit("app:refresh");
+            } catch (_e) {}
+          }}
+          style={[
+            styles.refreshButton,
+            {
+              backgroundColor: theme.primary + "10",
+              borderColor: theme.primary + "25",
+            },
+          ]}
+          activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel="Refresh"
+        >
+          <View style={styles.refreshContent}>
+            <AppIcon name="refresh" size={18} color={theme.primary} />
+            <Text style={[styles.refreshText, { color: theme.text }]}>
+              Refresh
+            </Text>
+          </View>
+        </TouchableOpacity>
+
         <TouchableOpacity
           onPress={async () => {
             try {
@@ -415,6 +433,22 @@ const styles = StyleSheet.create({
     padding: 20,
     borderTopWidth: 1,
     gap: 12,
+  },
+  refreshButton: {
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+  },
+  refreshContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  refreshText: {
+    fontWeight: "700",
+    fontSize: 15,
   },
   logoutButton: {
     paddingVertical: 14,

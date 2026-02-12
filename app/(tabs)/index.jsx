@@ -7,6 +7,7 @@ import {
   StatusBar,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -44,7 +45,7 @@ export default function Trade() {
   const [placingOrderForId, setPlacingOrderForId] = useState(null);
   const [infoVisible, setInfoVisible] = useState(false);
   const [infoItem, setInfoItem] = useState(null);
-  // console.log("Info Item:", infoItem);
+  // //console.log("Info Item:", infoItem);
   const selectedAccountId = useAuthStore((state) => state.selectedAccountId);
 
   // Keep last rows reachable above the absolute tab bar + FAB
@@ -72,6 +73,9 @@ export default function Trade() {
   const [favouritesCount, setFavouritesCount] = useState(0);
   const [allSymbolsCount, setAllSymbolsCount] = useState(0);
   const connectionRef = useRef(null);
+  const [searchVisible, setSearchVisible] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const searchInputRef = useRef(null);
 
   // ============================
   // ✅ MAP ALL SYMBOLS (CurrencyPair) TO INSTRUMENTS
@@ -156,7 +160,8 @@ export default function Trade() {
       setAllSymbolsCount(allMapped.length);
 
       if (activeTab === "Favourites") {
-        const watchlistData = await getFavouriteWatchlistSymbols(selectedAccountId);
+        const watchlistData =
+          await getFavouriteWatchlistSymbols(selectedAccountId);
         const rows = Array.isArray(watchlistData)
           ? watchlistData
           : Array.isArray(watchlistData?.data)
@@ -231,7 +236,7 @@ export default function Trade() {
 
       // 🔥 Receive live price updates
       connection.on("ReceiveMarketUpdate", (payload) => {
-        // console.log("SignalR ReceiveMarketUpdate:", payload);
+        // //console.log("SignalR ReceiveMarketUpdate:", payload);
         /**
          * Example payload:
          * {
@@ -250,7 +255,7 @@ export default function Trade() {
         setInstruments((prev) =>
           prev.map((item) => {
             if (item.symbol !== symbol) return item;
-            // console.log(`🔔 Price update for ${symbol}:`, payload);
+            // //console.log(`🔔 Price update for ${symbol}:`, payload);
 
             // Extract digits from payload, fallback to stored digits
             const digits = payload.digits ?? item.digits ?? 5;
@@ -313,7 +318,7 @@ export default function Trade() {
               change:
                 payload?.changePercent != null
                   ? Number(payload.changePercent).toFixed(2)
-                  : item.change ?? null,
+                  : (item.change ?? null),
 
               // ============================
               // ✅ POSITIVE / NEGATIVE FLAG
@@ -339,7 +344,7 @@ export default function Trade() {
       connection
         .start()
         .then(() => {
-          // console.log("✅ SignalR connected");
+          // //console.log("✅ SignalR connected");
           connection.invoke("SubscribeAccountSymbols", selectedAccountId);
         })
         .catch((err) => {
@@ -347,7 +352,7 @@ export default function Trade() {
         });
 
       return () => {
-        console.log("🧹 Closing SignalR connection");
+        //console.log("🧹 Closing SignalR connection");
         connection.stop();
       };
     };
@@ -377,6 +382,31 @@ export default function Trade() {
     setInfoItem(null);
   };
 
+  const toggleSearch = () => {
+    setSearchVisible((prev) => {
+      const next = !prev;
+      if (next) {
+        setTimeout(() => {
+          try {
+            searchInputRef.current?.focus?.();
+          } catch {}
+        }, 50);
+      }
+      return next;
+    });
+  };
+
+  const normalizedQuery = (searchQuery || "").trim().toLowerCase();
+  const visibleInstruments = normalizedQuery
+    ? instruments.filter((it) => {
+        const symbol = String(it?.symbol ?? "").toLowerCase();
+        const desc = String(it?.description ?? "").toLowerCase();
+        return (
+          symbol.includes(normalizedQuery) || desc.includes(normalizedQuery)
+        );
+      })
+    : instruments;
+
   const placeOrder = async ({ instrumentId, symbol, lotSize, side }) => {
     if (!selectedAccountId) {
       showInfoToast("Please select an account first.", "Account missing");
@@ -405,7 +435,7 @@ export default function Trade() {
       };
 
       const response = await createOrder(payload);
-      // console.log("✅ Order created:", response);
+      // //console.log("✅ Order created:", response);
       showSuccessToast(`${side} ${symbol} ${payload.lotSize}`, "Order placed");
       setExpandedId(null);
     } catch (error) {
@@ -464,7 +494,7 @@ export default function Trade() {
           style={{
             flexDirection: "row",
             alignItems: "center",
-            justifyContent: "center",
+            justifyContent: "space-between",
             backgroundColor: theme.card,
             borderRadius: 25,
             padding: 4,
@@ -477,54 +507,120 @@ export default function Trade() {
           }}
         >
           {/* Tabs */}
-          {tabs.map((tab) => (
-            <TouchableOpacity
-              key={tab}
-              onPress={() => setActiveTab(tab)}
-              style={{
-                flex: 1,
-                paddingHorizontal: 20,
-                paddingVertical: 12,
-                borderRadius: 20,
-                backgroundColor:
-                  activeTab === tab ? theme.primary : "transparent",
-                marginHorizontal: 2,
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <View style={{ flexDirection: "row", alignItems: "center" }}>
-                <Text
-                  style={{
-                    color: activeTab === tab ? "#fff" : theme.text,
-                    fontSize: 15,
-                    fontWeight: activeTab === tab ? "600" : "500",
-                    textAlign: "center",
-                  }}
-                >
-                  {tab}
-                </Text>
-                <Text
-                  style={{
-                    marginLeft: 8,
-                    color: activeTab === tab ? "#fff" : theme.secondary,
-                    fontSize: 13,
-                    fontWeight: "700",
-                  }}
-                >
-                  {tab === "Favourites" ? favouritesCount : allSymbolsCount}
-                </Text>
-              </View>
-            </TouchableOpacity>
-          ))}
+          <View style={{ flex: 1, flexDirection: "row" }}>
+            {tabs.map((tab) => (
+              <TouchableOpacity
+                key={tab}
+                onPress={() => setActiveTab(tab)}
+                style={{
+                  flex: 1,
+                  paddingHorizontal: 20,
+                  paddingVertical: 12,
+                  borderRadius: 20,
+                  backgroundColor:
+                    activeTab === tab ? theme.primary : "transparent",
+                  marginHorizontal: 2,
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <View style={{ flexDirection: "row", alignItems: "center" }}>
+                  <Text
+                    style={{
+                      color: activeTab === tab ? "#fff" : theme.text,
+                      fontSize: 15,
+                      fontWeight: activeTab === tab ? "600" : "500",
+                      textAlign: "center",
+                    }}
+                  >
+                    {tab}
+                  </Text>
+                  <Text
+                    style={{
+                      marginLeft: 8,
+                      color: activeTab === tab ? "#fff" : theme.secondary,
+                      fontSize: 13,
+                      fontWeight: "700",
+                    }}
+                  >
+                    {tab === "Favourites" ? favouritesCount : allSymbolsCount}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          {/* Search Button */}
+          <TouchableOpacity
+            onPress={toggleSearch}
+            style={{
+              marginLeft: 6,
+              paddingHorizontal: 12,
+              paddingVertical: 10,
+              borderRadius: 16,
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+            accessibilityRole="button"
+            accessibilityLabel="Search"
+          >
+            <AppIcon
+              name={searchVisible ? "close" : "search"}
+              color={theme.secondary}
+              size={18}
+            />
+          </TouchableOpacity>
         </View>
       </View>
+
+      {/* Search bar (shown when search icon is pressed) */}
+      {searchVisible ? (
+        <View style={{ paddingHorizontal: 16, paddingBottom: 8 }}>
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              backgroundColor: theme.card,
+              borderRadius: 12,
+              paddingHorizontal: 10,
+              paddingVertical: 8,
+              borderWidth: 1,
+              borderColor: theme.border,
+              marginHorizontal: 12,
+            }}
+          >
+            <AppIcon name="search" size={16} color={theme.secondary} />
+            <TextInput
+              ref={searchInputRef}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              placeholder="Search symbols"
+              placeholderTextColor={theme.secondary}
+              style={{
+                flex: 1,
+                marginLeft: 8,
+                color: theme.text,
+                paddingVertical: 6,
+                fontSize: 14,
+              }}
+              returnKeyType="search"
+              autoCorrect={false}
+              autoCapitalize="none"
+            />
+            {searchQuery ? (
+              <TouchableOpacity onPress={() => setSearchQuery("")}>
+                <AppIcon name="close" size={16} color={theme.secondary} />
+              </TouchableOpacity>
+            ) : null}
+          </View>
+        </View>
+      ) : null}
 
       {/* Symbol List */}
       {activeTab === "All Symbols" ? (
         <AllSymbolsSectionList
           theme={theme}
-          data={instruments}
+          data={visibleInstruments}
           expandedId={expandedId}
           onToggleExpand={toggleExpand}
           lots={lots}
@@ -544,7 +640,7 @@ export default function Trade() {
       ) : (
         <GestureHandlerRootView style={{ flex: 1 }}>
           <DraggableFlatList
-            data={instruments}
+            data={visibleInstruments}
             keyExtractor={(item) => String(item.id)}
             onDragEnd={({ data }) => setInstruments(data)}
             contentContainerStyle={{ paddingBottom: listBottomPadding }}

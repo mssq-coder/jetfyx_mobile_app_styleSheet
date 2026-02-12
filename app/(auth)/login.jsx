@@ -66,7 +66,6 @@ export default function Login() {
 
   const onSubmit = async () => {
     const result = await login({ email: username, password });
-    console.log("Login result:", result);
     if (result.success) {
       // Always store last successful login for autofill
       try {

@@ -2,23 +2,23 @@ import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import {
-  Animated,
-  Dimensions,
-  RefreshControl,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    Animated,
+    Dimensions,
+    RefreshControl,
+    ScrollView,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { getUserDetails } from "../../api/getServices";
 import AppIcon from "../../components/AppIcon";
 import { useAppTheme } from "../../contexts/ThemeContext";
+import usePullToRefresh from "../../hooks/usePullToRefresh";
 import { useAuthStore } from "../../store/authStore";
 import { useUserStore } from "../../store/userStore";
-import usePullToRefresh from "../../hooks/usePullToRefresh";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const CARD_WIDTH = SCREEN_WIDTH - 40;
@@ -39,6 +39,7 @@ export default function RealAccountsScreen() {
     accounts[0];
 
   const setUserData = useUserStore((s) => s.setUserData);
+  const userData = useUserStore((s) => s.userData);
 
   const accountData = {
     id:
@@ -55,6 +56,37 @@ export default function RealAccountsScreen() {
     currency: selectedAccount?.currency || "USD",
     leverage: selectedAccount?.leverage || "1:100",
   };
+  //console.log("Selected Account Data:", accountData);
+
+  const normalizeApiPayload = (payload) => {
+    // Support multiple shapes: {data:{...}}, {...}, {data:{data:{...}}}
+    const p = payload?.data ?? payload;
+    return p?.data ?? p;
+  };
+
+  const formatYyyyMmDd = (value) => {
+    if (!value) return "—";
+    if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}/.test(value)) {
+      return value.slice(0, 10);
+    }
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return String(value);
+    const yyyy = date.getFullYear();
+    const mm = String(date.getMonth() + 1).padStart(2, "0");
+    const dd = String(date.getDate()).padStart(2, "0");
+    return `${yyyy}-${mm}-${dd}`;
+  };
+
+  const userRoot = normalizeApiPayload(userData);
+  const findAccountById = (list) => {
+    if (!Array.isArray(list) || selectedAccountId == null) return null;
+    return (
+      list.find((a) => (a?.accountId ?? a?.id) === selectedAccountId) || null
+    );
+  };
+  const accountFromUserPayload = findAccountById(userRoot?.accounts);
+  const createdAtRaw = userRoot?.createdAt || null;
+  const createdAtLabel = formatYyyyMmDd(createdAtRaw);
 
   const actionItems = [
     {
@@ -192,7 +224,7 @@ export default function RealAccountsScreen() {
     {
       icon: "calendar-today",
       label: "Created",
-      value: "2024-01-15",
+      value: createdAtLabel,
       description: "Account creation date",
       color: "#7950F2",
     },
@@ -463,7 +495,7 @@ export default function RealAccountsScreen() {
         )}
 
         {/* Performance Stats Grid */}
-        <View style={styles.statsSection}>
+        {/* <View style={styles.statsSection}>
           <View style={styles.statsSectionHeader}>
             <Text style={[styles.statsTitle, { color: theme.text }]}>
               Performance
@@ -541,125 +573,128 @@ export default function RealAccountsScreen() {
               </View>
             ))}
           </View>
-        </View>
+        </View> */}
 
-        {/* Compact Account Card */}
-        <Animated.View
-          style={[
-            styles.accountCardWrapper,
-            {
-              opacity: fadeAnim,
-              transform: [{ scale: balanceScale }, { translateY: slideAnim }],
-            },
-          ]}
-        >
-          <LinearGradient
-            colors={[theme.card, `${theme.card}ee`]}
-            style={[styles.accountCard, { borderColor: theme.border }]}
+        {activeTab === "ACTIONS" ? (
+          <Animated.View
+            style={[
+              styles.accountCardWrapper,
+              {
+                opacity: fadeAnim,
+                transform: [{ scale: balanceScale }, { translateY: slideAnim }],
+              },
+            ]}
           >
-            {/* Account Info Row */}
-            <View style={styles.accountCardHeader}>
-              <View style={styles.accountTypeRow}>
+            <LinearGradient
+              colors={[theme.card, `${theme.card}ee`]}
+              style={[styles.accountCard, { borderColor: theme.border }]}
+            >
+              {/* Account Info Row */}
+              <View style={styles.accountCardHeader}>
+                <View style={styles.accountTypeRow}>
+                  <View
+                    style={[
+                      styles.accountIconBadge,
+                      { backgroundColor: `${theme.primary}15` },
+                    ]}
+                  >
+                    <AppIcon
+                      name="account-balance-wallet"
+                      color={theme.primary}
+                      size={20}
+                    />
+                  </View>
+                  <View style={styles.accountTypeInfo}>
+                    <Text style={[styles.accountType, { color: theme.text }]}>
+                      {accountData.type}
+                    </Text>
+                    <Text
+                      style={[styles.accountId, { color: theme.secondary }]}
+                    >
+                      #{accountData.id}
+                    </Text>
+                  </View>
+                </View>
+                <View
+                  style={[styles.statusBadge, { backgroundColor: "#00E67615" }]}
+                >
+                  <View style={styles.statusDot} />
+                  <Text style={styles.statusText}>Active</Text>
+                </View>
+              </View>
+
+              {/* Balance Display */}
+              <View style={styles.balanceSection}>
+                <Text style={[styles.balanceLabel, { color: theme.secondary }]}>
+                  Available Balance
+                </Text>
+                <Text style={[styles.balanceAmount, { color: theme.text }]}>
+                  {accountData.currency}{" "}
+                  {accountData.balance.toLocaleString("en-US", {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}
+                </Text>
+              </View>
+
+              {/* Quick Stats Row */}
+              <View
+                style={[styles.quickStatsRow, { borderTopColor: theme.border }]}
+              >
+                <View style={styles.quickStatItem}>
+                  <Text
+                    style={[styles.quickStatLabel, { color: theme.secondary }]}
+                  >
+                    Equity
+                  </Text>
+                  <Text style={[styles.quickStatValue, { color: theme.text }]}>
+                    {accountData.currency}{" "}
+                    {(accountData.balance * 1.12).toLocaleString("en-US", {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}
+                  </Text>
+                </View>
                 <View
                   style={[
-                    styles.accountIconBadge,
-                    { backgroundColor: `${theme.primary}15` },
+                    styles.quickStatDivider,
+                    { backgroundColor: theme.border },
                   ]}
-                >
-                  <AppIcon
-                    name="account-balance-wallet"
-                    color={theme.primary}
-                    size={20}
-                  />
-                </View>
-                <View style={styles.accountTypeInfo}>
-                  <Text style={[styles.accountType, { color: theme.text }]}>
-                    {accountData.type}
+                />
+                <View style={styles.quickStatItem}>
+                  <Text
+                    style={[styles.quickStatLabel, { color: theme.secondary }]}
+                  >
+                    Margin
                   </Text>
-                  <Text style={[styles.accountId, { color: theme.secondary }]}>
-                    #{accountData.id}
+                  <Text style={[styles.quickStatValue, { color: theme.text }]}>
+                    {accountData.currency}{" "}
+                    {(accountData.balance * 0.85).toLocaleString("en-US", {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}
+                  </Text>
+                </View>
+                <View
+                  style={[
+                    styles.quickStatDivider,
+                    { backgroundColor: theme.border },
+                  ]}
+                />
+                <View style={styles.quickStatItem}>
+                  <Text
+                    style={[styles.quickStatLabel, { color: theme.secondary }]}
+                  >
+                    Leverage
+                  </Text>
+                  <Text style={[styles.quickStatValue, { color: theme.text }]}>
+                    {accountData.leverage}
                   </Text>
                 </View>
               </View>
-              <View
-                style={[styles.statusBadge, { backgroundColor: "#00E67615" }]}
-              >
-                <View style={styles.statusDot} />
-                <Text style={styles.statusText}>Active</Text>
-              </View>
-            </View>
-
-            {/* Balance Display */}
-            <View style={styles.balanceSection}>
-              <Text style={[styles.balanceLabel, { color: theme.secondary }]}>
-                Available Balance
-              </Text>
-              <Text style={[styles.balanceAmount, { color: theme.text }]}>
-                {accountData.currency}{" "}
-                {accountData.balance.toLocaleString("en-US", {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-                })}
-              </Text>
-            </View>
-
-            {/* Quick Stats Row */}
-            <View
-              style={[styles.quickStatsRow, { borderTopColor: theme.border }]}
-            >
-              <View style={styles.quickStatItem}>
-                <Text
-                  style={[styles.quickStatLabel, { color: theme.secondary }]}
-                >
-                  Equity
-                </Text>
-                <Text style={[styles.quickStatValue, { color: theme.text }]}>
-                  {accountData.currency}{" "}
-                  {(accountData.balance * 1.12).toLocaleString("en-US", {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                  })}
-                </Text>
-              </View>
-              <View
-                style={[
-                  styles.quickStatDivider,
-                  { backgroundColor: theme.border },
-                ]}
-              />
-              <View style={styles.quickStatItem}>
-                <Text
-                  style={[styles.quickStatLabel, { color: theme.secondary }]}
-                >
-                  Margin
-                </Text>
-                <Text style={[styles.quickStatValue, { color: theme.text }]}>
-                  {accountData.currency}{" "}
-                  {(accountData.balance * 0.85).toLocaleString("en-US", {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                  })}
-                </Text>
-              </View>
-              <View
-                style={[
-                  styles.quickStatDivider,
-                  { backgroundColor: theme.border },
-                ]}
-              />
-              <View style={styles.quickStatItem}>
-                <Text
-                  style={[styles.quickStatLabel, { color: theme.secondary }]}
-                >
-                  Leverage
-                </Text>
-                <Text style={[styles.quickStatValue, { color: theme.text }]}>
-                  {accountData.leverage}
-                </Text>
-              </View>
-            </View>
-          </LinearGradient>
-        </Animated.View>
+            </LinearGradient>
+          </Animated.View>
+        ) : null}
 
         {/* Footer Security Notice */}
         <View style={[styles.securityNotice, { backgroundColor: theme.card }]}>

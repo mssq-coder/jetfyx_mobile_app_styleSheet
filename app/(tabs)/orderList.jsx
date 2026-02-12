@@ -264,6 +264,84 @@ const OrderListScreen = () => {
     tab,
   });
 
+  const withLivePrices = useCallback(
+    (order) => {
+      if (!order || typeof order !== "object") return order;
+
+      const key = String(
+        order?.symbol ?? order?.instrument ?? order?.instrumentName ?? "",
+      )
+        .toUpperCase()
+        .trim();
+
+      if (!key) return order;
+      const meta = symbolsBySymbol?.[key];
+      if (!meta) return order;
+
+      const bid = Number(
+        meta?.bid ?? meta?.Bid ?? meta?._rawBid ?? meta?.sellPrice,
+      );
+      const ask = Number(
+        meta?.ask ?? meta?.Ask ?? meta?._rawAsk ?? meta?.buyPrice,
+      );
+
+      const metaDigits = Number(meta?.digits);
+
+      // Always prefer the latest quote values for UI display.
+      const next = { ...order };
+      if (Number.isFinite(bid) && bid > 0) next.bid = bid;
+      if (Number.isFinite(ask) && ask > 0) next.ask = ask;
+
+      const nb = Number.isFinite(next.bid) ? Number(next.bid) : 0;
+      const na = Number.isFinite(next.ask) ? Number(next.ask) : 0;
+      let nextMarket = 0;
+      if (nb > 0 && na > 0) nextMarket = (nb + na) / 2;
+      else if (na > 0) nextMarket = na;
+      else if (nb > 0) nextMarket = nb;
+      if (nextMarket > 0) next.marketPrice = nextMarket;
+
+      if (!(Number(next?.digits) >= 0) && Number.isFinite(metaDigits) && metaDigits >= 0) {
+        next.digits = metaDigits;
+      }
+      if (
+        !(Number(next?.symbolDigits) >= 0) &&
+        Number.isFinite(metaDigits) &&
+        metaDigits >= 0
+      ) {
+        next.symbolDigits = metaDigits;
+      }
+
+      // Avoid unnecessary re-renders when nothing changed.
+      const changedBid = Number(next?.bid) !== Number(order?.bid);
+      const changedAsk = Number(next?.ask) !== Number(order?.ask);
+      const changedMarket = Number(next?.marketPrice) !== Number(order?.marketPrice);
+      const changedDigits = Number(next?.digits) !== Number(order?.digits);
+      const changedSymbolDigits = Number(next?.symbolDigits) !== Number(order?.symbolDigits);
+      if (!changedBid && !changedAsk && !changedMarket && !changedDigits && !changedSymbolDigits) {
+        return order;
+      }
+
+      return next;
+    },
+    [symbolsBySymbol],
+  );
+
+  const liveEditOrder = useMemo(() => {
+    if (!editOrder) return null;
+    const editId = getOrderId(editOrder);
+    if (editId == null) return withLivePrices(editOrder);
+
+    const key = String(editId);
+    const fromOngoing = (orders || []).find(
+      (o) => String(getOrderId(o)) === key,
+    );
+    const fromPending = (pendingOrders || []).find(
+      (o) => String(getOrderId(o)) === key,
+    );
+
+    return withLivePrices(fromOngoing || fromPending || editOrder);
+  }, [editOrder, orders, pendingOrders, getOrderId, withLivePrices]);
+
   const selectedAccount = accounts?.find(
     (a) => String(a?.accountId ?? a?.id) === String(accountId),
   );
@@ -421,7 +499,7 @@ const OrderListScreen = () => {
   const renderOrderItem = useCallback(
     ({ item }) => (
       <OrderCard
-        order={item}
+        order={withLivePrices(item)}
         theme={theme}
         expandedOrderId={expandedOrderId}
         setExpandedOrderId={setExpandedOrderId}
@@ -467,6 +545,7 @@ const OrderListScreen = () => {
       updateError,
       closeSwipe,
       targetsSaving,
+      withLivePrices,
     ],
   );
 
@@ -603,7 +682,7 @@ const OrderListScreen = () => {
         <EditOrderModal
           visible={editOpen}
           theme={theme}
-          order={editOrder}
+          order={liveEditOrder}
           saving={savingUpdate}
           partialSaving={partialSaving}
           targetsSaving={targetsSaving}

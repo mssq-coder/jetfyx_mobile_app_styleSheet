@@ -79,7 +79,6 @@ export async function addSymbolToFavouriteWatchlist(accountId, symbol) {
     accountId: Number(accountId),
     symbol: String(symbol),
   };
-  console.log("API addSymbolToFavouriteWatchlist - payload:", payload);
   try {
     const response = await api.post(`/favourite-watchlist-symbols`, payload);
     

@@ -212,30 +212,9 @@ const ExpandedRow = ({
             style={{
               flexDirection: "row",
               alignItems: "center",
-              justifyContent: "space-between",
+              justifyContent: "center",
             }}
           >
-            <TouchableOpacity
-              onPress={onDecrease}
-              style={{
-                width: 24,
-                height: 24,
-                borderRadius: 12,
-                backgroundColor: `${theme.secondary}10`,
-                justifyContent: "center",
-                alignItems: "center",
-              }}
-            >
-              <Text
-                style={{
-                  fontSize: 16,
-                  color: theme.secondary,
-                  fontWeight: "600",
-                }}
-              >
-                −
-              </Text>
-            </TouchableOpacity>
 
             <View
               style={{
@@ -268,28 +247,6 @@ const ExpandedRow = ({
                 }}
               />
             </View>
-
-            <TouchableOpacity
-              onPress={onIncrease}
-              style={{
-                width: 24,
-                height: 24,
-                borderRadius: 12,
-                backgroundColor: `${theme.primary}10`,
-                justifyContent: "center",
-                alignItems: "center",
-              }}
-            >
-              <Text
-                style={{
-                  fontSize: 16,
-                  color: theme.primary,
-                  fontWeight: "600",
-                }}
-              >
-                +
-              </Text>
-            </TouchableOpacity>
           </View>
         </View>
 

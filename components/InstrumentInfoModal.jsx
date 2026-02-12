@@ -184,12 +184,12 @@ const InstrumentInfoModal = ({ visible, item, onClose, theme }) => {
                   Session Quotes
                 </Text>
                 {(() => {
-                  console.log(
-                    "sessionQuotes for",
-                    item?.symbol,
-                    ":",
-                    item?.sessionQuotes,
-                  );
+                  // //console.log(
+                  //   "sessionQuotes for",
+                  //   item?.symbol,
+                  //   ":",
+                  //   item?.sessionQuotes,
+                  // );
                   const grouped = item.sessionQuotes.reduce((acc, quote) => {
                     if (!acc[quote.dayOfWeek]) acc[quote.dayOfWeek] = {};
                     acc[quote.dayOfWeek][quote.type] = quote;

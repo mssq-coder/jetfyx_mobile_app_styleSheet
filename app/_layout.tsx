@@ -5,22 +5,25 @@ import {
   ThemeProvider,
 } from "@react-navigation/native";
 import { useFonts } from "expo-font";
+import { useRouter } from "expo-router";
 import { Drawer } from "expo-router/drawer";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect, useState } from "react";
 import "react-native-gesture-handler";
 import "react-native-reanimated";
 import Toast from "react-native-toast-message";
-import { useRouter } from "expo-router";
 
-import { useColorScheme } from "@/components/useColorScheme";
-import AppSplashScreen from "@/components/AppSplashScreen";
-import CustomDrawerContent from "../components/CustomDrawerContent";
-import { toastConfig } from "../components/ToastConfig";
-import { ThemeProvider as AppThemeProvider, useAppTheme } from "../contexts/ThemeContext";
 import AppIcon from "@/components/AppIcon";
-import { setOnAuthFailure } from "../utils/authSession";
+import AppSplashScreen from "@/components/AppSplashScreen";
+import { useColorScheme } from "@/components/useColorScheme";
+import CustomDrawerContent from "../components/CustomDrawerContent";
+import { createToastConfig } from "../components/ToastConfig";
+import {
+  ThemeProvider as AppThemeProvider,
+  useAppTheme,
+} from "../contexts/ThemeContext";
 import { useAuthStore } from "../store/authStore";
+import { setOnAuthFailure } from "../utils/authSession";
 
 export {
   // Catch any errors thrown by the Layout component.
@@ -131,7 +134,7 @@ function RootLayoutNav() {
           options={{ drawerItemStyle: { display: "none" } }}
         />
       </Drawer>
-      <Toast config={toastConfig} />
+      <Toast config={createToastConfig(theme)} />
     </ThemeProvider>
   );
 }

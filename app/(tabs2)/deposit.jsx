@@ -1,6 +1,6 @@
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
@@ -134,6 +134,7 @@ function PreviewedImage({
 
 export default function DepositScreen() {
   const { theme } = useAppTheme();
+  const params = useLocalSearchParams();
   const {
     accounts,
     sharedAccounts,
@@ -177,6 +178,25 @@ export default function DepositScreen() {
 
   const [stripeContext, setStripeContext] = useState(null);
   const [coinsContext, setCoinsContext] = useState(null);
+
+  const presetAppliedRef = useRef(false);
+  const lastPresetKeyRef = useRef(null);
+  const presetMethodRaw = useMemo(() => {
+    const v =
+      params?.presetMethod ?? params?.method ?? params?.paymentMethod ?? null;
+    if (v == null) return "";
+    return String(v);
+  }, [params]);
+
+  // If Deposit screen stays mounted, allow applying a *new* preset when params change.
+  // We still guard against re-applying the same preset repeatedly on refresh/options reload.
+  useEffect(() => {
+    const key = presetMethodRaw ? presetMethodRaw.trim().toLowerCase() : null;
+    if (key !== lastPresetKeyRef.current) {
+      presetAppliedRef.current = false;
+      lastPresetKeyRef.current = key;
+    }
+  }, [presetMethodRaw]);
 
   const accountLabel = useMemo(() => {
     if (!selectedAccount) return "Select account";
@@ -251,6 +271,67 @@ export default function DepositScreen() {
     });
     return Array.from(new Set(all));
   }, [selectedCategory]);
+
+  // Apply preset method from navigation params (e.g., from Dashboard tiles)
+  useEffect(() => {
+    if (presetAppliedRef.current) return;
+    if (!presetMethodRaw) return;
+
+    if (loadingOptions) return;
+    if (!Array.isArray(categories) || categories.length === 0) return;
+
+    const needle = presetMethodRaw.trim().toLowerCase();
+    const compact = needle.replace(/\s+/g, "");
+    const normalized =
+      compact === "creditcard" || compact === "card" ? "card" : needle;
+
+    const isCardNeedle = normalized === "card";
+
+    let found = null;
+    for (const c of categories) {
+      const catName = String(c?.name || "").toLowerCase();
+      const methods = Array.isArray(c?.methods) ? c.methods : [];
+      for (const m of methods) {
+        const mName = String(m?.name || "").toLowerCase();
+        const mKind = String(m?.kind || "").toLowerCase();
+
+        const matchByName = mName.includes(normalized) || catName.includes(normalized);
+        const matchCard =
+          isCardNeedle &&
+          (mKind.includes("card") || mName.includes("card") || catName.includes("card"));
+
+        if (matchByName || matchCard) {
+          found = { category: c, method: m };
+          break;
+        }
+      }
+      if (found) break;
+    }
+
+    if (found?.category?.id != null) {
+      setSelectedCategoryId(found.category.id);
+    }
+    if (found?.method?.name) {
+      setSelectedMethodName(found.method.name);
+
+      // Best-effort currency preselect
+      try {
+        const csv = String(found.method?.currenciesCsv || "");
+        const first = csv
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean)[0];
+        if (first && !selectedCurrency) setSelectedCurrency(first);
+      } catch (_e) {}
+    }
+
+    presetAppliedRef.current = true;
+  }, [
+    presetMethodRaw,
+    loadingOptions,
+    categories,
+    selectedCurrency,
+  ]);
 
   const currencyLimits = useMemo(() => {
     if (!selectedCurrency || !selectedCategory)

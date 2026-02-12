@@ -1,14 +1,14 @@
 import { useCallback, useState } from "react";
 import { bulkClose, deleteOrder, updateOrder } from "../../api/orders";
 import {
-  buildUpdatePayload,
-  statusForClose,
+    buildUpdatePayload,
+    statusForClose,
 } from "../../utils/order/orderHelpers";
 import {
-  showConfirmToast,
-  showErrorToast,
-  showInfoToast,
-  showSuccessToast,
+    showConfirmToast,
+    showErrorToast,
+    showInfoToast,
+    showSuccessToast,
 } from "../../utils/toast";
 
 export const useOrderManagement = ({
@@ -189,7 +189,7 @@ export const useOrderManagement = ({
       );
 
       const res = await updateOrder(oid, payload);
-      console.log("Update order result:", res);
+      //console.log("Update order result:", res);
 
       const patch = {
         stopLoss: payload.stopLoss,
@@ -390,7 +390,7 @@ export const useOrderManagement = ({
             );
 
             const result = await updateOrder(oid, payload);
-            console.log("Close order result:", result);
+            //console.log("Close order result:", result);
             removeOrderFromLists(oid);
             if (expandedOrderId === oid) setExpandedOrderId(null);
           } catch (error) {

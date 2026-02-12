@@ -1,11 +1,19 @@
 import FontAwesome from "@expo/vector-icons/FontAwesome";
 import { Tabs, useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
-import { StyleSheet, View, Text, Animated, Pressable, Platform } from "react-native";
+import {
+  Animated,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Header from "../../components/Header";
+import { useClientOnlyValue } from "../../components/useClientOnlyValue";
 import { useAppTheme } from "../../contexts/ThemeContext";
 import { useAuthStore } from "../../store/authStore";
-import { useClientOnlyValue } from "../../components/useClientOnlyValue";
 
 const styles = StyleSheet.create({
   tabButton: {
@@ -54,25 +62,33 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
   },
   tabBar: {
-    flexDirection: 'row',
-    height: Platform.OS === 'ios' ? 88 : 74,
+    flexDirection: "row",
+    height: Platform.OS === "ios" ? 88 : 74,
     paddingTop: 8,
-    paddingBottom: Platform.OS === 'ios' ? 30 : 8,
+    paddingBottom: Platform.OS === "ios" ? 30 : 8,
     borderTopWidth: 1,
-    position: 'relative',
-    overflow: 'visible',
+    position: "relative",
+    overflow: "visible",
   },
   indicatorLine: {
-    position: 'absolute',
+    position: "absolute",
     top: 0,
     height: 3,
     borderRadius: 1.5,
-    transition: 'left 0.3s ease',
+    transition: "left 0.3s ease",
   },
 });
 
 // Custom Tab Bar Icon with enhanced animations
-function TabBarIcon({ name, color, focused, theme, label, onPress, isChangingTab }) {
+function TabBarIcon({
+  name,
+  color,
+  focused,
+  theme,
+  label,
+  onPress,
+  isChangingTab,
+}) {
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const bounceAnim = useRef(new Animated.Value(0)).current;
@@ -95,7 +111,7 @@ function TabBarIcon({ name, color, focused, theme, label, onPress, isChangingTab
           useNativeDriver: true,
         }),
       ]).start();
-      
+
       // Fade in label briefly when changing tabs
       if (isChangingTab) {
         Animated.sequence([
@@ -125,14 +141,14 @@ function TabBarIcon({ name, color, focused, theme, label, onPress, isChangingTab
         friction: 12,
         useNativeDriver: true,
       }).start();
-      
+
       Animated.spring(bounceAnim, {
         toValue: 0,
         tension: 200,
         friction: 3,
         useNativeDriver: true,
       }).start();
-      
+
       Animated.timing(labelAnim, {
         toValue: 0,
         duration: 150,
@@ -158,7 +174,7 @@ function TabBarIcon({ name, color, focused, theme, label, onPress, isChangingTab
             duration: 1500,
             useNativeDriver: false,
           }),
-        ])
+        ]),
       ).start();
     } else {
       pulseAnim.stopAnimation();
@@ -197,16 +213,15 @@ function TabBarIcon({ name, color, focused, theme, label, onPress, isChangingTab
 
   return (
     <Pressable onPress={onPress} style={styles.tabButton}>
-      <Animated.View style={[styles.pulseBackground, { backgroundColor: pulseColor }]} />
-      
+      <Animated.View
+        style={[styles.pulseBackground, { backgroundColor: pulseColor }]}
+      />
+
       <Animated.View
         style={[
           styles.iconContainer,
           {
-            transform: [
-              { scale: scaleAnim },
-              { translateY: translateY }
-            ],
+            transform: [{ scale: scaleAnim }, { translateY: translateY }],
           },
         ]}
       >
@@ -226,13 +241,13 @@ function TabBarIcon({ name, color, focused, theme, label, onPress, isChangingTab
                 },
           ]}
         >
-          <FontAwesome 
-            name={name} 
-            size={20} 
-            color={focused ? "#FFFFFF" : color} 
+          <FontAwesome
+            name={name}
+            size={20}
+            color={focused ? "#FFFFFF" : color}
           />
         </Animated.View>
-        
+
         {/* Label that only shows during tab change */}
         <Animated.View
           style={[
@@ -241,10 +256,12 @@ function TabBarIcon({ name, color, focused, theme, label, onPress, isChangingTab
               opacity: labelAnim,
               transform: [
                 { translateY: Animated.multiply(labelAnim, -2) },
-                { scale: labelAnim.interpolate({
-                  inputRange: [0, 0.5, 1],
-                  outputRange: [0.8, 1.1, 1]
-                })}
+                {
+                  scale: labelAnim.interpolate({
+                    inputRange: [0, 0.5, 1],
+                    outputRange: [0.8, 1.1, 1],
+                  }),
+                },
               ],
               backgroundColor: theme.tabActive || theme.primary,
             },
@@ -270,11 +287,12 @@ function TabBarIcon({ name, color, focused, theme, label, onPress, isChangingTab
 export default function TabLayout() {
   const { theme } = useAppTheme();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const token = useAuthStore((s) => s.token);
   const hasHydrated = useAuthStore((s) => s.hasHydrated);
   const [changingTab, setChangingTab] = useState(false);
   const [activeTabIndex, setActiveTabIndex] = useState(0);
-  
+
   useEffect(() => {
     if (!hasHydrated) return;
     if (!token) {
@@ -285,28 +303,36 @@ export default function TabLayout() {
   // Map route names to better icons
   const getIconName = (routeName) => {
     switch (routeName) {
-      case 'index':
-        return 'line-chart';
-      case 'chart':
-        return 'area-chart';
-      case 'orderList':
-        return 'exchange';
-      case 'dashboard':
-        return 'sliders';
+      case "index":
+        return "line-chart";
+      case "chart":
+        return "area-chart";
+      case "orderList":
+        return "exchange";
+      case "dashboard":
+        return "sliders";
       default:
-        return 'circle';
+        return "circle";
     }
   };
 
   // Custom tab bar component
   function CustomTabBar({ state, descriptors, navigation }) {
+    const baseHeight = Platform.OS === "ios" ? 58 : 56;
+    const tabBarHeight =
+      baseHeight + Math.max(insets.bottom, Platform.OS === "ios" ? 0 : 0);
+    const tabBarPaddingBottom = Math.max(
+      insets.bottom,
+      Platform.OS === "ios" ? 0 : 8,
+    );
+
     const handleTabPress = (index, route) => {
       const isFocused = state.index === index;
-      
+
       if (!isFocused) {
         setChangingTab(true);
         setActiveTabIndex(index);
-        
+
         // Reset changing state after animation completes
         setTimeout(() => {
           setChangingTab(false);
@@ -314,7 +340,7 @@ export default function TabLayout() {
       }
 
       const event = navigation.emit({
-        type: 'tabPress',
+        type: "tabPress",
         target: route.key,
         canPreventDefault: true,
       });
@@ -325,15 +351,22 @@ export default function TabLayout() {
     };
 
     return (
-      <View style={[styles.tabBar, {
-        backgroundColor: theme.background,
-        borderTopColor: theme.border,
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: -6 },
-        shadowOpacity: 0.08,
-        shadowRadius: 12,
-        elevation: 10,
-      }]}>
+      <View
+        style={[
+          styles.tabBar,
+          {
+            backgroundColor: theme.background,
+            borderTopColor: theme.border,
+            height: tabBarHeight,
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: -6 },
+            shadowOpacity: 0.08,
+            shadowRadius: 12,
+            elevation: 10,
+            paddingBottom: tabBarPaddingBottom,
+          },
+        ]}
+      >
         {state.routes.map((route, index) => {
           const { options } = descriptors[route.key];
           const label = options.tabBarLabel || options.title || route.name;
@@ -348,17 +381,24 @@ export default function TabLayout() {
               theme={theme}
               label={label}
               onPress={() => handleTabPress(index, route)}
-              isChangingTab={changingTab && isFocused && index === activeTabIndex}
+              isChangingTab={
+                changingTab && isFocused && index === activeTabIndex
+              }
             />
           );
         })}
-        
+
         {/* Animated indicator line */}
-        <Animated.View style={[styles.indicatorLine, {
-          backgroundColor: theme.tabActive || theme.primary,
-          left: `${(100 / state.routes.length) * state.index + 12.5}%`,
-          width: `${100 / state.routes.length - 25}%`,
-        }]} />
+        <Animated.View
+          style={[
+            styles.indicatorLine,
+            {
+              backgroundColor: theme.tabActive || theme.primary,
+              left: `${(100 / state.routes.length) * state.index + 12.5}%`,
+              width: `${100 / state.routes.length - 25}%`,
+            },
+          ]}
+        />
       </View>
     );
   }

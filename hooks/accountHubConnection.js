@@ -1,7 +1,16 @@
-import { HubConnectionBuilder, LogLevel, HubConnectionState, HttpTransportType } from "@microsoft/signalr";
+import {
+    HttpTransportType,
+    HubConnectionBuilder,
+    HubConnectionState,
+    LogLevel,
+} from "@microsoft/signalr";
 import * as SecureStore from "expo-secure-store";
 
-export function createAccountHubConnection(baseURL, accountId, onAccountDetails) {
+export function createAccountHubConnection(
+  baseURL,
+  accountId,
+  onAccountDetails,
+) {
   if (!baseURL) {
     throw new Error("baseURL is required to create AccountHub connection");
   }
@@ -11,11 +20,12 @@ export function createAccountHubConnection(baseURL, accountId, onAccountDetails)
   const hubBaseUrl = normalizedBaseUrl.replace(/\/api\/?$/i, "");
   const originFromBase = hubBaseUrl;
   const originHeader = process.env.EXPO_PUBLIC_SIGNALR_ORIGIN || originFromBase;
-  const refererHeader = process.env.EXPO_PUBLIC_SIGNALR_REFERER || `${originHeader}/`;
+  const refererHeader =
+    process.env.EXPO_PUBLIC_SIGNALR_REFERER || `${originHeader}/`;
 
   const hubPath = process.env.EXPO_PUBLIC_ACCOUNT_HUB_PATH || "/accountHub";
   const hubUrl = `${hubBaseUrl}${hubPath.startsWith("/") ? "" : "/"}${hubPath}`;
-  // console.log("[SignalR] AccountHub URL:", hubUrl);
+  // //console.log("[SignalR] AccountHub URL:", hubUrl);
 
   const connection = new HubConnectionBuilder()
     .withUrl(hubUrl, {
@@ -53,12 +63,12 @@ export function createAccountHubConnection(baseURL, accountId, onAccountDetails)
   // SignalR JS matches these names case-insensitively, but logs the lowered name.
   connection.on("SubscriptionSuccess", (payload) => {
     if (isDisposed) return;
-    // console.log("[SignalR] AccountHub SubscriptionSuccess", payload ?? "");
+    // //console.log("[SignalR] AccountHub SubscriptionSuccess", payload ?? "");
   });
 
   connection.on("SubscriptionError", (payload) => {
     if (isDisposed) return;
-    // console.log("[SignalR] AccountHub SubscriptionError", payload ?? "");
+    // //console.log("[SignalR] AccountHub SubscriptionError", payload ?? "");
   });
 
   connection.onreconnected(() => {
@@ -77,9 +87,12 @@ export function createAccountHubConnection(baseURL, accountId, onAccountDetails)
   connection.onclose((error) => {
     if (isDisposed) return;
     if (error) {
-      console.error("[SignalR] AccountHub connection closed with error:", error?.message || error);
+      console.error(
+        "[SignalR] AccountHub connection closed with error:",
+        error?.message || error,
+      );
     } else {
-      // console.log("[SignalR] AccountHub connection closed gracefully");
+      // //console.log("[SignalR] AccountHub connection closed gracefully");
     }
     startPromise = null;
   });
@@ -117,7 +130,11 @@ export function createAccountHubConnection(baseURL, accountId, onAccountDetails)
           throw new Error("Connection disposed after start");
         }
 
-        if (accountId && connection.state === HubConnectionState.Connected && !isDisposed) {
+        if (
+          accountId &&
+          connection.state === HubConnectionState.Connected &&
+          !isDisposed
+        ) {
           await connection.invoke("SubscribeToAccount", accountId);
         }
 
@@ -127,7 +144,10 @@ export function createAccountHubConnection(baseURL, accountId, onAccountDetails)
 
         if (isDisposed) throw _err;
 
-        console.error("[SignalR] AccountHub connection error:", _err?.message || _err);
+        console.error(
+          "[SignalR] AccountHub connection error:",
+          _err?.message || _err,
+        );
 
         if (
           (String(_err?.message || "").includes("negotiation") ||
@@ -158,7 +178,10 @@ export function createAccountHubConnection(baseURL, accountId, onAccountDetails)
     startTimeout = setTimeout(() => {
       if (!isDisposed) {
         startConnection().catch((err) => {
-          console.error("[SignalR] Failed to start AccountHub connection:", err?.message || err);
+          console.error(
+            "[SignalR] Failed to start AccountHub connection:",
+            err?.message || err,
+          );
         });
       }
     }, 50);
@@ -172,11 +195,17 @@ export function createAccountHubConnection(baseURL, accountId, onAccountDetails)
     }
 
     try {
-      if (connection.state === HubConnectionState.Connected || connection.state === HubConnectionState.Connecting) {
+      if (
+        connection.state === HubConnectionState.Connected ||
+        connection.state === HubConnectionState.Connecting
+      ) {
         await connection.stop();
       }
     } catch (err) {
-      console.error("[SignalR] Error during AccountHub disposal:", err?.message || err);
+      console.error(
+        "[SignalR] Error during AccountHub disposal:",
+        err?.message || err,
+      );
     }
 
     startPromise = null;

@@ -2,19 +2,24 @@ import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
-  Image,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableWithoutFeedback,
-  View,
+    Image,
+    KeyboardAvoidingView,
+    Modal,
+    Platform,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableWithoutFeedback,
+    View,
 } from "react-native";
-import { getAccountType, getCountries, registerUser, verifyOtp } from "../../api/auth";
+import {
+    getAccountType,
+    getCountries,
+    registerUser,
+    verifyOtp,
+} from "../../api/auth";
 import Logo from "../../assets/images/icon.png";
 
 export default function SignUpScreen({ navigation }) {
@@ -203,7 +208,7 @@ export default function SignUpScreen({ navigation }) {
         lastName: form.lastName,
         phone,
       });
-      // console.log("Registration successful", response);
+      // //console.log("Registration successful", response);
 
       // Many endpoints return { message, statusCode, data: {...} }
       const regPayload = response && response.data ? response.data : response;
@@ -244,7 +249,7 @@ export default function SignUpScreen({ navigation }) {
         accountTypeId: String(form.accountTypeId ?? ""),
         otp,
       });
-      // console.log("OTP verification success", response);
+      // //console.log("OTP verification success", response);
       alert("OTP verified successfully");
       router.push("/(auth)/login");
     } catch (err) {

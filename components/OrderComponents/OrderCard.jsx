@@ -1,4 +1,4 @@
-import { memo, useCallback } from "react";
+import { memo, useCallback, useEffect } from "react";
 import { TouchableOpacity, View } from "react-native";
 import { Swipeable } from "react-native-gesture-handler";
 import { showInfoToast } from "../../utils/toast";
@@ -34,9 +34,15 @@ const OrderCard = ({
   const orderId = getOrderId(order);
   const isExpanded = expandedOrderId === orderId;
   const isSelected = Boolean(selectedOrderIds?.[String(orderId)]);
+  const swipeEnabled = !bulkMode && !isExpanded;
   const orderLot = getOrderLotSize(order);
   const minLot = getMinLotSizeForOrder(order);
   const multiTargetEnabled = Boolean(minLot > 0 && orderLot > minLot);
+
+  // If a card becomes expanded, make sure any open swipe actions are closed.
+  useEffect(() => {
+    if (isExpanded) closeSwipe?.();
+  }, [isExpanded, closeSwipe]);
 
   const setSwipeRef = useCallback(
     (ref) => {
@@ -112,14 +118,14 @@ const OrderCard = ({
   return (
     <Swipeable
       ref={setSwipeRef}
-      enabled={!bulkMode}
-      renderRightActions={bulkMode ? undefined : renderRightActions}
+      enabled={swipeEnabled}
+      renderRightActions={swipeEnabled ? renderRightActions : undefined}
       rightThreshold={30}
       friction={1.8}
       overshootRight={false}
       useNativeAnimations
       onSwipeableWillOpen={() => {
-        if (bulkMode) return;
+        if (!swipeEnabled) return;
         const current = swipeRefs.current.get(String(orderId));
         if (openSwipeRef.current && openSwipeRef.current !== current) {
           openSwipeRef.current?.close?.();
@@ -133,6 +139,7 @@ const OrderCard = ({
             toggleSelectedOrder(order);
             return;
           }
+          closeSwipe?.();
           setExpandedOrderId(isExpanded ? null : orderId);
         }}
         style={{

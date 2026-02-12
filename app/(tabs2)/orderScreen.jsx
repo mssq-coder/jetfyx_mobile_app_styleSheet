@@ -3,15 +3,15 @@ import { useRouter } from "expo-router";
 import * as SecureStore from "expo-secure-store";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  Animated,
-  Dimensions,
-  Modal,
-  RefreshControl,
-  ScrollView,
-  StatusBar,
-  Text,
-  TouchableOpacity,
-  View,
+    Animated,
+    Dimensions,
+    Modal,
+    RefreshControl,
+    ScrollView,
+    StatusBar,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { getAllCurrencyListFromDB } from "../../api/getServices";
@@ -26,9 +26,9 @@ import { useMarginCalculation } from "../../hooks/useMarginCalculation";
 import usePullToRefresh from "../../hooks/usePullToRefresh";
 import { useAuthStore } from "../../store/authStore";
 import {
-  showErrorToast,
-  showInfoToast,
-  showSuccessToast,
+    showErrorToast,
+    showInfoToast,
+    showSuccessToast,
 } from "../../utils/toast";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
@@ -86,10 +86,10 @@ export default function Orders() {
     );
   }, [accounts, selectedAccountId]);
   const { summary } = useAccountSummary(null, selectedAccountId, API_BASE_URL);
-  console.log("OrderScreen - currentAccount:", currentAccount, summary);
+  //console.log("OrderScreen - currentAccount:", currentAccount, summary);
 
   const [symbol, setSymbol] = useState("XAUUSD");
-  console.log("OrderScreen - selectedAccountId:", symbol, selectedAccountId);
+  //console.log("OrderScreen - selectedAccountId:", symbol, selectedAccountId);
   const [isSymbolModalVisible, setSymbolModalVisible] = useState(false);
   const [isAccountModalVisible, setAccountModalVisible] = useState(false);
   const [isTradingModalVisible, setTradingModalVisible] = useState(false);

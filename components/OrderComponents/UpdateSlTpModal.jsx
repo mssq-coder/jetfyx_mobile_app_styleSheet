@@ -30,13 +30,25 @@ const UpdateSlTpModal = ({
   styles,
 }) => {
   const liveOrder = order;
-  const side = getOrderSide(liveOrder);
+  const side = liveOrder ? getOrderSide(liveOrder) : "";
   const isBuy = side.includes('buy');
   const isSell = side.includes('sell');
-  const digits = getPriceDigits(liveOrder);
-  const step = getPriceStep(liveOrder);
-  const { buy, sell } = getBuySellValues(liveOrder);
-  const marketRef = getMarketReferencePrice(liveOrder);
+  const digits = liveOrder ? getPriceDigits(liveOrder) : 2;
+  const step = liveOrder ? getPriceStep(liveOrder) : 0.01;
+  const { buy, sell } = liveOrder
+    ? getBuySellValues(liveOrder)
+    : { buy: 0, sell: 0 };
+  const marketFromHelper = liveOrder ? getMarketReferencePrice(liveOrder) : 0;
+  const marketRef =
+    Number(marketFromHelper) > 0
+      ? Number(marketFromHelper)
+      : Number(buy) > 0 && Number(sell) > 0
+        ? (Number(buy) + Number(sell)) / 2
+        : Number(buy) > 0
+          ? Number(buy)
+          : Number(sell) > 0
+            ? Number(sell)
+            : 0;
 
   return (
     <Modal

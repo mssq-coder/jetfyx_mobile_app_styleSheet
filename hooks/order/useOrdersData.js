@@ -1,5 +1,5 @@
 import { useAuthStore } from "@/store/authStore";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getAllCurrencyListFromDB } from "../../api/getServices";
 import useAccountSummary from "../../hooks/useAccountSummary";
 import useOrderHub from "../../hooks/useOrderHub";
@@ -14,6 +14,8 @@ export const useOrdersData = ({ tab }) => {
   const [pendingOrders, setPendingOrders] = useState([]);
   const [symbolsBySymbol, setSymbolsBySymbol] = useState({});
 
+  const symbolsReloadingRef = useRef(false);
+
   useOrderHub(accountId, setOrders, setPendingOrders);
 
   const reloadSymbols = useCallback(async () => {
@@ -22,21 +24,28 @@ export const useOrdersData = ({ tab }) => {
       return;
     }
 
-    const response = await getAllCurrencyListFromDB(accountId);
-    const list = Array.isArray(response?.data)
-      ? response.data
-      : Array.isArray(response)
-        ? response
-        : [];
+    if (symbolsReloadingRef.current) return;
+    symbolsReloadingRef.current = true;
 
-    const next = {};
-    for (const item of list) {
-      const sym = item?.symbol;
-      if (!sym) continue;
-      next[String(sym).toUpperCase()] = item;
+    try {
+      const response = await getAllCurrencyListFromDB(accountId);
+      const list = Array.isArray(response?.data)
+        ? response.data
+        : Array.isArray(response)
+          ? response
+          : [];
+
+      const next = {};
+      for (const item of list) {
+        const sym = item?.symbol;
+        if (!sym) continue;
+        next[String(sym).toUpperCase()] = item;
+      }
+
+      setSymbolsBySymbol(next);
+    } finally {
+      symbolsReloadingRef.current = false;
     }
-
-    setSymbolsBySymbol(next);
   }, [accountId]);
 
   useEffect(() => {
@@ -53,6 +62,20 @@ export const useOrdersData = ({ tab }) => {
       cancelled = true;
     };
   }, [reloadSymbols]);
+
+  // Keep quotes moving: refresh symbols periodically while this hook is mounted.
+  useEffect(() => {
+    if (accountId == null) return;
+
+    const intervalMs = 1500;
+    const id = setInterval(() => {
+      reloadSymbols().catch(() => {
+        // ignore transient errors
+      });
+    }, intervalMs);
+
+    return () => clearInterval(id);
+  }, [accountId, reloadSymbols]);
 
   const selectedAccount = useMemo(() => {
     if (!accountId) return null;

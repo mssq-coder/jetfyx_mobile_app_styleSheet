@@ -1,6 +1,7 @@
 import { router } from "expo-router";
 import { useState } from "react";
 import {
+  Dimensions,
   Modal,
   Pressable,
   RefreshControl,
@@ -10,15 +11,16 @@ import {
   Text,
   TouchableOpacity,
   View,
-  Dimensions,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import AppIcon from "../../components/AppIcon";
 import { useAppTheme } from "../../contexts/ThemeContext";
-import { useAuthStore } from "../../store/authStore";
+import useAccountSummary from "../../hooks/useAccountSummary";
 import usePullToRefresh from "../../hooks/usePullToRefresh";
+import useUserHub from "../../hooks/useUserHub";
+import { useAuthStore } from "../../store/authStore";
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 
 export default function Dashboard() {
   const { theme, themeName, setAppTheme } = useAppTheme();
@@ -26,9 +28,25 @@ export default function Dashboard() {
   const [themePickerOpen, setThemePickerOpen] = useState(false);
   const fullName = useAuthStore((state) => state.fullName);
   const userId = useAuthStore((state) => state.userId);
+  const accounts = useAuthStore((state) => state.accounts);
+  const selectedAccountId = useAuthStore((state) => state.selectedAccountId);
   const refreshProfile = useAuthStore((state) => state.refreshProfile);
+  const { summary } = useUserHub(userId);
 
-  const dashboardThemes = ["light", "dark", "green", "purple"];
+  const selectedAccount =
+    (accounts || []).find(
+      (a) => String(a?.accountId ?? a?.id) === String(selectedAccountId),
+    ) || null;
+
+  const { summary: accountSummary } = useAccountSummary(
+    selectedAccount,
+    selectedAccountId,
+  );
+
+  const floatingProfit =
+    typeof accountSummary?.netPL === "number" ? accountSummary.netPL : null;
+
+  const dashboardThemes = ["light", "dark"/*, "green", "purple", "red"*/];
 
   const themeLabel = (name) => {
     switch (name) {
@@ -36,10 +54,12 @@ export default function Dashboard() {
         return "Light";
       case "dark":
         return "Dark";
-      case "green":
-        return "Green";
-      case "purple":
-        return "Purple";  
+      // case "green":
+      //   return "Green";
+      // case "purple":
+      //   return "Purple";
+      // case "red":
+      //   return "Red";
       default:
         return String(name);
     }
@@ -51,10 +71,12 @@ export default function Dashboard() {
         return "#FFFFFF";
       case "dark":
         return "#1A1A1A";
-      case "green":
-        return "#16A34A";
-      case "purple":
-        return "#8B5CF6";
+      // case "green":
+      //   return "#16A34A";
+      // case "purple":
+      //   return "#8B5CF6";
+      // case "red":
+      //   return "#DC2626";
       default:
         return "#4285F4";
     }
@@ -65,8 +87,11 @@ export default function Dashboard() {
       edges={["bottom", "left", "right"]}
       style={{ flex: 1, backgroundColor: theme.background }}
     >
-      <StatusBar 
-        backgroundColor={theme.primary} 
+      {/** Dashboard header background can differ from theme.primary */}
+      {/** (e.g. dark theme uses a paler blue per design) */}
+
+      <StatusBar
+        backgroundColor={theme.dashboardHeader || theme.primary}
         barStyle={themeName === "dark" ? "light-content" : "dark-content"}
       />
       <ScrollView
@@ -84,17 +109,24 @@ export default function Dashboard() {
         }
       >
         {/* Enhanced Header Section */}
-        <View style={[styles.headerSection, { 
-          backgroundColor: theme.primary,
-          paddingBottom: 32,
-          borderBottomLeftRadius: 24,
-          borderBottomRightRadius: 24,
-          shadowColor: "#000",
-          shadowOffset: { width: 0, height: 4 },
-          shadowOpacity: 0.15,
-          shadowRadius: 12,
-          elevation: 8,
-        }]}>
+        <View
+          style={[
+            styles.headerSection,
+            {
+              backgroundColor: theme.dashboardHeader || theme.primary,
+              paddingBottom: 32,
+              borderBottomLeftRadius: 24,
+              borderTopLeftRadius: 24,
+              borderTopRightRadius: 24,
+              borderBottomRightRadius: 24,
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.15,
+              shadowRadius: 12,
+              elevation: 8,
+            },
+          ]}
+        >
           {/* User Greeting & Theme Picker */}
           <View style={styles.headerTopRow}>
             <View style={styles.userGreeting}>
@@ -103,15 +135,23 @@ export default function Dashboard() {
             </View>
             <TouchableOpacity
               onPress={() => setThemePickerOpen(true)}
-              style={[styles.themeButton, { 
-                backgroundColor: `${theme.card}40`,
-                borderWidth: 1,
-                borderColor: `${theme.card}80`,
-              }]}
+              style={[
+                styles.themeButton,
+                {
+                  backgroundColor: `${theme.card}40`,
+                  borderWidth: 1,
+                  borderColor: `${theme.card}80`,
+                },
+              ]}
               accessibilityRole="button"
               accessibilityLabel="Change theme"
             >
-              <View style={[styles.themeDot, { backgroundColor: getThemeColor(themeName) }]} />
+              <View
+                style={[
+                  styles.themeDot,
+                  { backgroundColor: getThemeColor(themeName) },
+                ]}
+              />
               <Text style={styles.themeButtonText}>
                 {themeLabel(themeName)}
               </Text>
@@ -122,40 +162,64 @@ export default function Dashboard() {
           {/* Action Buttons Grid */}
           <View style={styles.actionGrid}>
             <TouchableOpacity
-              onPress={() => router.push("/deposit")}
+              onPress={() => router.push("/(tabs2)/deposit")}
               style={styles.actionGridItem}
             >
-              <View style={[styles.actionGridIcon, { backgroundColor: `${theme.positive}20` }]}>
-                <AppIcon name="account-balance" color={theme.positive} size={24} />
+              <View
+                style={[
+                  styles.actionGridIcon,
+                  { backgroundColor: `${theme.secondary}20` },
+                ]}
+              >
+                <AppIcon name="account-balance" color={theme.card} size={24} />
               </View>
               <Text style={styles.actionGridLabel}>Deposit</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              onPress={() => router.push("/internalTransfer")}
+              onPress={() => router.push("/(tabs2)/internalTransfer")}
               style={styles.actionGridItem}
             >
-              <View style={[styles.actionGridIcon, { backgroundColor: `${theme.primary}20` }]}>
-                <AppIcon name="compare-arrows" color={theme.positive} size={24} />
+              <View
+                style={[
+                  styles.actionGridIcon,
+                  { backgroundColor: `${theme.secondary}20` },
+                ]}
+              >
+                <AppIcon name="compare-arrows" color={theme.card} size={24} />
               </View>
               <Text style={styles.actionGridLabel}>Internal Transfer</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
-              onPress={() => router.push("/withdrawal")}
+              onPress={() => router.push("/(tabs2)/withdrawal")}
               style={styles.actionGridItem}
             >
-              <View style={[styles.actionGridIcon, { backgroundColor: `${theme.secondary}20` }]}>
-                <AppIcon name="account-balance-wallet" color={theme.positive} size={24} />
+              <View
+                style={[
+                  styles.actionGridIcon,
+                  { backgroundColor: `${theme.secondary}20` },
+                ]}
+              >
+                <AppIcon
+                  name="account-balance-wallet"
+                  color={theme.card}
+                  size={24}
+                />
               </View>
               <Text style={styles.actionGridLabel}>Withdraw</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
-              onPress={() => router.push("/more")}
+              onPress={() => router.push("/(tabs2)/more")}
               style={styles.actionGridItem}
             >
-              <View style={[styles.actionGridIcon, { backgroundColor: `${theme.headerBlue}20` }]}>
-                <AppIcon name="menu" color={theme.positive} size={24} />
+              <View
+                style={[
+                  styles.actionGridIcon,
+                  { backgroundColor: `${theme.secondary}20` },
+                ]}
+              >
+                <AppIcon name="menu" color={theme.card} size={24} />
               </View>
               <Text style={styles.actionGridLabel}>More</Text>
             </TouchableOpacity>
@@ -174,21 +238,24 @@ export default function Dashboard() {
             onPress={() => setThemePickerOpen(false)}
           >
             <Pressable
-              style={[styles.modalCard, { 
-                backgroundColor: theme.card,
-                shadowColor: "#000",
-                shadowOffset: { width: 0, height: 4 },
-                shadowOpacity: 0.2,
-                shadowRadius: 16,
-                elevation: 10,
-              }]}
+              style={[
+                styles.modalCard,
+                {
+                  backgroundColor: theme.card,
+                  shadowColor: "#000",
+                  shadowOffset: { width: 0, height: 4 },
+                  shadowOpacity: 0.2,
+                  shadowRadius: 16,
+                  elevation: 10,
+                },
+              ]}
               onPress={() => {}}
             >
               <View style={styles.modalHeader}>
                 <Text style={[styles.modalTitle, { color: theme.text }]}>
                   Choose Theme
                 </Text>
-                <TouchableOpacity 
+                <TouchableOpacity
                   onPress={() => setThemePickerOpen(false)}
                   style={styles.modalCloseButton}
                 >
@@ -196,21 +263,28 @@ export default function Dashboard() {
                 </TouchableOpacity>
               </View>
 
-              <View style={styles.modalOptions}>
+              <ScrollView
+                style={styles.modalOptions}
+                contentContainerStyle={styles.modalOptionsContent}
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+              >
                 {dashboardThemes.map((name) => {
                   const selected = themeName === name;
                   const themeColor = getThemeColor(name);
-                  
+
                   return (
                     <TouchableOpacity
                       key={name}
                       style={[
                         styles.modalOption,
-                        { 
-                          backgroundColor: selected ? `${theme.primary}15` : theme.background,
+                        {
+                          backgroundColor: selected
+                            ? `${theme.primary}15`
+                            : theme.background,
                           borderWidth: selected ? 2 : 1,
                           borderColor: selected ? theme.primary : theme.border,
-                        }
+                        },
                       ]}
                       onPress={() => {
                         setAppTheme(name);
@@ -218,28 +292,49 @@ export default function Dashboard() {
                       }}
                     >
                       <View style={styles.optionLeft}>
-                        <View style={[styles.optionColorPreview, { backgroundColor: themeColor }]} />
+                        <View
+                          style={[
+                            styles.optionColorPreview,
+                            { backgroundColor: themeColor },
+                          ]}
+                        />
                         <View>
-                          <Text style={[styles.optionText, { color: theme.text }]}>
+                          <Text
+                            style={[styles.optionText, { color: theme.text }]}
+                          >
                             {themeLabel(name)}
                           </Text>
-                          <Text style={[styles.optionDescription, { color: theme.secondary }]}>
-                            {name === "light" ? "Bright & Clean" : 
-                             name === "dark" ? "Easy on Eyes" : 
-                             name === "green" ? "Trading Focus" : "Modern & Vibrant"}
+                          <Text
+                            style={[
+                              styles.optionDescription,
+                              { color: theme.secondary },
+                            ]}
+                          >
+                            {name === "light"
+                              ? "Bright & Clean"
+                              : name === "dark"
+                                ? "Easy on Eyes"
+                                : name === "green"
+                                  ? "Trading Focus"
+                                  : "Modern & Vibrant"}
                           </Text>
                         </View>
                       </View>
 
                       {selected && (
-                        <View style={[styles.selectedIndicator, { backgroundColor: theme.primary }]}>
+                        <View
+                          style={[
+                            styles.selectedIndicator,
+                            { backgroundColor: theme.primary },
+                          ]}
+                        >
                           <AppIcon name="check" color="#FFFFFF" size={14} />
                         </View>
                       )}
                     </TouchableOpacity>
                   );
                 })}
-              </View>
+              </ScrollView>
             </Pressable>
           </Pressable>
         </Modal>
@@ -258,27 +353,27 @@ export default function Dashboard() {
           </View>
 
           <View style={styles.paymentMethodsGrid}>
-            <PaymentMethod 
-              icon="account-balance" 
-              label="Bank Transfer" 
+            <PaymentMethod
+              icon="account-balance"
+              label="Bank Transfer"
               color="#00C851"
               description="Instant"
             />
-            <PaymentMethod 
-              icon="payment" 
-              label="UPI" 
+            <PaymentMethod
+              icon="payment"
+              label="UPI"
               color="#FF6B35"
               description="Fast"
             />
-            <PaymentMethod 
-              icon="credit-card" 
-              label="Credit Card" 
+            <PaymentMethod
+              icon="credit-card"
+              label="Cards"
               color="#4285F4"
               description="Secure"
             />
-            <PaymentMethod 
-              icon="account-balance-wallet" 
-              label="E-Wallet" 
+            <PaymentMethod
+              icon="currency-bitcoin"
+              label="USDT TRC20"
               color="#8B5CF6"
               description="Easy"
             />
@@ -299,72 +394,80 @@ export default function Dashboard() {
           </View>
 
           <View style={styles.featuresGrid}>
-            <FeatureCard 
-              icon="people" 
-              title="Leverage Settings" 
+            <FeatureCard
+              icon="people"
+              title="Leverage Settings"
               description="Adjust your leverage"
               color={theme.primary}
-              onPress={() => router.push("/leverageSettings")}
+              onPress={() => router.push("/(tabs2)/leverageSettings")}
             />
-            <FeatureCard 
-              icon="content-copy" 
-              title="Copy Trading" 
+            <FeatureCard
+              icon="content-copy"
+              title="Copy Trading"
               description="Follow expert traders"
               color={theme.positive}
-              onPress={() => router.push("/copyTrading")}
+              onPress={() => router.push("/(tabs2)/copyTrade")}
             />
-            <FeatureCard 
-              icon="people-outline" 
-              title="IB Activity" 
+            <FeatureCard
+              icon="people-outline"
+              title="IB Activity"
               description="Become IB & track referrals"
               color={theme.secondary}
-              onPress={() => router.push("/ibPortal")}
+              onPress={() => router.push("/(tabs2)/ibPortal")}
             />
-            <FeatureCard 
-              icon="support-agent" 
-              title="Support" 
+            <FeatureCard
+              icon="support-agent"
+              title="Support"
               description="24/7 Customer help"
               color={theme.headerBlue}
-              onPress={() => router.push("/supportTickets")}
+              onPress={() => router.push("/(tabs2)/supportTickets")}
             />
           </View>
         </View>
 
         {/* Stats Section */}
-        <View style={styles.sectionContainer}>
+        {/* <View style={styles.sectionContainer}>
           <View style={styles.sectionHeader}>
             <Text style={[styles.sectionTitle, { color: theme.text }]}>
               Trading Stats
             </Text>
           </View>
-          
+
           <View style={styles.statsContainer}>
-            <StatCard 
-              icon="trending-up" 
-              label="Active Trades" 
-              value="12"
+            <StatCard
+              icon="trending-up"
+              label="Active Trades"
+              value={
+                summary?.totalOpenOrders != null
+                  ? String(summary.totalOpenOrders)
+                  : "—"
+              }
               color={theme.positive}
             />
-            <StatCard 
-              icon="bar-chart" 
-              label="Win Rate" 
+            <StatCard
+              icon="bar-chart"
+              label="Win Rate"
               value="78%"
               color={theme.primary}
             />
-            <StatCard 
-              icon="attach-money" 
-              label="Total P&L" 
-              value="+$2,450"
+            <StatCard
+              icon="attach-money"
+              label="Total P&L"
+              value={
+                floatingProfit != null
+                  ? `$${Number(floatingProfit).toFixed(2)}`
+                  : "—"
+              }
               color={theme.positive}
             />
-            <StatCard 
-              icon="schedule" 
-              label="Avg. Hold Time" 
+            <StatCard
+              icon="schedule"
+              label="Avg. Hold Time"
               value="4.2h"
               color={theme.secondary}
             />
           </View>
-        </View>
+        </View> */}
 
         {/* Quick Actions */}
         <View style={styles.sectionContainer}>
@@ -375,28 +478,28 @@ export default function Dashboard() {
           </View>
 
           <View style={styles.quickActions}>
-            <QuickAction 
-              icon="settings" 
-              label="Settings" 
-              onPress={() => router.push("/accountSettings")}
+            <QuickAction
+              icon="settings"
+              label="Settings"
+              onPress={() => router.push("/(tabs2)/accountSettings")}
               theme={theme}
             />
-            <QuickAction 
-              icon="help-outline" 
-              label="Help Center" 
-              onPress={() => router.push("/helpCenter")}
+            <QuickAction
+              icon="help-outline"
+              label="Help Center"
+              onPress={() => router.push("/(tabs2)/supportTickets")}
               theme={theme}
             />
-            <QuickAction 
-              icon="notifications" 
-              label="Notifications" 
+            <QuickAction
+              icon="notifications"
+              label="Notifications"
               badge={3}
-              onPress={() => router.push("/mailbox")}
+              onPress={() => router.push("/(tabs2)/mailbox")}
               theme={theme}
             />
-            <QuickAction 
-              icon="logout" 
-              label="Logout" 
+            <QuickAction
+              icon="logout"
+              label="Logout"
               isLogout={true}
               onPress={async () => {
                 try {
@@ -405,7 +508,7 @@ export default function Dashboard() {
                 } catch (err) {
                   console.warn("Logout failed", err);
                 }
-                router.push("/login");
+                router.replace("/(auth)/login");
               }}
               theme={theme}
             />
@@ -428,12 +531,35 @@ export default function Dashboard() {
 function PaymentMethod({ icon, label, color, description }) {
   const { theme } = useAppTheme();
   return (
-    <TouchableOpacity style={styles.paymentMethod}>
+    <TouchableOpacity
+      style={styles.paymentMethod}
+      onPress={() => {
+        const key = String(label || "").toLowerCase();
+        const presetMethod = key.includes("upi")
+          ? "upi"
+          : key.includes("bank")
+            ? "bank"
+            : key.includes("card")
+              ? "card"
+              : String(label || "");
+              
+
+        router.push({
+          pathname: "/(tabs2)/deposit",
+          params: { presetMethod },
+        });
+      }}
+      activeOpacity={0.8}
+      accessibilityRole="button"
+      accessibilityLabel={`Deposit via ${label}`}
+    >
       <View style={[styles.paymentIcon, { backgroundColor: `${color}20` }]}>
         <AppIcon name={icon} color={color} size={22} />
       </View>
       <Text style={[styles.paymentLabel, { color: theme.text }]}>{label}</Text>
-      <Text style={[styles.paymentDescription, { color: theme.secondary }]}>{description}</Text>
+      <Text style={[styles.paymentDescription, { color: theme.secondary }]}>
+        {description}
+      </Text>
     </TouchableOpacity>
   );
 }
@@ -442,19 +568,24 @@ function PaymentMethod({ icon, label, color, description }) {
 function FeatureCard({ icon, title, description, color, onPress }) {
   const { theme } = useAppTheme();
   return (
-    <TouchableOpacity 
+    <TouchableOpacity
       onPress={onPress}
-      style={[styles.featureCard, { 
-        backgroundColor: theme.card,
-        borderWidth: 1,
-        borderColor: theme.border,
-      }]}
+      style={[
+        styles.featureCard,
+        {
+          backgroundColor: theme.card,
+          borderWidth: 1,
+          borderColor: theme.border,
+        },
+      ]}
     >
       <View style={[styles.featureIcon, { backgroundColor: `${color}15` }]}>
         <AppIcon name={icon} color={color} size={22} />
       </View>
       <Text style={[styles.featureTitle, { color: theme.text }]}>{title}</Text>
-      <Text style={[styles.featureDescription, { color: theme.secondary }]}>{description}</Text>
+      <Text style={[styles.featureDescription, { color: theme.secondary }]}>
+        {description}
+      </Text>
     </TouchableOpacity>
   );
 }
@@ -470,7 +601,9 @@ function StatCard({ icon, label, value, color }) {
         </View>
         <Text style={[styles.statValue, { color: color }]}>{value}</Text>
       </View>
-      <Text style={[styles.statLabel, { color: theme.secondary }]}>{label}</Text>
+      <Text style={[styles.statLabel, { color: theme.secondary }]}>
+        {label}
+      </Text>
     </View>
   );
 }
@@ -478,32 +611,40 @@ function StatCard({ icon, label, value, color }) {
 // Quick Action Component
 function QuickAction({ icon, label, badge, isLogout = false, onPress, theme }) {
   return (
-    <TouchableOpacity 
+    <TouchableOpacity
       onPress={onPress}
       style={[
-        styles.quickAction, 
-        { 
+        styles.quickAction,
+        {
           backgroundColor: theme.card,
           borderColor: isLogout ? theme.negative : theme.border,
           borderWidth: isLogout ? 1 : 1,
-        }
+        },
       ]}
     >
       <View style={styles.quickActionLeft}>
-        <View style={[
-          styles.quickActionIcon, 
-          { backgroundColor: isLogout ? `${theme.negative}15` : `${theme.primary}15` }
-        ]}>
-          <AppIcon 
-            name={icon} 
-            color={isLogout ? theme.negative : theme.primary} 
-            size={20} 
+        <View
+          style={[
+            styles.quickActionIcon,
+            {
+              backgroundColor: isLogout
+                ? `${theme.negative}15`
+                : `${theme.primary}15`,
+            },
+          ]}
+        >
+          <AppIcon
+            name={icon}
+            color={isLogout ? theme.negative : theme.primary}
+            size={20}
           />
         </View>
-        <Text style={[
-          styles.quickActionLabel, 
-          { color: isLogout ? theme.negative : theme.text }
-        ]}>
+        <Text
+          style={[
+            styles.quickActionLabel,
+            { color: isLogout ? theme.negative : theme.text },
+          ]}
+        >
           {label}
         </Text>
       </View>
@@ -513,10 +654,10 @@ function QuickAction({ icon, label, badge, isLogout = false, onPress, theme }) {
             <Text style={styles.badgeText}>{badge}</Text>
           </View>
         )}
-        <AppIcon 
-          name="chevron-right" 
-          color={isLogout ? theme.negative : theme.secondary} 
-          size={18} 
+        <AppIcon
+          name="chevron-right"
+          color={isLogout ? theme.negative : theme.secondary}
+          size={18}
         />
       </View>
     </TouchableOpacity>
@@ -526,8 +667,8 @@ function QuickAction({ icon, label, badge, isLogout = false, onPress, theme }) {
 const styles = StyleSheet.create({
   scrollView: { flex: 1 },
   scrollContent: { paddingBottom: 24 },
-  headerSection: { 
-    paddingHorizontal: 20, 
+  headerSection: {
+    paddingHorizontal: 20,
     paddingTop: 20,
     marginBottom: 20,
   },
@@ -541,13 +682,13 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   welcomeText: {
-    color: 'rgba(255,255,255,0.8)',
+    color: "rgba(255,255,255,0.8)",
     fontSize: 14,
     fontWeight: "500",
     marginBottom: 4,
   },
   userName: {
-    color: '#FFFFFF',
+    color: "#FFFFFF",
     fontSize: 24,
     fontWeight: "800",
   },
@@ -565,7 +706,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   themeButtonText: {
-    color: '#FFFFFF',
+    color: "#FFFFFF",
     fontSize: 13,
     fontWeight: "600",
   },
@@ -587,13 +728,13 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   actionGridLabel: {
-    color: '#FFFFFF',
+    color: "#FFFFFF",
     fontSize: 12,
     fontWeight: "600",
     textAlign: "center",
   },
-  sectionContainer: { 
-    paddingHorizontal: 20, 
+  sectionContainer: {
+    paddingHorizontal: 20,
     marginBottom: 24,
   },
   sectionHeader: {
@@ -602,8 +743,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 16,
   },
-  sectionTitle: { 
-    fontSize: 20, 
+  sectionTitle: {
+    fontSize: 20,
     fontWeight: "800",
     letterSpacing: -0.3,
   },
@@ -619,11 +760,11 @@ const styles = StyleSheet.create({
   },
   paymentMethod: {
     width: (SCREEN_WIDTH - 60) / 2,
-    backgroundColor: 'transparent',
+    backgroundColor: "transparent",
     padding: 16,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.08)',
+    borderColor: "rgba(0,0,0,0.08)",
     alignItems: "center",
   },
   paymentIcon: {
@@ -634,8 +775,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 12,
   },
-  paymentLabel: { 
-    fontSize: 15, 
+  paymentLabel: {
+    fontSize: 15,
     fontWeight: "700",
     marginBottom: 4,
   },
@@ -687,7 +828,7 @@ const styles = StyleSheet.create({
     padding: 16,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.05)',
+    borderColor: "rgba(0,0,0,0.05)",
   },
   statTop: {
     flexDirection: "row",
@@ -751,7 +892,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
   },
   badgeText: {
-    color: '#FFFFFF',
+    color: "#FFFFFF",
     fontSize: 11,
     fontWeight: "700",
   },
@@ -779,7 +920,7 @@ const styles = StyleSheet.create({
   modalCard: {
     borderRadius: 20,
     padding: 20,
-    maxHeight: SCREEN_WIDTH,
+    maxHeight: SCREEN_HEIGHT * 0.8,
   },
   modalHeader: {
     flexDirection: "row",
@@ -795,11 +936,14 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: 'rgba(0,0,0,0.05)',
+    backgroundColor: "rgba(0,0,0,0.05)",
     justifyContent: "center",
     alignItems: "center",
   },
   modalOptions: {
+    maxHeight: SCREEN_HEIGHT * 0.55,
+  },
+  modalOptionsContent: {
     gap: 8,
   },
   modalOption: {

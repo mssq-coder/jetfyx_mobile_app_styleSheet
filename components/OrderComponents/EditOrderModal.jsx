@@ -116,10 +116,55 @@ const EditOrderModal = ({
     () => (order ? getBuySellValues(order) : { buy: 0, sell: 0 }),
     [order, getBuySellValues],
   );
-  const marketRef = useMemo(
-    () => (order ? getMarketReferencePrice(order) : 0),
-    [order, getMarketReferencePrice],
-  );
+  const toNum = (v) => {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : 0;
+  };
+
+  const getMarketRef = (o) => {
+    const ask = toNum(o?.ask ?? o?.buyPrice);
+    const bid = toNum(o?.bid ?? o?.sellPrice);
+    if (ask > 0 && bid > 0) return (ask + bid) / 2;
+    if (ask > 0) return ask;
+    if (bid > 0) return bid;
+
+    const candidates = [
+      o?.marketPrice,
+      o?.currentPrice,
+      o?.price,
+      o?.entryPrice,
+      o?.entryPriceForPendingOrders,
+    ];
+    for (const c of candidates) {
+      const n = toNum(c);
+      if (n > 0) return n;
+    }
+    return 0;
+  };
+
+  const marketPrice = useMemo(() => (order ? getMarketRef(order) : 0), [order]);
+
+  const entryPrice = useMemo(() => {
+    if (!order) return 0;
+    return (
+      order?.entryPrice ??
+      order?.entryPriceForPendingOrders ??
+      order?.entry ??
+      0
+    );
+  }, [order]);
+
+  const lotSize = useMemo(() => {
+    if (!order) return 0;
+    return order?.lotSize ?? order?.remainingLotSize ?? 0;
+  }, [order]);
+
+  const formatPrice = (price, priceDigits) => {
+    const n = toNum(price);
+    if (!n || n <= 0) return "--";
+    const d = Number.isFinite(Number(priceDigits)) ? Number(priceDigits) : 2;
+    return n.toFixed(Math.max(0, Math.min(10, d)));
+  };
 
   const busy = Boolean(saving || partialSaving || targetsSaving);
 
@@ -311,7 +356,7 @@ const EditOrderModal = ({
                       fontWeight: "900",
                     }}
                   >
-                    {marketRef > 0 ? formatWithDigits(marketRef, digits) : "--"}
+                    {formatPrice(marketPrice, digits)}
                   </Text>
                 </View>
                 <View style={{ flex: 1, alignItems: "center" }}>
@@ -342,55 +387,52 @@ const EditOrderModal = ({
                 </View>
               </View>
 
+              {/* Entry + Lot */}
+              <View
+                style={{
+                  marginTop: 10,
+                  flexDirection: "row",
+                  gap: 10,
+                  padding: 12,
+                  borderRadius: 14,
+                  backgroundColor: theme.background,
+                  borderWidth: 1,
+                  borderColor: theme.border,
+                }}
+              >
+                <View style={{ flex: 1, alignItems: "center" }}>
+                  <Text style={{ color: theme.secondary, fontSize: 11 }}>
+                    Entry
+                  </Text>
+                  <Text
+                    style={{
+                      color: theme.text,
+                      fontSize: 14,
+                      fontWeight: "900",
+                    }}
+                  >
+                    {formatPrice(entryPrice, digits)}
+                  </Text>
+                </View>
+
+                <View style={{ flex: 1, alignItems: "center" }}>
+                  <Text style={{ color: theme.secondary, fontSize: 11 }}>
+                    Lot Size
+                  </Text>
+                  <Text
+                    style={{
+                      color: theme.text,
+                      fontSize: 14,
+                      fontWeight: "900",
+                    }}
+                  >
+                    {toNum(lotSize) > 0 ? toNum(lotSize).toFixed(2) : "--"}
+                  </Text>
+                </View>
+              </View>
+
               {activeTab === "order" ? (
                 <>
-                  <View
-                    style={{ marginTop: 10, flexDirection: "row", gap: 10 }}
-                  >
-                    <View style={{ flex: 1 }}>
-                      <Text style={{ color: theme.secondary, fontSize: 11 }}>
-                        Buy
-                      </Text>
-                      <Text
-                        style={{
-                          color: theme.text,
-                          fontSize: 12,
-                          fontWeight: "800",
-                        }}
-                      >
-                        {buy > 0 ? formatWithDigits(buy, digits) : "--"}
-                      </Text>
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={{ color: theme.secondary, fontSize: 11 }}>
-                        Sell
-                      </Text>
-                      <Text
-                        style={{
-                          color: theme.text,
-                          fontSize: 12,
-                          fontWeight: "800",
-                        }}
-                      >
-                        {sell > 0 ? formatWithDigits(sell, digits) : "--"}
-                      </Text>
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={{ color: theme.secondary, fontSize: 11 }}>
-                        Step
-                      </Text>
-                      <Text
-                        style={{
-                          color: theme.text,
-                          fontSize: 12,
-                          fontWeight: "800",
-                        }}
-                      >
-                        {String(step)}
-                      </Text>
-                    </View>
-                  </View>
-
                   {/* Pending-only fields */}
                   {pending ? (
                     <View style={{ marginTop: 14, gap: 12 }}>
@@ -444,9 +486,7 @@ const EditOrderModal = ({
                           }}
                           keyboardType="decimal-pad"
                           placeholder={
-                            marketRef > 0
-                              ? formatWithDigits(marketRef, digits)
-                              : "0"
+                            marketPrice > 0 ? formatWithDigits(marketPrice, digits) : "0"
                           }
                           placeholderTextColor={theme.secondary}
                           editable={!busy}
@@ -682,8 +722,8 @@ const EditOrderModal = ({
                             onFocus={() => {
                               if (busy) return;
                               if (toNumberOrZero(slInput) > 0) return;
-                              if (marketRef > 0)
-                                setSlInput(formatWithDigits(marketRef, digits));
+                              if (marketPrice > 0)
+                                setSlInput(formatWithDigits(marketPrice, digits));
                             }}
                             style={[
                               styles.input,
@@ -806,8 +846,8 @@ const EditOrderModal = ({
                             onFocus={() => {
                               if (busy) return;
                               if (toNumberOrZero(tpInput) > 0) return;
-                              if (marketRef > 0)
-                                setTpInput(formatWithDigits(marketRef, digits));
+                              if (marketPrice > 0)
+                                setTpInput(formatWithDigits(marketPrice, digits));
                             }}
                             style={[
                               styles.input,

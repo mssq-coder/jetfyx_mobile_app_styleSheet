@@ -15,11 +15,58 @@ const OrderExpandedView = ({
   updateError,
   orderId,
 }) => {
+  const toNum = (v) => {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : 0;
+  };
+
+  const getDigits = (o, fallbackPrice) => {
+    const d = Number(o?.digits ?? o?.symbolDigits);
+    if (Number.isFinite(d) && d >= 0 && d <= 10) return d;
+
+    const ref = toNum(fallbackPrice);
+    const s = String(ref);
+    const idx = s.indexOf(".");
+    if (idx === -1) return ref > 0 && ref < 10 ? 5 : 2;
+    const decimals = Math.max(0, s.length - idx - 1);
+    return Math.min(10, Math.max(ref > 0 && ref < 10 ? 5 : 2, decimals));
+  };
+
+  const getMarketRef = (o) => {
+    const ask = toNum(o?.ask ?? o?.buyPrice);
+    const bid = toNum(o?.bid ?? o?.sellPrice);
+    if (ask > 0 && bid > 0) return (ask + bid) / 2;
+    if (ask > 0) return ask;
+    if (bid > 0) return bid;
+
+    const candidates = [
+      o?.marketPrice,
+      o?.currentPrice,
+      o?.price,
+      o?.entryPrice,
+      o?.entryPriceForPendingOrders,
+    ];
+    for (const c of candidates) {
+      const n = toNum(c);
+      if (n > 0) return n;
+    }
+    return 0;
+  };
+
+  const formatPrice = (price, digits) => {
+    const n = toNum(price);
+    if (!n || n <= 0) return "--";
+    const d = Number.isFinite(Number(digits)) ? Number(digits) : 2;
+    return n.toFixed(Math.max(0, Math.min(10, d)));
+  };
+
   const symbol =
     order.symbol ?? order.instrument ?? order.instrumentName ?? "—";
   const orderType = order.orderType ?? order.side ?? order.direction ?? "BUY";
-  const entryPrice = order.entryPrice ?? 0;
-  const marketPrice = order.marketPrice ?? 0;
+  const entryPrice =
+    order.entryPrice ?? order.entryPriceForPendingOrders ?? order.entry ?? 0;
+  const marketPrice = getMarketRef(order);
+  const priceDigits = getDigits(order, marketPrice || entryPrice);
   const lotSize = order.lotSize ?? order.remainingLotSize ?? 0;
   const pnl = order.profitOrLoss ?? 0;
   const pnlPercent = order.profitOrLossInPercentage ?? 0;
@@ -142,7 +189,7 @@ const OrderExpandedView = ({
               letterSpacing: 0.2,
             }}
           >
-            {entryPrice.toFixed(2)}
+            {formatPrice(entryPrice, priceDigits)}
           </Text>
         </View>
         <View style={{ flex: 1 }}>
@@ -164,7 +211,7 @@ const OrderExpandedView = ({
               letterSpacing: 0.2,
             }}
           >
-            {marketPrice.toFixed(2)}
+            {formatPrice(marketPrice, priceDigits)}
           </Text>
         </View>
         <View style={{ flex: 1 }}>
@@ -367,7 +414,7 @@ const OrderExpandedView = ({
               fontWeight: "700",
             }}
           >
-            {(order.stopLoss ?? 0) > 0 ? order.stopLoss.toFixed(2) : "--"}
+            {(order.stopLoss ?? 0) > 0 ? order.stopLoss : "--"}
           </Text>
         </View>
         <View style={{ flex: 1 }}>
@@ -388,9 +435,7 @@ const OrderExpandedView = ({
               fontWeight: "700",
             }}
           >
-            {(order.takeProfit ?? 0 > 0)
-              ? (order.takeProfit ?? 0).toFixed(2)
-              : "--"}
+            {(order.takeProfit ?? 0) > 0 ? order.takeProfit : "--"}
           </Text>
         </View>
         <View style={{ flex: 1 }}>

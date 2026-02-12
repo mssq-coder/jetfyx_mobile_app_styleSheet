@@ -27,19 +27,19 @@ export const ThemeProvider = ({ children }) => {
     switch (name) {
       case "dark":
         return {
-          bg: "bg-[#0d0d0d]",
-          text: "text-white",
-          card: "bg-[#3e1a1a]",
-          header: "bg-[#4285F4]",
+          bg: "bg-[#0f172a]",
+          text: "text-[#cbd5e1]",
+          card: "bg-[#1E293B]",
+          header: "bg-[#1E293B]",
           positiveBg: "bg-emerald-600",
           negativeBg: "bg-red-500",
           positiveText: "text-emerald-500",
           negativeText: "text-red-500",
-          icon: "text-[#9BA1A6]",
-          secondary: "text-[#AAAAAA]",
-          tabActive: "text-[#4285F4]",
-          tabInactive: "text-[#666666]",
-          border: "border-[#333333]",
+          icon: "text-[#a9a9a9]",
+          secondary: "text-[#94a3b8]",
+          tabActive: "text-[#339CFD]",
+          tabInactive: "text-[#94a3b8]",
+          border: "border-[#334155]",
         };
       case "green":
         return {

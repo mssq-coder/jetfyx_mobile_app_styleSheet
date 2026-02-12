@@ -1,28 +1,28 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-    ActivityIndicator,
-    Animated,
-    Modal,
-    RefreshControl,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Animated,
+  Modal,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import {
-    getClientAccountTransactions,
-    getIbInternalTransfers,
-    getUserDetails,
+  getClientAccountTransactions,
+  getIbInternalTransfers,
+  getUserDetails,
 } from "../../api/getServices";
 import { getIbOverviewDetails, getIbOverviewFinance } from "../../api/ibPortal";
 import {
-    createIbInternalTransfer,
-    createInternalTransfer,
+  createIbInternalTransfer,
+  createInternalTransfer,
 } from "../../api/Services";
 import AppIcon from "../../components/AppIcon";
 import { useAppTheme } from "../../contexts/ThemeContext";
@@ -30,15 +30,16 @@ import useAccountSummary from "../../hooks/useAccountSummary";
 import { useAuthStore } from "../../store/authStore";
 import { useUserStore } from "../../store/userStore";
 import {
-    showErrorToast,
-    showInfoToast,
-    showSuccessToast,
+  showErrorToast,
+  showInfoToast,
+  showSuccessToast,
 } from "../../utils/toast";
 
 const MINIMUM_TRANSFER_AMOUNT = 10;
 const MAXIMUM_TRANSFER_AMOUNT = 999999;
 const ITEMS_PER_PAGE = 5;
 const ACCOUNT_NUMBER_MAX_LENGTH = 10;
+const MIN_TARGET_ACCOUNT_LENGTH = 3;
 
 const formatMoney = (value) => {
   const n = Number(value || 0);
@@ -74,6 +75,22 @@ const validateAccountIds = (fromAccountId, toAccountId) => {
     return "From and To account must be different";
   }
   return "";
+};
+
+const sanitizeAmountInput = (text) => {
+  const raw = String(text ?? "");
+  let out = raw.replace(/[^0-9.]/g, "");
+  const firstDot = out.indexOf(".");
+  if (firstDot !== -1) {
+    out =
+      out.slice(0, firstDot + 1) + out.slice(firstDot + 1).replace(/\./g, "");
+  }
+  return out;
+};
+
+const parseAmount = (text) => {
+  const n = Number(sanitizeAmountInput(text));
+  return Number.isFinite(n) ? n : NaN;
 };
 
 const getAccountId = (acc) => acc?.accountId ?? acc?.id;
@@ -1176,6 +1193,12 @@ function StandardInternalTransferScreen() {
       return;
     }
 
+    const amt = parseAmount(amount);
+    if (!Number.isFinite(amt) || amt <= 0) {
+      setBetweenError("Enter a valid numeric amount");
+      return;
+    }
+
     const fromAcc = fromAccount;
     const toAcc = toAccount;
     const currency = String(fromAcc?.currency ?? "USD");
@@ -1183,7 +1206,7 @@ function StandardInternalTransferScreen() {
       accountId: fromAccId,
       accountNumber: fromAcc?.accountNumber ?? "",
       targetAccountNumber: toAcc?.accountNumber ?? "",
-      amount: Number(amount),
+      amount: amt,
       currency,
       paymentMethod: "internal",
       comment: "",
@@ -1191,7 +1214,9 @@ function StandardInternalTransferScreen() {
 
     setSubmittingBetween(true);
     try {
+      //console.log("[InternalTransfer][between] payload:", payload);
       const resp = await createInternalTransfer(payload);
+      //console.log("[InternalTransfer][between] response:", resp);
       if (Number(resp?.statusCode) === 200) {
         showSuccessToast(
           resp?.message || "Internal transfer request submitted!",
@@ -1206,6 +1231,11 @@ function StandardInternalTransferScreen() {
       await fetchHistory();
       resetBetween();
     } catch (e) {
+      console.error("[InternalTransfer][between] error:", {
+        message: e?.message,
+        status: e?.response?.status,
+        data: e?.response?.data,
+      });
       const msg =
         e?.response?.data?.message ||
         e?.message ||
@@ -1229,8 +1259,19 @@ function StandardInternalTransferScreen() {
       showInfoToast("Please select a source account.", "Missing");
       return;
     }
-    if (!toOtherAccNumber || toOtherAccNumber.length < 6) {
-      showInfoToast("Please enter a valid target account number.", "Invalid");
+    const cleanedTargetAccountNumber = String(toOtherAccNumber || "")
+      .replace(/\D+/g, "")
+      .slice(0, ACCOUNT_NUMBER_MAX_LENGTH);
+
+
+    if (
+      !cleanedTargetAccountNumber ||
+      cleanedTargetAccountNumber.length < MIN_TARGET_ACCOUNT_LENGTH
+    ) {
+      showInfoToast(
+        `Please enter a valid target account number (min ${MIN_TARGET_ACCOUNT_LENGTH} digits).`,
+        "Invalid",
+      );
       return;
     }
     if (
@@ -1257,38 +1298,49 @@ function StandardInternalTransferScreen() {
       return;
     }
 
+    const amt = parseAmount(otherAmount);
+    if (!Number.isFinite(amt) || amt <= 0) {
+      setOtherError("Enter a valid numeric amount");
+      return;
+    }
+
     const currency = String(fromAccount?.currency ?? "USD");
+    const cleanedTargetEmail = String(toOtherEmail).trim();
+    const detailsJson = JSON.stringify({
+      toOtherAccountEmail: cleanedTargetEmail,
+      Portal: "client",
+    });
     const payload = {
       accountId: fromAccId,
       accountNumber: fromAccount?.accountNumber ?? "",
-      targetAccountNumber: String(toOtherAccNumber),
-      amount: Number(otherAmount),
+      targetAccountNumber: cleanedTargetAccountNumber,
+      amount: amt,
       currency,
+      paymentMethod: "internal",
       comment: "",
-      targetEmail: String(toOtherEmail).trim(),
-      detailsJson: JSON.stringify({
-        toOtherAccountEmail: String(toOtherEmail).trim(),
-        Portal: "client",
-      }),
+      targetEmail: cleanedTargetEmail,
+      detailsJson,
+      DetailsJson: detailsJson,
     };
 
     setSubmittingAnother(true);
     try {
+      //console.log("[InternalTransfer][toAnother] payload:", payload);
       const resp = await createInternalTransfer(payload);
-      if (Number(resp?.statusCode) === 200) {
-        showSuccessToast(
-          resp?.message || "Internal transfer request submitted!",
-          "Success",
-        );
-      } else {
-        showSuccessToast(
-          resp?.message || "Internal transfer request submitted!",
-          "Submitted",
-        );
-      }
+      //console.log("[InternalTransfer][toAnother] response:", resp);
+      // axios would throw on non-2xx. If we are here, request was accepted.
+      showSuccessToast(
+        resp?.message || "Internal transfer request submitted!",
+        "Success",
+      );
       await fetchHistory();
       resetAnother();
     } catch (e) {
+      console.error("[InternalTransfer][toAnother] error:", {
+        message: e?.message,
+        status: e?.response?.status,
+        data: e?.response?.data,
+      });
       const msg =
         e?.response?.data?.message ||
         e?.message ||
@@ -1606,7 +1658,7 @@ function StandardInternalTransferScreen() {
                     </Text>
                     <TextInput
                       value={amount}
-                      onChangeText={(t) => setAmount(t)}
+                      onChangeText={(t) => setAmount(sanitizeAmountInput(t))}
                       placeholder="0.00"
                       placeholderTextColor={`${theme.text}40`}
                       keyboardType="numeric"
@@ -1789,7 +1841,9 @@ function StandardInternalTransferScreen() {
                     </Text>
                     <TextInput
                       value={otherAmount}
-                      onChangeText={(t) => setOtherAmount(t)}
+                      onChangeText={(t) =>
+                        setOtherAmount(sanitizeAmountInput(t))
+                      }
                       placeholder="0.00"
                       placeholderTextColor={`${theme.text}40`}
                       keyboardType="numeric"

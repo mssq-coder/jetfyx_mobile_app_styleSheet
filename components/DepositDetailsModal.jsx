@@ -322,7 +322,7 @@ const DepositDetailsModal = ({
                 ]}
               >
                 <View style={styles.referenceIcon}>
-                  <AppIcon name="tag" color={theme.primary} size={18} />
+                  <AppIcon name="local-offer" color={theme.primary} size={18} />
                 </View>
                 <View style={styles.referenceContent}>
                   <Text
@@ -330,29 +330,20 @@ const DepositDetailsModal = ({
                   >
                     Reference Number
                   </Text>
-                  <Text
-                    style={[styles.referenceValue, { color: theme.primary }]}
-                    numberOfLines={1}
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={{ flexGrow: 1 }}
                   >
-                    {String(resolvedReference)}
-                  </Text>
+                    <Text
+                      style={[styles.referenceValue, { color: theme.primary }]}
+                      selectable
+                    >
+                      {String(resolvedReference)}
+                    </Text>
+                  </ScrollView>
                 </View>
-                <TouchableOpacity
-                  style={[
-                    styles.copyButton,
-                    { backgroundColor: `${theme.primary}15` },
-                  ]}
-                  onPress={() => {
-                    // Implement copy to clipboard
-                  }}
-                >
-                  <AppIcon
-                    name="content-copy"
-                    color={theme.primary}
-                    size={16}
-                  />
-                </TouchableOpacity>
-              </View>
+                </View>
             )}
 
             {/* Image Preview */}
@@ -793,8 +784,8 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   referenceValue: {
-    fontSize: 18,
-    fontWeight: "800",
+    fontSize: 14,
+    fontWeight: "700",
     letterSpacing: 0.5,
   },
   copyButton: {
@@ -809,7 +800,7 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   sectionTitle: {
-    fontSize: 18,
+    fontSize: 14,
     fontWeight: "700",
     marginBottom: 12,
     letterSpacing: -0.3,

@@ -123,13 +123,6 @@ const BulkActionsBar = ({
             >
               {bulkMode ? "Bulk Actions" : "Quick Actions"}
             </Text>
-            {!bulkMode ? (
-              <AppIcon
-                name={showExpanded ? "expand-less" : "expand-more"}
-                color={theme.icon}
-                size={18}
-              />
-            ) : null}
           </TouchableOpacity>
 
           {bulkMode ? (

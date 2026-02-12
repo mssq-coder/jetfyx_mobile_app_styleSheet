@@ -82,11 +82,11 @@ const ProfitCard = ({
               quickExpanded ? "Hide quick actions" : "Show quick actions"
             }
           >
-            <AppIcon name="tune" color={theme.icon} size={20} />
+            {/* <AppIcon name="tune" color={theme.icon} size={15} /> */}
             <AppIcon
               name={quickExpanded ? "expand-less" : "expand-more"}
               color={theme.icon}
-              size={18}
+              size={20}
             />
           </TouchableOpacity>
         ) : (
@@ -103,7 +103,7 @@ const ProfitCard = ({
               opacity: 0.7,
             }}
           >
-            <AppIcon name="checklist" color={theme.icon} size={18} />
+            <AppIcon name="checklist" color={theme.icon} size={20} />
           </View>
         )}
       </View>
