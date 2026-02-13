@@ -14,7 +14,7 @@ import {
     View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { getAllCurrencyListFromDB } from "../../api/getServices";
+import { getAllCurrencyListFromDB } from "../../api/allServices";
 import { createOrder } from "../../api/orders";
 import AccountSelectorModal from "../../components/Accounts/AccountSelectorModal";
 import AppIcon from "../../components/AppIcon";

@@ -17,7 +17,7 @@ import DraggableFlatList, {
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { getFavouriteWatchlistSymbols } from "../../api/auth";
-import { getAllCurrencyListFromDB } from "../../api/getServices";
+import { getAllCurrencyListFromDB } from "../../api/allServices";
 import { createOrder } from "../../api/orders";
 import AppIcon from "../../components/AppIcon";
 import InstrumentInfoModal from "../../components/InstrumentInfoModal";

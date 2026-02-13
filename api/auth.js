@@ -1,5 +1,6 @@
 import * as SecureStore from "expo-secure-store";
 import api from "./client";
+export { getAccountType, getCountries } from "./allServices";
 
 export async function login({ email, password }) {
   const payload = { email, password };
@@ -81,7 +82,7 @@ export async function addSymbolToFavouriteWatchlist(accountId, symbol) {
   };
   try {
     const response = await api.post(`/favourite-watchlist-symbols`, payload);
-    
+
     return response.data;
   } catch (err) {
     console.error(

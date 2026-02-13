@@ -14,7 +14,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { previewFile } from "../api/getServices";
+import { previewFile } from "../api/allServices";
 import { confirmDeposit } from "../api/Services";
 import { showErrorToast, showSuccessToast } from "../utils/toast";
 import AppIcon from "./AppIcon";
@@ -343,7 +343,7 @@ const DepositDetailsModal = ({
                     </Text>
                   </ScrollView>
                 </View>
-                </View>
+              </View>
             )}
 
             {/* Image Preview */}

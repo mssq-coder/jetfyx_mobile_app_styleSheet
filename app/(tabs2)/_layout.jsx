@@ -4,6 +4,7 @@ export default function Layout() {
   return (
     <Stack>
       <Stack.Screen name="orderScreen" options={{ headerShown: false }} />
+      <Stack.Screen name="Logs" options={{ headerShown: false }} />
       <Stack.Screen name="themeChange" options={{ headerShown: false }} />
       <Stack.Screen name="more" options={{ headerShown: false }} />
       <Stack.Screen name="accountSettings" options={{ headerShown: false }} />
@@ -16,6 +17,7 @@ export default function Layout() {
       <Stack.Screen name="supportTickets" options={{ headerShown: false }} />
       <Stack.Screen name="ibPortal" options={{ headerShown: false }} />
       <Stack.Screen name="mailbox" options={{ headerShown: false }} />
+      <Stack.Screen name="ibWithdrawal" options={{ headerShown: false }} />
     </Stack>
   );
 }

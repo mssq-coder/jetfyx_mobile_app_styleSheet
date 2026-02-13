@@ -22,7 +22,7 @@ import {
   getDetailsByAmountAndCategory,
   getFinanceOptions,
   previewFile,
-} from "../../api/getServices";
+} from "../../api/allServices";
 import {
   createCoinsPayment,
   createStripePaymentIntent,
@@ -295,10 +295,13 @@ export default function DepositScreen() {
         const mName = String(m?.name || "").toLowerCase();
         const mKind = String(m?.kind || "").toLowerCase();
 
-        const matchByName = mName.includes(normalized) || catName.includes(normalized);
+        const matchByName =
+          mName.includes(normalized) || catName.includes(normalized);
         const matchCard =
           isCardNeedle &&
-          (mKind.includes("card") || mName.includes("card") || catName.includes("card"));
+          (mKind.includes("card") ||
+            mName.includes("card") ||
+            catName.includes("card"));
 
         if (matchByName || matchCard) {
           found = { category: c, method: m };
@@ -326,12 +329,7 @@ export default function DepositScreen() {
     }
 
     presetAppliedRef.current = true;
-  }, [
-    presetMethodRaw,
-    loadingOptions,
-    categories,
-    selectedCurrency,
-  ]);
+  }, [presetMethodRaw, loadingOptions, categories, selectedCurrency]);
 
   const currencyLimits = useMemo(() => {
     if (!selectedCurrency || !selectedCategory)
@@ -409,7 +407,7 @@ export default function DepositScreen() {
         setSelectedCategoryId((prev) => {
           if (prev == null) return safe?.[0]?.id ?? null;
           const exists = safe.some((c) => String(c?.id) === String(prev));
-          return exists ? prev : safe?.[0]?.id ?? null;
+          return exists ? prev : (safe?.[0]?.id ?? null);
         });
 
         setSelectedMethodName((prev) => {
@@ -418,7 +416,7 @@ export default function DepositScreen() {
           const exists = flatMethods.some(
             (m) => String(m?.name) === String(prev),
           );
-          return exists ? prev : safe?.[0]?.methods?.[0]?.name ?? null;
+          return exists ? prev : (safe?.[0]?.methods?.[0]?.name ?? null);
         });
       } catch (e) {
         setOptionsError(

@@ -1,7 +1,7 @@
 import * as FileSystem from "expo-file-system";
 import * as SecureStore from "expo-secure-store";
 import api from "./client";
-import { previewFile as previewImageFile } from "./getServices";
+import { previewFile as previewImageFile } from "./allServices";
 
 const isAbsoluteUrl = (value) => /^https?:\/\//i.test(String(value || ""));
 

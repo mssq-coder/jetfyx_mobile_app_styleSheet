@@ -1,14 +1,12 @@
-import { router, useLocalSearchParams } from "expo-router";
+import { router } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
-  Image,
   KeyboardAvoidingView,
   Platform,
   RefreshControl,
   ScrollView,
   StatusBar,
-  StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
@@ -16,425 +14,27 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
-  getClientAccountTransactions,
   getDetailsByAmountAndCategory,
   getFinanceOptions,
-  previewFile,
-} from "../../api/getServices";
-import { getIbOverviewDetails, getIbOverviewFinance } from "../../api/ibPortal";
-import { confirmIbWithdrawal } from "../../api/Services";
+} from "../../api/allServices";
 import AccountSelectorModal from "../../components/Accounts/AccountSelectorModal";
 import AppIcon from "../../components/AppIcon";
+import PreviewedImage from "../../components/PreviewedImage";
 import WithdrawalDetailsModal from "../../components/WithdrawalDetailsModal";
 import { useAppTheme } from "../../contexts/ThemeContext";
 import usePullToRefresh from "../../hooks/usePullToRefresh";
 import { useAuthStore } from "../../store/authStore";
 import {
-  showErrorToast,
-  showInfoToast,
-  showSuccessToast,
-} from "../../utils/toast";
+  filterOutDemoAccounts,
+  filterSharedAccountsOutDemo,
+} from "../../utils/accountVisibility";
+import { showErrorToast, showInfoToast } from "../../utils/toast";
+import styles from "./withdrawal.styles";
 
 const MODE = "withdrawal";
 
-function toPreviewPath(urlOrPath) {
-  if (!urlOrPath) return null;
-  const raw = String(urlOrPath);
-
-  if (raw.startsWith("file:") || raw.startsWith("data:")) return raw;
-
-  // Only decode our protected preview URLs into a relative preview path.
-  // For normal remote URLs (e.g., Azure Blob), pass through as-is so
-  // `previewFile()` can download it directly.
-  if (raw.startsWith("http://") || raw.startsWith("https://")) {
-    try {
-      const u = new URL(raw);
-      const marker = "/shared/file-preview/preview/";
-      const idx = u.pathname.indexOf(marker);
-      if (idx !== -1) {
-        const encoded = u.pathname.slice(idx + marker.length);
-        return decodeURIComponent(encoded);
-      }
-
-      if (u.hostname.toLowerCase().endsWith(".blob.core.windows.net")) {
-        const p = decodeURIComponent(u.pathname.replace(/^\//, ""));
-        const parts = p.split("/").filter(Boolean);
-        return parts.length >= 2 ? parts.slice(1).join("/") : p;
-      }
-
-      return raw;
-    } catch (_e) {
-      return raw;
-    }
-  }
-
-  return raw;
-}
-
-function PreviewedImage({ uriOrPath, style, theme, fallbackIcon = "image" }) {
-  const [uri, setUri] = useState(null);
-
-  useEffect(() => {
-    let mounted = true;
-    (async () => {
-      const p = toPreviewPath(uriOrPath);
-      if (!p) {
-        if (mounted) setUri(null);
-        return;
-      }
-
-      if (p.startsWith("file:") || p.startsWith("data:")) {
-        if (mounted) setUri(p);
-        return;
-      }
-
-      try {
-        const localUri = await previewFile(p);
-        if (mounted) setUri(localUri);
-      } catch (_e) {
-        const raw = String(uriOrPath || "");
-        const isBlob = /(^https?:\/\/[^/]+\.blob\.core\.windows\.net\/)/i.test(
-          raw,
-        );
-        if (mounted) setUri(isBlob ? null : raw);
-      }
-    })();
-
-    return () => {
-      mounted = false;
-    };
-  }, [uriOrPath]);
-
-  if (!uri) {
-    return (
-      <View
-        style={[
-          style,
-          {
-            backgroundColor: theme?.background,
-            alignItems: "center",
-            justifyContent: "center",
-          },
-        ]}
-      >
-        <AppIcon name={fallbackIcon} color={theme?.secondary} size={22} />
-      </View>
-    );
-  }
-
-  return <Image source={{ uri }} style={style} />;
-}
-
 export default function WithdrawalScreen() {
-  const params = useLocalSearchParams();
-  const flow = String(params?.flow || "").toLowerCase();
-  if (flow === "ib") {
-    return <IbWithdrawalScreen />;
-  }
-
   return <StandardWithdrawalScreen />;
-}
-
-function IbWithdrawalScreen() {
-  const { theme } = useAppTheme();
-  const { accounts, selectedAccountId } = useAuthStore();
-
-  const { refreshing, runRefresh } = usePullToRefresh();
-
-  const selectedAccount = useMemo(() => {
-    const id = selectedAccountId;
-    const found = (accounts || []).find(
-      (a) => String(a.accountId ?? a.id) === String(id),
-    );
-    return found || accounts?.[0] || null;
-  }, [accounts, selectedAccountId]);
-
-  const accountId = selectedAccount?.accountId ?? selectedAccount?.id ?? null;
-
-  const [ibDetails, setIbDetails] = useState(null);
-  const [ibFinance, setIbFinance] = useState(null);
-  const [loading, setLoading] = useState(false);
-
-  const [amount, setAmount] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-
-  const [historyLoading, setHistoryLoading] = useState(false);
-  const [history, setHistory] = useState([]);
-
-  const availableBalance = useMemo(() => {
-    const f = ibFinance || {};
-    const v =
-      f?.availableBalance ??
-      f?.availableToWithdrawal ??
-      f?.availableToWithdraw ??
-      f?.available ??
-      f?.availableBalanceToWithdraw ??
-      0;
-    const n = Number(v);
-    return Number.isFinite(n) ? n : 0;
-  }, [ibFinance]);
-
-  const displayIbAccountNumber =
-    ibDetails?.displayAccountNumber ||
-    ibDetails?.accountNumber ||
-    ibDetails?.ibAccountNumber ||
-    ibDetails?.referenceId ||
-    "—";
-
-  const loadIb = async () => {
-    if (!accountId) return;
-    setLoading(true);
-    try {
-      const [d, f] = await Promise.all([
-        getIbOverviewDetails(accountId),
-        getIbOverviewFinance(accountId),
-      ]);
-      setIbDetails(d);
-      setIbFinance(f);
-    } catch (e) {
-      showErrorToast(
-        e?.response?.data?.message || e?.message || "Failed to load IB balance",
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const loadHistory = async () => {
-    if (!accountId) return;
-    setHistoryLoading(true);
-    try {
-      const resp = await getClientAccountTransactions({
-        accountId,
-        transactionType: "IBwithdrawal",
-        includePending: true,
-      });
-      const rows = Array.isArray(resp?.data) ? resp.data : [];
-      const filtered = rows.filter(
-        (tx) =>
-          String(tx?.transactionType || "") === "IBwithdrawal" &&
-          String(tx?.paymentMethod || "") === "IBBalance",
-      );
-      setHistory(filtered);
-    } catch (e) {
-      setHistory([]);
-    } finally {
-      setHistoryLoading(false);
-    }
-  };
-
-  const handleRefresh = () =>
-    runRefresh(async () => {
-      await Promise.all([loadIb(), loadHistory()]);
-    });
-
-  useEffect(() => {
-    loadIb();
-    loadHistory();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [accountId]);
-
-  const handleSubmit = async () => {
-    if (submitting) return;
-    if (!accountId) {
-      showInfoToast("Please select an account.");
-      return;
-    }
-
-    const amt = Number(String(amount).replace(/[^0-9.]/g, ""));
-    if (!amount || !Number.isFinite(amt) || amt < 10) {
-      showInfoToast("Enter minimum amount 10.");
-      return;
-    }
-    if (amt > availableBalance) {
-      showInfoToast(
-        `Insufficient available balance. Max: $${availableBalance.toFixed(2)}`,
-      );
-      return;
-    }
-
-    setSubmitting(true);
-    try {
-      await confirmIbWithdrawal({
-        AccountId: accountId,
-        AccountNumber: String(selectedAccount?.accountNumber || ""),
-        Amount: amt,
-        Currency: "USD",
-        PaymentMethod: "IBBalance",
-        DetailsJson: {
-          paymentMethod: "IBBalance",
-          transactionType: "IBwithdrawal",
-        },
-      });
-
-      showSuccessToast("IB withdrawal request submitted.");
-      setAmount("");
-      await loadIb();
-      await loadHistory();
-    } catch (e) {
-      showErrorToast(
-        e?.response?.data?.message || e?.message || "IB withdrawal failed.",
-      );
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  return (
-    <SafeAreaView
-      style={[styles.container, { backgroundColor: theme.background }]}
-    >
-      <StatusBar backgroundColor={theme.primary} barStyle="light-content" />
-
-      <View style={[styles.header, { backgroundColor: theme.primary }]}>
-        <TouchableOpacity
-          onPress={() => router.back()}
-          style={styles.backButton}
-        >
-          <AppIcon name="arrow-back" color="#fff" size={24} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>IB Withdrawal</Text>
-      </View>
-
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        keyboardShouldPersistTaps="handled"
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
-        }
-      >
-        <View
-          style={[
-            styles.card,
-            { backgroundColor: theme.card, borderColor: theme.border },
-          ]}
-        >
-          <View style={styles.rowCenter}>
-            <AppIcon name="badge" color={theme.primary} size={20} />
-            <View style={{ flex: 1 }}>
-              <Text
-                style={[styles.cardTitle, { color: theme.text }]}
-                numberOfLines={1}
-              >
-                IB Account Number
-              </Text>
-              <Text
-                style={[styles.cardSub, { color: theme.secondary }]}
-                numberOfLines={1}
-              >
-                {displayIbAccountNumber}
-              </Text>
-            </View>
-          </View>
-        </View>
-
-        <View
-          style={[
-            styles.card,
-            { backgroundColor: theme.card, borderColor: theme.border },
-          ]}
-        >
-          <Text style={[styles.sectionTitle, { color: theme.text }]}>
-            Available
-          </Text>
-          <Text style={[styles.bigValue, { color: theme.text }]}>
-            ${availableBalance.toFixed(2)}
-          </Text>
-          {loading ? <ActivityIndicator color={theme.primary} /> : null}
-        </View>
-
-        <View
-          style={[
-            styles.card,
-            { backgroundColor: theme.card, borderColor: theme.border },
-          ]}
-        >
-          <Text style={[styles.sectionTitle, { color: theme.text }]}>
-            Amount (USD)
-          </Text>
-          <View
-            style={[
-              styles.inputRow,
-              { borderColor: theme.border, backgroundColor: theme.background },
-            ]}
-          >
-            <Text style={[styles.dollar, { color: theme.secondary }]}>$</Text>
-            <TextInput
-              value={amount}
-              onChangeText={(t) =>
-                setAmount(String(t || "").replace(/[^0-9.]/g, ""))
-              }
-              keyboardType="decimal-pad"
-              placeholder="Enter amount"
-              placeholderTextColor={theme.secondary}
-              style={[styles.amountInput, { color: theme.text }]}
-            />
-          </View>
-
-          <TouchableOpacity
-            onPress={handleSubmit}
-            disabled={submitting}
-            style={[
-              styles.primaryBtn,
-              { backgroundColor: theme.primary, opacity: submitting ? 0.7 : 1 },
-            ]}
-          >
-            <Text style={styles.primaryBtnText}>
-              {submitting ? "Submitting…" : "Request IB Withdrawal"}
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        <View
-          style={[
-            styles.card,
-            { backgroundColor: theme.card, borderColor: theme.border },
-          ]}
-        >
-          <View style={[styles.rowBetween, { marginBottom: 8 }]}>
-            <Text style={[styles.sectionTitle, { color: theme.text }]}>
-              History
-            </Text>
-            <TouchableOpacity onPress={loadHistory} activeOpacity={0.85}>
-              <AppIcon name="refresh" size={18} color={theme.primary} />
-            </TouchableOpacity>
-          </View>
-
-          {historyLoading ? <ActivityIndicator color={theme.primary} /> : null}
-          {history.length ? (
-            history.slice(0, 10).map((tx, idx) => (
-              <View
-                key={String(tx?.id ?? idx)}
-                style={[styles.historyRow, { borderColor: theme.border }]}
-              >
-                <View style={{ flex: 1 }}>
-                  <Text
-                    style={[styles.historyTitle, { color: theme.text }]}
-                    numberOfLines={1}
-                  >
-                    {String(tx?.status || tx?.state || "Pending")}
-                  </Text>
-                  <Text
-                    style={[styles.historySub, { color: theme.secondary }]}
-                    numberOfLines={1}
-                  >
-                    {String(tx?.createdAt || tx?.date || tx?.time || "")}
-                  </Text>
-                </View>
-                <Text style={[styles.historyAmt, { color: theme.text }]}>
-                  ${Number(tx?.amount || 0).toFixed(2)}
-                </Text>
-              </View>
-            ))
-          ) : (
-            <Text style={[styles.cardSub, { color: theme.secondary }]}>
-              No IB withdrawals found.
-            </Text>
-          )}
-        </View>
-      </ScrollView>
-    </SafeAreaView>
-  );
 }
 
 function StandardWithdrawalScreen() {
@@ -447,15 +47,35 @@ function StandardWithdrawalScreen() {
     setSelectedAccount,
   } = useAuthStore();
 
+  const visibleAccounts = useMemo(
+    () => filterOutDemoAccounts(accounts),
+    [accounts],
+  );
+  const visibleSharedAccounts = useMemo(
+    () => filterSharedAccountsOutDemo(sharedAccounts),
+    [sharedAccounts],
+  );
+
   const { refreshing, runRefresh } = usePullToRefresh();
+
+  useEffect(() => {
+    if (!visibleAccounts.length) return;
+    const id = selectedAccountId;
+    const exists = visibleAccounts.some(
+      (a) => String(a.accountId ?? a.id) === String(id),
+    );
+    if (!id || !exists) {
+      setSelectedAccount(visibleAccounts[0]);
+    }
+  }, [selectedAccountId, visibleAccounts, setSelectedAccount]);
 
   const selectedAccount = useMemo(() => {
     const id = selectedAccountId;
-    const found = (accounts || []).find(
+    const found = (visibleAccounts || []).find(
       (a) => String(a.accountId ?? a.id) === String(id),
     );
-    return found || accounts?.[0] || null;
-  }, [accounts, selectedAccountId]);
+    return found || visibleAccounts?.[0] || null;
+  }, [visibleAccounts, selectedAccountId]);
 
   const [accountModalOpen, setAccountModalOpen] = useState(false);
 
@@ -579,7 +199,7 @@ function StandardWithdrawalScreen() {
         setSelectedCategoryId((prev) => {
           if (prev == null) return safe?.[0]?.id ?? null;
           const exists = safe.some((c) => String(c?.id) === String(prev));
-          return exists ? prev : safe?.[0]?.id ?? null;
+          return exists ? prev : (safe?.[0]?.id ?? null);
         });
 
         setSelectedMethodName((prev) => {
@@ -588,7 +208,7 @@ function StandardWithdrawalScreen() {
           const exists = flatMethods.some(
             (m) => String(m?.name) === String(prev),
           );
-          return exists ? prev : safe?.[0]?.methods?.[0]?.name ?? null;
+          return exists ? prev : (safe?.[0]?.methods?.[0]?.name ?? null);
         });
 
         // Keep currency if still supported; otherwise reset.
@@ -1467,8 +1087,8 @@ function StandardWithdrawalScreen() {
       <AccountSelectorModal
         visible={accountModalOpen}
         onClose={() => setAccountModalOpen(false)}
-        accounts={accounts}
-        sharedAccounts={sharedAccounts}
+        accounts={visibleAccounts}
+        sharedAccounts={visibleSharedAccounts}
         fullName={fullName}
         selectedAccountId={selectedAccount?.accountId ?? selectedAccount?.id}
         onSelectAccount={(acc) => setSelectedAccount(acc)}
@@ -1512,175 +1132,3 @@ function StandardWithdrawalScreen() {
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1 },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
-  backButton: { marginRight: 16 },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#fff",
-  },
-  scrollContent: {
-    padding: 16,
-    paddingBottom: 28,
-  },
-  sectionTitle: {
-    fontSize: 14,
-    fontWeight: "700",
-    marginBottom: 10,
-  },
-  card: {
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 12,
-  },
-  rowCenter: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-  },
-  cardTitle: {
-    fontSize: 14,
-    fontWeight: "700",
-  },
-  cardSub: {
-    marginTop: 2,
-    fontSize: 12,
-    fontWeight: "600",
-  },
-  inputWrap: {
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  currencyPrefix: {
-    fontSize: 16,
-    fontWeight: "800",
-    marginRight: 8,
-  },
-  amountInput: {
-    flex: 1,
-    fontSize: 18,
-    fontWeight: "800",
-  },
-  textInput: {
-    flex: 1,
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  primaryButton: {
-    marginTop: 18,
-    borderRadius: 12,
-    paddingVertical: 12,
-    alignItems: "center",
-  },
-  primaryButtonText: {
-    color: "#fff",
-    fontSize: 15,
-    fontWeight: "800",
-  },
-  helper: {
-    marginTop: 10,
-    fontSize: 12,
-    fontWeight: "600",
-    lineHeight: 16,
-  },
-  optionCard: {
-    width: 160,
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 10,
-  },
-  optionImage: {
-    width: "100%",
-    height: 80,
-    borderRadius: 10,
-    marginBottom: 8,
-  },
-  optionTitle: {
-    fontSize: 13,
-    fontWeight: "800",
-  },
-  optionSub: {
-    marginTop: 2,
-    fontSize: 12,
-    fontWeight: "600",
-  },
-  currencyChip: {
-    borderWidth: 1,
-    borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-  },
-  currencyChipText: {
-    fontSize: 13,
-    fontWeight: "800",
-  },
-  methodLine: {
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 10,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-  },
-  methodName: {
-    fontSize: 14,
-    fontWeight: "800",
-  },
-  methodMeta: {
-    marginTop: 2,
-    fontSize: 12,
-    fontWeight: "600",
-  },
-  methodImage: {
-    width: "100%",
-    height: 160,
-    borderRadius: 12,
-    marginBottom: 10,
-  },
-
-  bigValue: {
-    fontSize: 28,
-    fontWeight: "800",
-    marginTop: 6,
-  },
-  inputRow: {
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    marginTop: 10,
-  },
-  dollar: { fontSize: 16, fontWeight: "800" },
-  amountInput: {
-    flex: 1,
-    fontSize: 16,
-    fontWeight: "700",
-    padding: 0,
-  },
-  historyRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingVertical: 10,
-    borderTopWidth: 1,
-  },
-  historyTitle: { fontSize: 13, fontWeight: "900" },
-  historySub: { marginTop: 2, fontSize: 11, fontWeight: "700" },
-  historyAmt: { fontSize: 13, fontWeight: "900" },
-});

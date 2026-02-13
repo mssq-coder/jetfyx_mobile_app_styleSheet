@@ -13,7 +13,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import {
   getClientAccountTransactions,
   getOrderHistory,
-} from "../api/getServices";
+} from "../api/allServices";
 import AppIcon from "../components/AppIcon";
 import { useAppTheme } from "../contexts/ThemeContext";
 import usePullToRefresh from "../hooks/usePullToRefresh";

@@ -7,6 +7,23 @@ export async function getAccountType() {
   return response.data;
 }
 
+export async function createAccount({ accountTypeId, email } = {}) {
+  if (accountTypeId == null) {
+    throw new Error("accountTypeId is required");
+  }
+  if (!email) {
+    throw new Error("email is required");
+  }
+
+  const payload = {
+    accountTypeId: Number(accountTypeId),
+    email: String(email),
+  };
+
+  const response = await api.post("/Accounts/CreateAccount", payload);
+  return response.data;
+}
+
 export async function getAllCurrencyListFromDB(accountId) {
   if (accountId == null) {
     throw new Error("accountId is required");
@@ -89,6 +106,7 @@ export async function getFinanceOptions(mode) {
 
 export async function getUserDetails(userId) {
   const response = await api.get(`/Users/${userId}`);
+  console.log("getUserDetails response:", response.data);
   return response.data;
 }
 

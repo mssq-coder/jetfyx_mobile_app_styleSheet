@@ -2,8 +2,8 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as SecureStore from "expo-secure-store";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
+import { getUserDetails } from "../api/allServices";
 import { login as loginApi } from "../api/auth";
-import { getUserDetails } from "../api/getServices";
 
 export const useAuthStore = create(
   persist(
@@ -155,6 +155,28 @@ export const useAuthStore = create(
           set({ error: message, loading: false });
           return { success: false, error: message };
         }
+      },
+
+      upsertAccount: (account) => {
+        if (!account) return;
+        const nextId = String(account?.accountId ?? account?.id ?? "");
+        if (!nextId) return;
+
+        const prev = get().accounts || [];
+        const exists = prev.some(
+          (a) => String(a?.accountId ?? a?.id ?? "") === nextId,
+        );
+        const nextAccounts = exists
+          ? prev.map((a) =>
+              String(a?.accountId ?? a?.id ?? "") === nextId ? account : a,
+            )
+          : [...prev, account];
+
+        set({
+          accounts: nextAccounts,
+          selectedAccountId:
+            get().selectedAccountId ?? account.accountId ?? account.id,
+        });
       },
     }),
     {

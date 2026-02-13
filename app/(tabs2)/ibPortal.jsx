@@ -21,7 +21,6 @@ import {
   getIbReferredClients,
 } from "../../api/ibPortal";
 import AppIcon from "../../components/AppIcon";
-import Header from "../../components/Header";
 import { useAppTheme } from "../../contexts/ThemeContext";
 import { useAuthStore } from "../../store/authStore";
 import { showErrorToast, showInfoToast } from "../../utils/toast";
@@ -54,9 +53,9 @@ const unwrapList = (payload, preferredKeys) => {
 const toMoney = (v) => {
   const n = Number(v);
   if (!Number.isFinite(n)) return "0.00";
-  return n.toLocaleString('en-US', {
+  return n.toLocaleString("en-US", {
     minimumFractionDigits: 2,
-    maximumFractionDigits: 2
+    maximumFractionDigits: 2,
   });
 };
 
@@ -65,10 +64,10 @@ const toDateLabel = (v) => {
   try {
     const d = new Date(v);
     if (Number.isNaN(d.getTime())) return String(v);
-    return d.toLocaleDateString('en-US', { 
-      month: 'short', 
-      day: 'numeric',
-      year: 'numeric' 
+    return d.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
     });
   } catch {
     return String(v);
@@ -98,19 +97,21 @@ const Chip = ({ label, active, onPress, theme }) => {
       style={[
         styles.chip,
         {
-          backgroundColor: active ? theme?.primary : 'transparent',
+          backgroundColor: active ? theme?.primary : "transparent",
           borderColor: active ? theme?.primary : theme?.border,
           borderWidth: active ? 0 : 1,
         },
       ]}
     >
-      <Text style={[
-        styles.chipText, 
-        { 
-          color: active ? "#fff" : theme?.secondaryText,
-          fontWeight: active ? '700' : '600'
-        }
-      ]}>
+      <Text
+        style={[
+          styles.chipText,
+          {
+            color: active ? "#fff" : theme?.secondaryText,
+            fontWeight: active ? "700" : "600",
+          },
+        ]}
+      >
         {label}
       </Text>
     </TouchableOpacity>
@@ -125,19 +126,23 @@ const StatCard = ({ label, value, icon, theme, subValue, trend }) => {
           <AppIcon name={icon} size={20} color={theme?.primary} />
         </View>
         {trend && (
-          <View style={[
-            styles.trendBadge,
-            { backgroundColor: trend > 0 ? '#10B98120' : '#EF444420' }
-          ]}>
-            <AppIcon 
-              name={trend > 0 ? "trending-up" : "trending-down"} 
-              size={12} 
-              color={trend > 0 ? '#10B981' : '#EF4444'} 
+          <View
+            style={[
+              styles.trendBadge,
+              { backgroundColor: trend > 0 ? "#10B98120" : "#EF444420" },
+            ]}
+          >
+            <AppIcon
+              name={trend > 0 ? "trending-up" : "trending-down"}
+              size={12}
+              color={trend > 0 ? "#10B981" : "#EF4444"}
             />
-            <Text style={[
-              styles.trendText,
-              { color: trend > 0 ? '#10B981' : '#EF4444' }
-            ]}>
+            <Text
+              style={[
+                styles.trendText,
+                { color: trend > 0 ? "#10B981" : "#EF4444" },
+              ]}
+            >
               {Math.abs(trend)}%
             </Text>
           </View>
@@ -386,40 +391,46 @@ export default function IbPortal() {
     };
   }, [overviewFinance]);
 
-  const stats = useMemo(() => [
-    {
-      label: "Total Commission",
-      value: toMoney(financeTotals.totalCommission),
-      icon: "payments",
-      subValue: "All time earnings",
-      trend: 12.5
-    },
-    {
-      label: "Total Withdrawn",
-      value: toMoney(financeTotals.totalWithdrawn),
-      icon: "south-west",
-      subValue: "Withdrawal history",
-      trend: -2.3
-    },
-    {
-      label: "Available",
-      value: toMoney(financeTotals.available),
-      icon: "account-balance-wallet",
-      subValue: "Ready to withdraw"
-    },
-    {
-      label: "Net Balance",
-      value: toMoney(financeTotals.net),
-      icon: "trending-up",
-      subValue: "Current balance"
-    }
-  ], [financeTotals]);
+  const stats = useMemo(
+    () => [
+      {
+        label: "Total Commission",
+        value: toMoney(financeTotals.totalCommission),
+        icon: "payments",
+        subValue: "All time earnings",
+        trend: 12.5,
+      },
+      {
+        label: "Total Withdrawn",
+        value: toMoney(financeTotals.totalWithdrawn),
+        icon: "south-west",
+        subValue: "Withdrawal history",
+        trend: -2.3,
+      },
+      {
+        label: "Available",
+        value: toMoney(financeTotals.available),
+        icon: "account-balance-wallet",
+        subValue: "Ready to withdraw",
+      },
+      {
+        label: "Net Balance",
+        value: toMoney(financeTotals.net),
+        icon: "trending-up",
+        subValue: "Current balance",
+      },
+    ],
+    [financeTotals],
+  );
 
   return (
     <SafeAreaView
       style={[
         styles.safe,
-        { backgroundColor: theme?.background ?? (isDark ? "#0f172a" : "#f8fafc") },
+        {
+          backgroundColor:
+            theme?.background ?? (isDark ? "#0f172a" : "#f8fafc"),
+        },
       ]}
       edges={["top", "bottom"]}
     >
@@ -467,14 +478,24 @@ export default function IbPortal() {
                 <Text style={[styles.statsTitle, { color: theme?.text }]}>
                   Performance Overview
                 </Text>
-                <View style={[styles.statusBadge, { backgroundColor: `${theme?.primary}15` }]}>
-                  <View style={[styles.statusDot, { backgroundColor: theme?.primary }]} />
+                <View
+                  style={[
+                    styles.statusBadge,
+                    { backgroundColor: `${theme?.primary}15` },
+                  ]}
+                >
+                  <View
+                    style={[
+                      styles.statusDot,
+                      { backgroundColor: theme?.primary },
+                    ]}
+                  />
                   <Text style={[styles.statusText, { color: theme?.primary }]}>
                     Active
                   </Text>
                 </View>
               </View>
-              
+
               <View style={styles.statsGrid}>
                 {stats.map((stat, index) => (
                   <StatCard
@@ -498,15 +519,20 @@ export default function IbPortal() {
                   onPress={() => setTab(t.key)}
                   style={[
                     styles.tabButton,
-                    tab === t.key && [styles.activeTabButton, { backgroundColor: theme?.primary }]
+                    tab === t.key && [
+                      styles.activeTabButton,
+                      { backgroundColor: theme?.primary },
+                    ],
                   ]}
                   activeOpacity={0.7}
                 >
-                  <Text style={[
-                    styles.tabButtonText,
-                    { color: theme?.secondaryText },
-                    tab === t.key && styles.activeTabButtonText
-                  ]}>
+                  <Text
+                    style={[
+                      styles.tabButtonText,
+                      { color: theme?.secondaryText },
+                      tab === t.key && styles.activeTabButtonText,
+                    ]}
+                  >
                     {t.label}
                   </Text>
                 </TouchableOpacity>
@@ -517,7 +543,9 @@ export default function IbPortal() {
             {loading && tab === "dashboard" ? (
               <View style={styles.loadingContainer}>
                 <ActivityIndicator size="large" color={theme?.primary} />
-                <Text style={[styles.loadingText, { color: theme?.secondaryText }]}>
+                <Text
+                  style={[styles.loadingText, { color: theme?.secondaryText }]}
+                >
                   Loading dashboard...
                 </Text>
               </View>
@@ -532,11 +560,23 @@ export default function IbPortal() {
                     {referralLink && (
                       <TouchableOpacity
                         onPress={handleShareReferral}
-                        style={[styles.shareButton, { backgroundColor: `${theme?.primary}15` }]}
+                        style={[
+                          styles.shareButton,
+                          { backgroundColor: `${theme?.primary}15` },
+                        ]}
                         activeOpacity={0.8}
                       >
-                        <AppIcon name="share" size={16} color={theme?.primary} />
-                        <Text style={[styles.shareButtonText, { color: theme?.primary }]}>
+                        <AppIcon
+                          name="share"
+                          size={16}
+                          color={theme?.primary}
+                        />
+                        <Text
+                          style={[
+                            styles.shareButtonText,
+                            { color: theme?.primary },
+                          ]}
+                        >
                           Share Link
                         </Text>
                       </TouchableOpacity>
@@ -545,18 +585,32 @@ export default function IbPortal() {
 
                   <View style={styles.detailRow}>
                     <View style={styles.detailItem}>
-                      <Text style={[styles.detailLabel, { color: theme?.secondaryText }]}>
+                      <Text
+                        style={[
+                          styles.detailLabel,
+                          { color: theme?.secondaryText },
+                        ]}
+                      >
                         IB Account
                       </Text>
-                      <Text style={[styles.detailValue, { color: theme?.text }]}>
+                      <Text
+                        style={[styles.detailValue, { color: theme?.text }]}
+                      >
                         {overviewDetails?.accountNumber || ibAccountId || "—"}
                       </Text>
                     </View>
                     <View style={styles.detailItem}>
-                      <Text style={[styles.detailLabel, { color: theme?.secondaryText }]}>
+                      <Text
+                        style={[
+                          styles.detailLabel,
+                          { color: theme?.secondaryText },
+                        ]}
+                      >
                         Reference ID
                       </Text>
-                      <Text style={[styles.detailValue, { color: theme?.text }]}>
+                      <Text
+                        style={[styles.detailValue, { color: theme?.text }]}
+                      >
                         {overviewDetails?.referenceId || "—"}
                       </Text>
                     </View>
@@ -564,15 +618,38 @@ export default function IbPortal() {
 
                   {referralLink && (
                     <View style={styles.referralContainer}>
-                      <Text style={[styles.referralLabel, { color: theme?.secondaryText }]}>
+                      <Text
+                        style={[
+                          styles.referralLabel,
+                          { color: theme?.secondaryText },
+                        ]}
+                      >
                         Referral Link
                       </Text>
-                      <View style={[styles.referralBox, { backgroundColor: `${theme?.primary}08`, borderColor: `${theme?.primary}20` }]}>
-                        <Text style={[styles.referralLink, { color: theme?.primary }]} numberOfLines={1}>
+                      <View
+                        style={[
+                          styles.referralBox,
+                          {
+                            backgroundColor: `${theme?.primary}08`,
+                            borderColor: `${theme?.primary}20`,
+                          },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.referralLink,
+                            { color: theme?.primary },
+                          ]}
+                          numberOfLines={1}
+                        >
                           {referralLink}
                         </Text>
                         <TouchableOpacity onPress={() => handleShareReferral()}>
-                          <AppIcon name="content-copy" size={18} color={theme?.primary} />
+                          <AppIcon
+                            name="content-copy"
+                            size={18}
+                            color={theme?.primary}
+                          />
                         </TouchableOpacity>
                       </View>
                     </View>
@@ -586,7 +663,9 @@ export default function IbPortal() {
                       Recent Activity
                     </Text>
                     <TouchableOpacity>
-                      <Text style={[styles.viewAllText, { color: theme?.primary }]}>
+                      <Text
+                        style={[styles.viewAllText, { color: theme?.primary }]}
+                      >
                         View All
                       </Text>
                     </TouchableOpacity>
@@ -594,45 +673,84 @@ export default function IbPortal() {
 
                   {overviewActivity?.length ? (
                     overviewActivity.slice(0, 5).map((row, idx) => {
-                      const label = row?.label || row?.title || `Activity ${idx + 1}`;
+                      const label =
+                        row?.label || row?.title || `Activity ${idx + 1}`;
                       const date = row?.date || row?.createdAt;
                       const value = row?.amount ?? row?.commission;
                       const isPositive = Number(value) >= 0;
-                      
+
                       return (
-                        <View key={String(row?.id ?? idx)} style={styles.activityRow}>
+                        <View
+                          key={String(row?.id ?? idx)}
+                          style={styles.activityRow}
+                        >
                           <View style={styles.activityIcon}>
-                            <View style={[styles.activityIconCircle, { backgroundColor: `${theme?.primary}15` }]}>
-                              <AppIcon 
-                                name={isPositive ? "trending-up" : "trending-down"} 
-                                size={16} 
-                                color={isPositive ? '#10B981' : '#EF4444'} 
+                            <View
+                              style={[
+                                styles.activityIconCircle,
+                                { backgroundColor: `${theme?.primary}15` },
+                              ]}
+                            >
+                              <AppIcon
+                                name={
+                                  isPositive ? "trending-up" : "trending-down"
+                                }
+                                size={16}
+                                color={isPositive ? "#10B981" : "#EF4444"}
                               />
                             </View>
                           </View>
                           <View style={styles.activityContent}>
-                            <Text style={[styles.activityTitle, { color: theme?.text }]}>
+                            <Text
+                              style={[
+                                styles.activityTitle,
+                                { color: theme?.text },
+                              ]}
+                            >
                               {label}
                             </Text>
-                            <Text style={[styles.activityDate, { color: theme?.secondaryText }]}>
-                              {date ? toDateLabel(date) : ''}
+                            <Text
+                              style={[
+                                styles.activityDate,
+                                { color: theme?.secondaryText },
+                              ]}
+                            >
+                              {date ? toDateLabel(date) : ""}
                             </Text>
                           </View>
-                          <Text style={[
-                            styles.activityAmount,
-                            { color: isPositive ? '#10B981' : '#EF4444' }
-                          ]}>
-                            {value != null ? (isPositive ? '+' : '') + toMoney(value) : '—'}
+                          <Text
+                            style={[
+                              styles.activityAmount,
+                              { color: isPositive ? "#10B981" : "#EF4444" },
+                            ]}
+                          >
+                            {value != null
+                              ? (isPositive ? "+" : "") + toMoney(value)
+                              : "—"}
                           </Text>
                         </View>
                       );
                     })
                   ) : (
                     <View style={styles.emptyState}>
-                      <View style={[styles.emptyIcon, { backgroundColor: `${theme?.primary}10` }]}>
-                        <AppIcon name="receipt" size={24} color={theme?.primary} />
+                      <View
+                        style={[
+                          styles.emptyIcon,
+                          { backgroundColor: `${theme?.primary}10` },
+                        ]}
+                      >
+                        <AppIcon
+                          name="receipt"
+                          size={24}
+                          color={theme?.primary}
+                        />
                       </View>
-                      <Text style={[styles.emptyText, { color: theme?.secondaryText }]}>
+                      <Text
+                        style={[
+                          styles.emptyText,
+                          { color: theme?.secondaryText },
+                        ]}
+                      >
                         No activity recorded yet
                       </Text>
                     </View>
@@ -674,34 +792,66 @@ export default function IbPortal() {
                       <View key={idx} style={styles.commissionRow}>
                         <View style={styles.commissionInfo}>
                           <View style={styles.commissionHeader}>
-                            <Text style={[styles.commissionSymbol, { color: theme?.text }]}>
+                            <Text
+                              style={[
+                                styles.commissionSymbol,
+                                { color: theme?.text },
+                              ]}
+                            >
                               {symbol}
                             </Text>
                             {client && (
-                              <Text style={[styles.commissionClient, { color: theme?.secondaryText }]}>
+                              <Text
+                                style={[
+                                  styles.commissionClient,
+                                  { color: theme?.secondaryText },
+                                ]}
+                              >
                                 • {client}
                               </Text>
                             )}
                           </View>
-                          <Text style={[styles.commissionDate, { color: theme?.secondaryText }]}>
-                            {date ? toDateLabel(date) : ''}
+                          <Text
+                            style={[
+                              styles.commissionDate,
+                              { color: theme?.secondaryText },
+                            ]}
+                          >
+                            {date ? toDateLabel(date) : ""}
                           </Text>
                         </View>
-                        <Text style={[
-                          styles.commissionAmount,
-                          { color: isPositive ? '#10B981' : '#EF4444' }
-                        ]}>
-                          {isPositive ? '+' : ''}{toMoney(amount)}
+                        <Text
+                          style={[
+                            styles.commissionAmount,
+                            { color: isPositive ? "#10B981" : "#EF4444" },
+                          ]}
+                        >
+                          {isPositive ? "+" : ""}
+                          {toMoney(amount)}
                         </Text>
                       </View>
                     );
                   })
                 ) : (
                   <View style={styles.emptyState}>
-                    <View style={[styles.emptyIcon, { backgroundColor: `${theme?.primary}10` }]}>
-                      <AppIcon name="payments" size={24} color={theme?.primary} />
+                    <View
+                      style={[
+                        styles.emptyIcon,
+                        { backgroundColor: `${theme?.primary}10` },
+                      ]}
+                    >
+                      <AppIcon
+                        name="payments"
+                        size={24}
+                        color={theme?.primary}
+                      />
                     </View>
-                    <Text style={[styles.emptyText, { color: theme?.secondaryText }]}>
+                    <Text
+                      style={[
+                        styles.emptyText,
+                        { color: theme?.secondaryText },
+                      ]}
+                    >
                       No commission records found
                     </Text>
                   </View>
@@ -714,7 +864,9 @@ export default function IbPortal() {
                     Referred Clients
                   </Text>
                   <TouchableOpacity>
-                    <Text style={[styles.viewAllText, { color: theme?.primary }]}>
+                    <Text
+                      style={[styles.viewAllText, { color: theme?.primary }]}
+                    >
                       {clientsRows.length} Total
                     </Text>
                   </TouchableOpacity>
@@ -729,7 +881,7 @@ export default function IbPortal() {
                     const name = row?.fullName || row?.name || "Client";
                     const email = row?.email || "No email";
                     const status = row?.status || "Active";
-                    const isActive = status.toLowerCase() === 'active';
+                    const isActive = status.toLowerCase() === "active";
 
                     return (
                       <View key={idx} style={styles.clientRow}>
@@ -739,16 +891,46 @@ export default function IbPortal() {
                           </Text>
                         </View>
                         <View style={styles.clientInfo}>
-                          <Text style={[styles.clientName, { color: theme?.text }]}>
+                          <Text
+                            style={[styles.clientName, { color: theme?.text }]}
+                          >
                             {name}
                           </Text>
-                          <Text style={[styles.clientEmail, { color: theme?.secondaryText }]}>
+                          <Text
+                            style={[
+                              styles.clientEmail,
+                              { color: theme?.secondaryText },
+                            ]}
+                          >
                             {email}
                           </Text>
                         </View>
-                        <View style={[styles.clientStatus, { backgroundColor: isActive ? '#10B98115' : '#EF444415' }]}>
-                          <View style={[styles.statusDotSmall, { backgroundColor: isActive ? '#10B981' : '#EF4444' }]} />
-                          <Text style={[styles.statusTextSmall, { color: isActive ? '#10B981' : '#EF4444' }]}>
+                        <View
+                          style={[
+                            styles.clientStatus,
+                            {
+                              backgroundColor: isActive
+                                ? "#10B98115"
+                                : "#EF444415",
+                            },
+                          ]}
+                        >
+                          <View
+                            style={[
+                              styles.statusDotSmall,
+                              {
+                                backgroundColor: isActive
+                                  ? "#10B981"
+                                  : "#EF4444",
+                              },
+                            ]}
+                          />
+                          <Text
+                            style={[
+                              styles.statusTextSmall,
+                              { color: isActive ? "#10B981" : "#EF4444" },
+                            ]}
+                          >
                             {status}
                           </Text>
                         </View>
@@ -757,10 +939,20 @@ export default function IbPortal() {
                   })
                 ) : (
                   <View style={styles.emptyState}>
-                    <View style={[styles.emptyIcon, { backgroundColor: `${theme?.primary}10` }]}>
+                    <View
+                      style={[
+                        styles.emptyIcon,
+                        { backgroundColor: `${theme?.primary}10` },
+                      ]}
+                    >
                       <AppIcon name="people" size={24} color={theme?.primary} />
                     </View>
-                    <Text style={[styles.emptyText, { color: theme?.secondaryText }]}>
+                    <Text
+                      style={[
+                        styles.emptyText,
+                        { color: theme?.secondaryText },
+                      ]}
+                    >
                       No referred clients yet
                     </Text>
                   </View>
@@ -775,7 +967,12 @@ export default function IbPortal() {
                 </View>
 
                 <View style={styles.balanceCard}>
-                  <Text style={[styles.balanceLabel, { color: theme?.secondaryText }]}>
+                  <Text
+                    style={[
+                      styles.balanceLabel,
+                      { color: theme?.secondaryText },
+                    ]}
+                  >
                     Available Balance
                   </Text>
                   <Text style={[styles.balanceAmount, { color: theme?.text }]}>
@@ -785,20 +982,33 @@ export default function IbPortal() {
 
                 <View style={styles.actionButtons}>
                   <TouchableOpacity
-                    style={[styles.primaryAction, { backgroundColor: theme?.primary }]}
+                    style={[
+                      styles.primaryAction,
+                      { backgroundColor: theme?.primary },
+                    ]}
                     activeOpacity={0.8}
-                    onPress={() => router.push("/(tabs2)/withdrawal?flow=ib")}
+                    onPress={() => router.push("/(tabs2)/ibWithdrawal")}
                   >
                     <AppIcon name="south-west" size={20} color="#fff" />
                     <Text style={styles.primaryActionText}>Withdraw</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
-                    style={[styles.secondaryAction, { borderColor: theme?.border }]}
+                    style={[
+                      styles.secondaryAction,
+                      { borderColor: theme?.border },
+                    ]}
                     activeOpacity={0.8}
-                    onPress={() => router.push("/(tabs2)/internalTransfer?flow=ib")}
+                    onPress={() =>
+                      router.push("/(tabs2)/internalTransfer?flow=ib")
+                    }
                   >
                     <AppIcon name="swap-horiz" size={20} color={theme?.text} />
-                    <Text style={[styles.secondaryActionText, { color: theme?.text }]}>
+                    <Text
+                      style={[
+                        styles.secondaryActionText,
+                        { color: theme?.text },
+                      ]}
+                    >
                       Transfer
                     </Text>
                   </TouchableOpacity>
@@ -820,9 +1030,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: 20,
     paddingTop: 12,
     paddingBottom: 16,
@@ -831,19 +1041,19 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   headerTitle: {
     fontSize: 24,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   headerButton: {
     width: 40,
     height: 40,
     borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   content: {
     paddingHorizontal: 20,
@@ -853,7 +1063,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     padding: 20,
     marginBottom: 16,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: {
       width: 0,
       height: 2,
@@ -863,18 +1073,18 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   statsHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: 20,
   },
   statsTitle: {
     fontSize: 18,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   statusBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 20,
@@ -887,36 +1097,36 @@ const styles = StyleSheet.create({
   },
   statusText: {
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   statsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: 12,
   },
   statCard: {
-    width: '47%',
+    width: "47%",
     padding: 16,
     borderRadius: 16,
     marginBottom: 12,
   },
   statTop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: 12,
   },
   statIconContainer: {
     width: 40,
     height: 40,
     borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(59, 130, 246, 0.1)",
   },
   trendBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 12,
@@ -924,25 +1134,25 @@ const styles = StyleSheet.create({
   },
   trendText: {
     fontSize: 11,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   statLabel: {
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: "600",
     marginBottom: 4,
   },
   statValue: {
     fontSize: 22,
-    fontWeight: '700',
+    fontWeight: "700",
     marginBottom: 4,
   },
   statSub: {
     fontSize: 11,
-    fontWeight: '500',
+    fontWeight: "500",
   },
   tabContainer: {
-    flexDirection: 'row',
-    backgroundColor: 'rgba(0,0,0,0.03)',
+    flexDirection: "row",
+    backgroundColor: "rgba(0,0,0,0.03)",
     borderRadius: 16,
     padding: 4,
     marginBottom: 20,
@@ -951,10 +1161,10 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 10,
     borderRadius: 12,
-    alignItems: 'center',
+    alignItems: "center",
   },
   activeTabButton: {
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: {
       width: 0,
       height: 2,
@@ -965,23 +1175,23 @@ const styles = StyleSheet.create({
   },
   tabButtonText: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   activeTabButtonText: {
-    color: '#fff',
-    fontWeight: '700',
+    color: "#fff",
+    fontWeight: "700",
   },
   sectionHeader: {
     marginBottom: 20,
   },
   sectionTitle: {
     fontSize: 18,
-    fontWeight: '700',
+    fontWeight: "700",
     marginBottom: 8,
   },
   shareButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 12,
@@ -989,10 +1199,10 @@ const styles = StyleSheet.create({
   },
   shareButtonText: {
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   detailRow: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 16,
     marginBottom: 16,
   },
@@ -1001,25 +1211,25 @@ const styles = StyleSheet.create({
   },
   detailLabel: {
     fontSize: 12,
-    fontWeight: '500',
+    fontWeight: "500",
     marginBottom: 4,
   },
   detailValue: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   referralContainer: {
     marginTop: 8,
   },
   referralLabel: {
     fontSize: 12,
-    fontWeight: '500',
+    fontWeight: "500",
     marginBottom: 8,
   },
   referralBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: 14,
     paddingVertical: 12,
     borderRadius: 12,
@@ -1028,19 +1238,19 @@ const styles = StyleSheet.create({
   referralLink: {
     flex: 1,
     fontSize: 13,
-    fontWeight: '500',
+    fontWeight: "500",
     marginRight: 12,
   },
   viewAllText: {
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   activityRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0,0,0,0.05)',
+    borderBottomColor: "rgba(0,0,0,0.05)",
   },
   activityIcon: {
     marginRight: 12,
@@ -1049,43 +1259,43 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   activityContent: {
     flex: 1,
   },
   activityTitle: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: "600",
     marginBottom: 2,
   },
   activityDate: {
     fontSize: 12,
-    fontWeight: '500',
+    fontWeight: "500",
   },
   activityAmount: {
     fontSize: 15,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   emptyState: {
-    alignItems: 'center',
+    alignItems: "center",
     paddingVertical: 40,
   },
   emptyIcon: {
     width: 60,
     height: 60,
     borderRadius: 30,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     marginBottom: 12,
   },
   emptyText: {
     fontSize: 14,
-    fontWeight: '500',
+    fontWeight: "500",
   },
   rangeSelector: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 8,
   },
   chip: {
@@ -1098,31 +1308,31 @@ const styles = StyleSheet.create({
   },
   loadingContainer: {
     paddingVertical: 40,
-    alignItems: 'center',
+    alignItems: "center",
   },
   loadingText: {
     marginTop: 12,
     fontSize: 14,
   },
   commissionRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0,0,0,0.05)',
+    borderBottomColor: "rgba(0,0,0,0.05)",
   },
   commissionInfo: {
     flex: 1,
   },
   commissionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginBottom: 4,
   },
   commissionSymbol: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   commissionClient: {
     fontSize: 13,
@@ -1130,48 +1340,48 @@ const styles = StyleSheet.create({
   },
   commissionDate: {
     fontSize: 12,
-    fontWeight: '500',
+    fontWeight: "500",
   },
   commissionAmount: {
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   clientRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0,0,0,0.05)',
+    borderBottomColor: "rgba(0,0,0,0.05)",
   },
   clientAvatar: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#3B82F6',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "#3B82F6",
+    alignItems: "center",
+    justifyContent: "center",
     marginRight: 12,
   },
   clientAvatarText: {
-    color: '#fff',
+    color: "#fff",
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   clientInfo: {
     flex: 1,
   },
   clientName: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: "600",
     marginBottom: 2,
   },
   clientEmail: {
     fontSize: 12,
-    fontWeight: '500',
+    fontWeight: "500",
   },
   clientStatus: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 16,
@@ -1184,47 +1394,47 @@ const styles = StyleSheet.create({
   },
   statusTextSmall: {
     fontSize: 11,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   balanceCard: {
-    alignItems: 'center',
+    alignItems: "center",
     paddingVertical: 30,
     borderRadius: 16,
-    backgroundColor: 'rgba(0,0,0,0.02)',
+    backgroundColor: "rgba(0,0,0,0.02)",
     marginBottom: 24,
   },
   balanceLabel: {
     fontSize: 14,
-    fontWeight: '500',
+    fontWeight: "500",
     marginBottom: 8,
   },
   balanceAmount: {
     fontSize: 36,
-    fontWeight: '800',
+    fontWeight: "800",
   },
   actionButtons: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 12,
   },
   primaryAction: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     paddingVertical: 16,
     borderRadius: 16,
     gap: 8,
   },
   primaryActionText: {
-    color: '#fff',
+    color: "#fff",
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   secondaryAction: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     paddingVertical: 16,
     borderRadius: 16,
     borderWidth: 2,
@@ -1232,6 +1442,6 @@ const styles = StyleSheet.create({
   },
   secondaryActionText: {
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: "700",
   },
 });

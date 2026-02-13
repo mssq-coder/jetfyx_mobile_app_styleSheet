@@ -196,17 +196,7 @@ const ExpandedRow = ({
             borderColor: isLotFocused ? theme.primary : theme.border,
           }}
         >
-          <Text
-            style={{
-              color: theme.secondary,
-              fontSize: 9,
-              fontWeight: "600",
-              textAlign: "center",
-              marginBottom: 6,
-            }}
-          >
-            LOT
-          </Text>
+          
 
           <View
             style={{
@@ -224,7 +214,7 @@ const ExpandedRow = ({
                 borderRadius: 6,
                 borderWidth: 1,
                 borderColor: isLotFocused ? theme.primary : theme.border,
-                minWidth: 40,
+                minWidth: 80,
                 alignItems: "center",
               }}
             >
@@ -243,7 +233,7 @@ const ExpandedRow = ({
                   fontSize: 14,
                   textAlign: "center",
                   padding: 0,
-                  minWidth: 30,
+                  minWidth: 60,
                 }}
               />
             </View>

@@ -10,6 +10,30 @@ export const showToast = ({ type = "info", title, message, ...rest } = {}) => {
   });
 };
 
+export const showModalToast = ({
+  title,
+  message,
+  variant = "info", // info | success | error
+  buttonText = "OK",
+  autoHide = true,
+  visibilityTime = 1800,
+} = {}) => {
+  Toast.show({
+    type: "modal",
+    text1: title,
+    text2: message,
+    position: "top",
+    topOffset: 0,
+    bottomOffset: 0,
+    autoHide: Boolean(autoHide),
+    visibilityTime: Number(visibilityTime) || 1800,
+    props: {
+      variant,
+      buttonText,
+    },
+  });
+};
+
 export const showSuccessToast = (message, title = "Success") => {
   showToast({ type: "success", title, message });
 };

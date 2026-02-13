@@ -345,7 +345,7 @@ export default function Dashboard() {
             <Text style={[styles.sectionTitle, { color: theme.text }]}>
               Quick Deposit
             </Text>
-            <TouchableOpacity>
+            <TouchableOpacity onPress={() => router.push("/(tabs2)/deposit")} style={{ padding: 4 }}>
               <Text style={[styles.sectionLink, { color: theme.primary }]}>
                 View All
               </Text>
@@ -357,7 +357,7 @@ export default function Dashboard() {
               icon="account-balance"
               label="Bank Transfer"
               color="#00C851"
-              description="Instant"
+              description="Easy & Reliable"
             />
             <PaymentMethod
               icon="payment"
@@ -375,7 +375,7 @@ export default function Dashboard() {
               icon="currency-bitcoin"
               label="USDT TRC20"
               color="#8B5CF6"
-              description="Easy"
+              description="Instant"
             />
           </View>
         </View>
@@ -386,10 +386,10 @@ export default function Dashboard() {
             <Text style={[styles.sectionTitle, { color: theme.text }]}>
               Trading Features
             </Text>
-            <TouchableOpacity>
-              <Text style={[styles.sectionLink, { color: theme.primary }]}>
+            <TouchableOpacity onPress={() => router.push("/(tabs2)/features")} style={{ padding: 4 }}>
+              {/* <Text style={[styles.sectionLink, { color: theme.primary }]}>
                 Explore
-              </Text>
+              </Text> */}
             </TouchableOpacity>
           </View>
 

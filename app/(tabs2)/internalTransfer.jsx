@@ -18,7 +18,7 @@ import {
   getClientAccountTransactions,
   getIbInternalTransfers,
   getUserDetails,
-} from "../../api/getServices";
+} from "../../api/allServices";
 import { getIbOverviewDetails, getIbOverviewFinance } from "../../api/ibPortal";
 import {
   createIbInternalTransfer,
@@ -29,6 +29,7 @@ import { useAppTheme } from "../../contexts/ThemeContext";
 import useAccountSummary from "../../hooks/useAccountSummary";
 import { useAuthStore } from "../../store/authStore";
 import { useUserStore } from "../../store/userStore";
+import { filterOutDemoAccounts } from "../../utils/accountVisibility";
 import {
   showErrorToast,
   showInfoToast,
@@ -207,7 +208,13 @@ function IbInternalTransferScreen() {
 
   const accounts = useAuthStore((s) => s.accounts);
   const selectedAccountId = useAuthStore((s) => s.selectedAccountId);
+  const setSelectedAccount = useAuthStore((s) => s.setSelectedAccount);
   const userId = useAuthStore((s) => s.userId);
+
+  const visibleAccounts = useMemo(
+    () => filterOutDemoAccounts(accounts),
+    [accounts],
+  );
 
   const userData = useUserStore((s) => s.userData);
   const setUserData = useUserStore((s) => s.setUserData);
@@ -216,15 +223,26 @@ function IbInternalTransferScreen() {
   const isKycApproved =
     String(user?.overallStatus || "").toLowerCase() === "approved";
 
+  useEffect(() => {
+    if (!visibleAccounts.length) return;
+    const id = selectedAccountId;
+    const exists = visibleAccounts.some(
+      (a) => String(getAccountId(a)) === String(id),
+    );
+    if (!id || !exists) {
+      setSelectedAccount(visibleAccounts[0]);
+    }
+  }, [selectedAccountId, visibleAccounts, setSelectedAccount]);
+
   const selectedAccount = useMemo(() => {
     const id = selectedAccountId;
-    const list = Array.isArray(accounts) ? accounts : [];
+    const list = Array.isArray(visibleAccounts) ? visibleAccounts : [];
     return (
       list.find((a) => String(getAccountId(a)) === String(id)) ||
       list[0] ||
       null
     );
-  }, [accounts, selectedAccountId]);
+  }, [visibleAccounts, selectedAccountId]);
 
   const accountId = getAccountId(selectedAccount);
 
@@ -265,17 +283,17 @@ function IbInternalTransferScreen() {
     "—";
 
   const toAccount = useMemo(() => {
-    const list = Array.isArray(accounts) ? accounts : [];
+    const list = Array.isArray(visibleAccounts) ? visibleAccounts : [];
     if (!toAccountId) return null;
     return (
       list.find((a) => String(getAccountId(a)) === String(toAccountId)) || null
     );
-  }, [accounts, toAccountId]);
+  }, [visibleAccounts, toAccountId]);
 
   const selectableToAccounts = useMemo(() => {
-    const list = Array.isArray(accounts) ? accounts : [];
+    const list = Array.isArray(visibleAccounts) ? visibleAccounts : [];
     return list.filter((a) => String(getAccountId(a)) !== String(accountId));
-  }, [accounts, accountId]);
+  }, [visibleAccounts, accountId]);
 
   const loadIb = async () => {
     if (!accountId) return;
@@ -908,6 +926,7 @@ function StandardInternalTransferScreen() {
 
   const accounts = useAuthStore((s) => s.accounts);
   const selectedAccountId = useAuthStore((s) => s.selectedAccountId);
+  const setSelectedAccount = useAuthStore((s) => s.setSelectedAccount);
   const userId = useAuthStore((s) => s.userId);
 
   const userData = useUserStore((s) => s.userData);
@@ -918,10 +937,21 @@ function StandardInternalTransferScreen() {
     String(user?.overallStatus || "").toLowerCase() === "approved";
 
   const currentUserAccounts = useMemo(
-    () => (Array.isArray(accounts) ? accounts : []),
+    () => filterOutDemoAccounts(accounts),
     [accounts],
   );
   const onlyOneAccount = currentUserAccounts.length <= 1;
+
+  useEffect(() => {
+    if (!currentUserAccounts.length) return;
+    const id = selectedAccountId;
+    const exists = currentUserAccounts.some(
+      (a) => String(getAccountId(a)) === String(id),
+    );
+    if (!id || !exists) {
+      setSelectedAccount(currentUserAccounts[0]);
+    }
+  }, [selectedAccountId, currentUserAccounts, setSelectedAccount]);
 
   const [mode, setMode] = useState(() =>
     onlyOneAccount ? "toAnother" : "between",
@@ -1262,7 +1292,6 @@ function StandardInternalTransferScreen() {
     const cleanedTargetAccountNumber = String(toOtherAccNumber || "")
       .replace(/\D+/g, "")
       .slice(0, ACCOUNT_NUMBER_MAX_LENGTH);
-
 
     if (
       !cleanedTargetAccountNumber ||

@@ -8,6 +8,16 @@
     "scheme": "myapp",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
+    "splash": { 
+     "image": "./assets/images/splash-icon.png", 
+     "resizeMode": "contain",
+    "backgroundColor": "#ffffff",
+    "dark": {
+      "image": "./assets/images/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#000000"
+    }
+   },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.sohailwtrndzsorganization.jetfyx",
@@ -18,8 +28,10 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#ffffff",
+        "monochromeImage": "./assets/images/adaptive-icon.png"
       },
+      
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "package": "com.sohailwtrndzsorganization.jetfyx"

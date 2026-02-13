@@ -21,7 +21,7 @@ import {
 } from "../../utils/secureAuth";
 
 import LogoComp from "../../components/LogoComp";
-import { showErrorToast, showInfoToast } from "../../utils/toast";
+import { showInfoToast, showModalToast } from "../../utils/toast";
 
 export default function Login() {
   const [accountType, setAccountType] = useState("live");
@@ -42,6 +42,26 @@ export default function Login() {
   const error = useAuthStore((state) => state.error);
 
   const promptedRef = useRef(false);
+  const lastErrorToastRef = useRef(null);
+
+  // Show any auth-store error as a modal toast (single source of truth)
+  useEffect(() => {
+    if (!error) return;
+    if (loading) return;
+    const message = String(error);
+    if (!message) return;
+
+    if (lastErrorToastRef.current === message) return;
+    lastErrorToastRef.current = message;
+
+    showModalToast({
+      title: "Login failed",
+      message,
+      variant: "error",
+      autoHide: true,
+      visibilityTime: 2200,
+    });
+  }, [error, loading]);
 
   // Autofill last used login credentials
   useEffect(() => {
@@ -67,6 +87,19 @@ export default function Login() {
   const onSubmit = async () => {
     const result = await login({ email: username, password });
     if (result.success) {
+      const apiMessage =
+        result?.data?.message ||
+        result?.data?.data?.message ||
+        result?.data?.title ||
+        "You are logged in.";
+
+      showModalToast({
+        title: "Login successful",
+        message: String(apiMessage),
+        variant: "success",
+        visibilityTime: 900,
+      });
+
       // Always store last successful login for autofill
       try {
         await saveLastLoginCredentials({ email: username, password });
@@ -82,6 +115,17 @@ export default function Login() {
       }
       // Replace to prevent navigating back to login
       router.replace("/(tabs)");
+    } else {
+      // Prevent double-toasting (store error + local result)
+      const message = String(result?.error || "Invalid credentials.");
+      lastErrorToastRef.current = message;
+      showModalToast({
+        title: "Login failed",
+        message,
+        variant: "error",
+        autoHide: true,
+        visibilityTime: 2200,
+      });
     }
   };
 
@@ -147,16 +191,22 @@ export default function Login() {
       if (relogin?.success) {
         router.replace("/(tabs)");
       } else {
-        showErrorToast(
-          relogin?.error || "Unable to login with saved credentials.",
-          "Login failed",
-        );
+        showModalToast({
+          title: "Login failed",
+          message: String(
+            relogin?.error || "Unable to login with saved credentials.",
+          ),
+          variant: "error",
+          visibilityTime: 2200,
+        });
       }
     } catch (e) {
-      showErrorToast(
-        e?.message || "Biometric login failed.",
-        "Biometric error",
-      );
+      showModalToast({
+        title: "Biometric error",
+        message: String(e?.message || "Biometric login failed."),
+        variant: "error",
+        visibilityTime: 2200,
+      });
     } finally {
       setBiometricBusy(false);
     }
@@ -338,13 +388,6 @@ export default function Login() {
                     : "Login with Biometrics"}
                 </Text>
               </Pressable>
-            ) : null}
-
-            {/* Error message */}
-            {error ? (
-              <View style={styles.errorContainer}>
-                <Text style={styles.errorText}>{String(error)}</Text>
-              </View>
             ) : null}
 
             {/* Sign up link */}

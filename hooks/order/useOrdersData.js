@@ -1,6 +1,6 @@
 import { useAuthStore } from "@/store/authStore";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { getAllCurrencyListFromDB } from "../../api/getServices";
+import { getAllCurrencyListFromDB } from "../../api/allServices";
 import useAccountSummary from "../../hooks/useAccountSummary";
 import useOrderHub from "../../hooks/useOrderHub";
 import { validateSlTpValues } from "../../utils/orderValidation";

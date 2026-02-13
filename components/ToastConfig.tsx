@@ -1,5 +1,5 @@
 import React from "react";
-import { Platform, Pressable, Text, View } from "react-native";
+import { Dimensions, Platform, Pressable, Text, View } from "react-native";
 import Toast, { BaseToast, ErrorToast } from "react-native-toast-message";
 
 type ThemeLike = {
@@ -30,8 +30,140 @@ export function createToastConfig(theme: ThemeLike = {}) {
   const success = theme.success ?? "#22c55e";
   const info = theme.info ?? "#3b82f6";
   const error = theme.error ?? theme.danger ?? theme.negative ?? "#ef4444";
+  const overlay = (theme as any)?.modalOverlay ?? "rgba(0,0,0,0.55)";
 
   return {
+    modal: ({ text1, text2, props }: any) => {
+      const variant = String(props?.variant || "info").toLowerCase();
+      const accent =
+        variant === "success"
+          ? success
+          : variant === "error" || variant === "danger"
+            ? error
+            : info;
+
+      const screenHeight = Dimensions.get("window")?.height || 800;
+
+      return (
+        <Pressable
+          onPress={() => Toast.hide()}
+          style={({ pressed }) => [
+            {
+              width: "100%",
+              height: screenHeight,
+              backgroundColor: overlay,
+              alignItems: "center",
+              justifyContent: "center",
+              paddingHorizontal: 16,
+              opacity: pressed ? 0.98 : 1,
+            },
+          ]}
+        >
+          <Pressable
+            onPress={(e) => e.stopPropagation()}
+            style={[
+              {
+                width: "100%",
+                maxWidth: 420,
+                borderRadius: 18,
+                backgroundColor: card,
+                borderWidth: 1,
+                borderColor: border,
+                overflow: "hidden",
+              },
+              Platform.select({
+                ios: {
+                  shadowColor: "#000",
+                  shadowOffset: { width: 0, height: 14 },
+                  shadowOpacity: 0.25,
+                  shadowRadius: 18,
+                },
+                android: { elevation: 16 },
+                default: {},
+              }),
+            ]}
+          >
+            <View style={{ height: 6, backgroundColor: accent }} />
+
+            <View style={{ paddingHorizontal: 14, paddingVertical: 14 }}>
+              <View
+                style={{ flexDirection: "row", alignItems: "center", gap: 10 }}
+              >
+                <View
+                  style={{
+                    width: 38,
+                    height: 38,
+                    borderRadius: 19,
+                    backgroundColor: accent,
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: background,
+                      fontSize: 18,
+                      fontWeight: "900",
+                    }}
+                  >
+                    {variant === "success"
+                      ? "✓"
+                      : variant === "error"
+                        ? "!"
+                        : "i"}
+                  </Text>
+                </View>
+
+                <View style={{ flex: 1 }}>
+                  {text1 ? (
+                    <Text
+                      style={{
+                        color: text,
+                        fontSize: 15,
+                        fontWeight: "900",
+                      }}
+                      numberOfLines={2}
+                    >
+                      {text1}
+                    </Text>
+                  ) : null}
+                  {text2 ? (
+                    <Text
+                      style={{
+                        color: secondaryText,
+                        fontSize: 12,
+                        marginTop: text1 ? 3 : 0,
+                        lineHeight: 16,
+                      }}
+                    >
+                      {text2}
+                    </Text>
+                  ) : null}
+                </View>
+              </View>
+
+              <Pressable
+                onPress={() => Toast.hide()}
+                style={({ pressed }) => ({
+                  marginTop: 14,
+                  backgroundColor: surface,
+                  borderWidth: 1,
+                  borderColor: border,
+                  paddingVertical: 12,
+                  borderRadius: 12,
+                  alignItems: "center",
+                  transform: [{ scale: pressed ? 0.99 : 1 }],
+                })}
+              >
+                <Text style={{ color: text, fontWeight: "900" }}>
+                  {props?.buttonText ?? "OK"}
+                </Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      );
+    },
     success: ({ text1, text2 }: any) => (
       <Pressable
         onPress={() => Toast.hide()}

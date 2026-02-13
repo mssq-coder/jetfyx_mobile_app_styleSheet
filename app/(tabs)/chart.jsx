@@ -9,7 +9,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { getAllCurrencyListFromDB } from "../../api/getServices";
+import { getAllCurrencyListFromDB } from "../../api/allServices";
 import TradingViewChart from "../../components/TradingViewChart";
 import { useAppTheme } from "../../contexts/ThemeContext";
 import usePullToRefresh from "../../hooks/usePullToRefresh";

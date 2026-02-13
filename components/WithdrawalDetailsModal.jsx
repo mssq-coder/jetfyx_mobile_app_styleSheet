@@ -13,7 +13,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { previewFile } from "../api/getServices";
+import { previewFile } from "../api/allServices";
 import { confirmWithdrawal } from "../api/Services";
 import { showErrorToast, showSuccessToast } from "../utils/toast";
 import AppIcon from "./AppIcon";
@@ -125,6 +125,7 @@ export default function WithdrawalDetailsModal({
   fieldValues,
   withdrawalPayloadBase,
   detailsJsonBase,
+  confirmFn,
   onSuccess,
 }) {
   const [modalAnim] = useState(new Animated.Value(0));
@@ -189,7 +190,9 @@ export default function WithdrawalDetailsModal({
         },
       };
 
-      const res = await confirmWithdrawal(payload);
+      const fn =
+        typeof confirmFn === "function" ? confirmFn : confirmWithdrawal;
+      const res = await fn(payload);
       showSuccessToast("Withdrawal submitted successfully.", "Submitted");
       onSuccess?.(res);
     } catch (e) {
@@ -200,7 +203,7 @@ export default function WithdrawalDetailsModal({
           "Withdrawal submission failed.",
         "Failed",
       );
-      console.error("[Withdrawal] confirmWithdrawal failed:", {
+      console.error("[Withdrawal] confirm failed:", {
         message: e?.message,
         status: e?.response?.status,
         data: e?.response?.data,

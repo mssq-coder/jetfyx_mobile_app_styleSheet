@@ -18,7 +18,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { previewFile } from "../../api/getServices";
+import { previewFile } from "../../api/allServices";
 import {
   addTicketMessage,
   createTicket,

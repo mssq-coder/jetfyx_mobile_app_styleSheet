@@ -1,3 +1,4 @@
+import { useFocusEffect } from "@react-navigation/native";
 import * as DocumentPicker from "expo-document-picker";
 import { router } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -13,11 +14,16 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { getCountries, previewFile, updateUser } from "../../api/getServices";
+import {
+  getCountries,
+  getUserDetails,
+  previewFile,
+  updateUser,
+} from "../../api/allServices";
 import {
   AccountSettingsHeader,
   DocumentPreview,
-  StatusBadge
+  StatusBadge,
 } from "../../components/AccountSettings";
 import {
   CountryPickerModal,
@@ -313,6 +319,34 @@ export default function AccountSettingsScreen() {
   const setUserData = useUserStore((s) => s.setUserData);
   const userId = useAuthStore((s) => s.userId);
   const refreshProfile = useAuthStore((s) => s.refreshProfile);
+
+  const loadUserDetails = useCallback(async () => {
+    if (!userId) return;
+    const res = await getUserDetails(userId);
+    setUserData(res);
+  }, [setUserData, userId]);
+
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      (async () => {
+        try {
+          await loadUserDetails();
+        } catch (e) {
+          if (!active) return;
+          showErrorToast(
+            e?.response?.data?.message ||
+              e?.message ||
+              "Failed to load user details.",
+          );
+        }
+      })();
+
+      return () => {
+        active = false;
+      };
+    }, [loadUserDetails]),
+  );
 
   const user = useMemo(() => userData?.data ?? userData ?? {}, [userData]);
 
@@ -648,6 +682,7 @@ export default function AccountSettingsScreen() {
               runRefresh(async () => {
                 await Promise.all([
                   userId ? refreshProfile() : Promise.resolve(),
+                  loadUserDetails(),
                   loadCountries(),
                 ]);
               })
@@ -657,7 +692,12 @@ export default function AccountSettingsScreen() {
         }
       >
         {/* Profile Section */}
-        <View style={enhancedStyles.sectionCard}>
+        <View
+          style={[
+            enhancedStyles.sectionCard,
+            { backgroundColor: theme.card, borderColor: theme.border },
+          ]}
+        >
           <EnhancedSectionHeader
             title="Profile Information"
             subtitle="Update your personal details"
@@ -1109,7 +1149,16 @@ export default function AccountSettingsScreen() {
         </View>
 
         {/* KYC Section */}
-        <View style={[enhancedStyles.sectionCard, { marginTop: 20 }]}>
+        <View
+          style={[
+            enhancedStyles.sectionCard,
+            {
+              marginTop: 20,
+              backgroundColor: theme.card,
+              borderColor: theme.border,
+            },
+          ]}
+        >
           <EnhancedSectionHeader
             title="KYC Verification"
             subtitle="Complete your identity verification"

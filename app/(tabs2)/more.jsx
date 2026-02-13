@@ -13,7 +13,7 @@ import {
     View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { getUserDetails } from "../../api/getServices";
+import { getUserDetails } from "../../api/allServices";
 import AppIcon from "../../components/AppIcon";
 import { useAppTheme } from "../../contexts/ThemeContext";
 import usePullToRefresh from "../../hooks/usePullToRefresh";
@@ -134,7 +134,7 @@ export default function RealAccountsScreen() {
     {
       id: 7,
       icon: "receipt",
-      title: "Statements",
+      title: "Logs",
       color: "#FF8787",
       gradient: ["#FF8787", "#FA5252"],
     },
@@ -181,8 +181,8 @@ export default function RealAccountsScreen() {
       case "History":
         router.push("/history");
         break;
-      case "Statements":
-        router.push("/(tabs2)/statements");
+      case "Logs":
+        router.push("/(tabs2)/Logs");
         break;
       case "Support":
         router.push("/(tabs2)/supportTickets");
