@@ -303,6 +303,8 @@ const styles = StyleSheet.create({
     paddingVertical: 24,
     borderBottomLeftRadius: 24,
     borderBottomRightRadius: 24,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
     marginBottom: 20,
   },
   profileContent: {

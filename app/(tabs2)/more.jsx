@@ -22,7 +22,7 @@ import { useUserStore } from "../../store/userStore";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const CARD_WIDTH = SCREEN_WIDTH - 40;
-const ACTION_CARD_WIDTH = (SCREEN_WIDTH - 48) / 2;
+const ACTION_CARD_WIDTH = (SCREEN_WIDTH - 180) / 2;
 
 export default function RealAccountsScreen() {
   const { theme } = useAppTheme();
@@ -113,7 +113,7 @@ export default function RealAccountsScreen() {
     {
       id: 4,
       icon: "swap-horiz",
-      title: "Internal Transfer",
+      title: "Internal",
       color: "#FAB005",
       gradient: ["#FAB005", "#F59F00"],
     },
@@ -1026,10 +1026,10 @@ const styles = StyleSheet.create({
     marginRight: 12,
   },
   actionGradient: {
-    padding: 16,
+    padding: 10,
     alignItems: "center",
     justifyContent: "center",
-    minHeight: 100,
+    minHeight: 50,
   },
   actionIconContainer: {
     width: 48,

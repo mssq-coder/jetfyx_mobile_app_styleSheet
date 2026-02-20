@@ -1,5 +1,5 @@
-import React from "react";
 import { StyleSheet, Text, TextInput, View } from "react-native";
+import useIsNarrowScreen from "../../hooks/useIsNarrowScreen";
 import AppIcon from "../AppIcon";
 
 export default function InputRow({
@@ -15,17 +15,26 @@ export default function InputRow({
   icon,
   isLast = false,
 }) {
+  const isNarrow = useIsNarrowScreen();
+
   return (
     <View
       style={[
         styles.row,
+        isNarrow
+          ? {
+              flexDirection: "column",
+              alignItems: "stretch",
+              justifyContent: "flex-start",
+            }
+          : null,
         {
           backgroundColor: theme.card,
           borderBottomColor: isLast ? "transparent" : theme.border,
         },
       ]}
     >
-      <View style={styles.rowLeft}>
+      <View style={[styles.rowLeft, isNarrow ? { marginBottom: 10 } : null]}>
         {icon ? (
           <View
             style={[styles.rowIcon, { backgroundColor: `${theme.primary}15` }]}
@@ -33,7 +42,7 @@ export default function InputRow({
             <AppIcon name={icon} color={theme.primary} size={16} />
           </View>
         ) : null}
-        <View style={{ flex: 1 }}>
+        <View style={{ flex: 1, minWidth: 0 }}>
           <Text style={[styles.rowLabel, { color: theme.text }]}>{label}</Text>
           {helperText ? (
             <Text style={[styles.rowHelper, { color: theme.secondary }]}>
@@ -46,6 +55,13 @@ export default function InputRow({
       <View
         style={[
           styles.inputContainer,
+          isNarrow
+            ? {
+                minWidth: 0,
+                width: "100%",
+                alignSelf: "stretch",
+              }
+            : null,
           {
             backgroundColor: editable ? `${theme.background}80` : "transparent",
             borderWidth: editable ? 1 : 0,
@@ -63,6 +79,12 @@ export default function InputRow({
           multiline={multiline}
           style={[
             styles.input,
+            isNarrow
+              ? {
+                  minWidth: 0,
+                  textAlign: "left",
+                }
+              : null,
             {
               color: theme.text,
               opacity: editable ? 1 : 0.7,

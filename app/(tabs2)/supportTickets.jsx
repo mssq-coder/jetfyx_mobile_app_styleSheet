@@ -1660,7 +1660,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     alignItems: "center",
     justifyContent: "center",
-    minWidth: 110,
   },
 
   notice: { borderWidth: 1, borderRadius: 12, padding: 10, marginTop: 12 },

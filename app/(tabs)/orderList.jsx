@@ -4,7 +4,6 @@ import { FlatList, InteractionManager, SafeAreaView } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 
 import { useAuthStore } from "@/store/authStore";
-import AccountSummaryModal from "../../components/AccountSummaryModal";
 import EditOrderModal from "../../components/OrderComponents/EditOrderModal";
 import MultiTargetsModal from "../../components/OrderComponents/MultiTargetsModal";
 import { useAppTheme } from "../../contexts/ThemeContext";
@@ -300,7 +299,11 @@ const OrderListScreen = () => {
       else if (nb > 0) nextMarket = nb;
       if (nextMarket > 0) next.marketPrice = nextMarket;
 
-      if (!(Number(next?.digits) >= 0) && Number.isFinite(metaDigits) && metaDigits >= 0) {
+      if (
+        !(Number(next?.digits) >= 0) &&
+        Number.isFinite(metaDigits) &&
+        metaDigits >= 0
+      ) {
         next.digits = metaDigits;
       }
       if (
@@ -314,10 +317,18 @@ const OrderListScreen = () => {
       // Avoid unnecessary re-renders when nothing changed.
       const changedBid = Number(next?.bid) !== Number(order?.bid);
       const changedAsk = Number(next?.ask) !== Number(order?.ask);
-      const changedMarket = Number(next?.marketPrice) !== Number(order?.marketPrice);
+      const changedMarket =
+        Number(next?.marketPrice) !== Number(order?.marketPrice);
       const changedDigits = Number(next?.digits) !== Number(order?.digits);
-      const changedSymbolDigits = Number(next?.symbolDigits) !== Number(order?.symbolDigits);
-      if (!changedBid && !changedAsk && !changedMarket && !changedDigits && !changedSymbolDigits) {
+      const changedSymbolDigits =
+        Number(next?.symbolDigits) !== Number(order?.symbolDigits);
+      if (
+        !changedBid &&
+        !changedAsk &&
+        !changedMarket &&
+        !changedDigits &&
+        !changedSymbolDigits
+      ) {
         return order;
       }
 
@@ -559,6 +570,7 @@ const OrderListScreen = () => {
           selectedAccount={selectedAccount}
           setSummaryOpen={setSummaryOpen}
           summaryOpen={summaryOpen}
+          summaryContentReady={summaryContentReady}
         />
 
         <TabNavigation
@@ -669,14 +681,6 @@ const OrderListScreen = () => {
           adjustInputByStep={adjustInputByStep}
           toNumberOrZero={toNumberOrZero}
           styles={styles}
-        />
-
-        <AccountSummaryModal
-          visible={summaryOpen}
-          onClose={() => setSummaryOpen(false)}
-          summaryContentReady={summaryContentReady}
-          account={account}
-          theme={theme}
         />
 
         <EditOrderModal

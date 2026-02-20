@@ -1,13 +1,13 @@
 import { useEffect, useRef } from "react";
 import {
-    Animated,
-    Dimensions,
-    Modal,
-    Switch,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  Animated,
+  Dimensions,
+  Modal,
+  Switch,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import AppIcon from "../AppIcon";
 
@@ -336,7 +336,7 @@ export default function TradingBottomSheetModal({
                       placeholderTextColor={theme.secondary}
                       style={{
                         flex: 1,
-                        minWidth: 110,
+                        minWidth: 0,
                         backgroundColor: theme.card,
                         paddingHorizontal: 10,
                         paddingVertical: 12,

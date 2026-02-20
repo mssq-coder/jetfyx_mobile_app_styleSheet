@@ -2,27 +2,29 @@ import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
-    Image,
-    KeyboardAvoidingView,
-    Modal,
-    Platform,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableWithoutFeedback,
-    View,
+  Image,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableWithoutFeedback,
+  View,
 } from "react-native";
 import {
-    getAccountType,
-    getCountries,
-    registerUser,
-    verifyOtp,
+  getAccountType,
+  getCountries,
+  registerUser,
+  verifyOtp,
 } from "../../api/auth";
 import Logo from "../../assets/images/icon.png";
+import useIsNarrowScreen from "../../hooks/useIsNarrowScreen";
 
 export default function SignUpScreen({ navigation }) {
+  const isNarrow = useIsNarrowScreen();
   const [accountTypes, setAccountTypes] = useState([]);
   const [demoAccountTypes, setDemoAccountTypes] = useState([]);
   const [accountTypesLoading, setAccountTypesLoading] = useState(false);
@@ -332,8 +334,19 @@ export default function SignUpScreen({ navigation }) {
 
             {step === 1 && (
               <>
-                <View style={styles.nameRow}>
-                  <View style={[styles.nameField, styles.nameFieldLeft]}>
+                <View
+                  style={[
+                    styles.nameRow,
+                    isNarrow ? { flexDirection: "column" } : null,
+                  ]}
+                >
+                  <View
+                    style={[
+                      styles.nameField,
+                      styles.nameFieldLeft,
+                      isNarrow ? { paddingRight: 0 } : null,
+                    ]}
+                  >
                     <Text style={styles.label}>First Name</Text>
                     <TextInput
                       placeholder="First Name"
@@ -347,7 +360,13 @@ export default function SignUpScreen({ navigation }) {
                       <Text style={styles.errorText}>{errors.firstName}</Text>
                     ) : null}
                   </View>
-                  <View style={[styles.nameField, styles.nameFieldRight]}>
+                  <View
+                    style={[
+                      styles.nameField,
+                      styles.nameFieldRight,
+                      isNarrow ? { paddingLeft: 0 } : null,
+                    ]}
+                  >
                     <Text style={styles.label}>Last Name</Text>
                     <TextInput
                       placeholder="Last Name"
@@ -379,8 +398,20 @@ export default function SignUpScreen({ navigation }) {
                   ) : null}
                 </View>
 
-                <View style={styles.countryPhoneRow}>
-                  <View style={styles.countryCodeField}>
+                <View
+                  style={[
+                    styles.countryPhoneRow,
+                    isNarrow ? { flexDirection: "column" } : null,
+                  ]}
+                >
+                  <View
+                    style={[
+                      styles.countryCodeField,
+                      isNarrow
+                        ? { width: "100%", paddingRight: 0, marginBottom: 12 }
+                        : null,
+                    ]}
+                  >
                     <Text style={styles.label}>Country Code</Text>
                     <View>
                       <Pressable
@@ -395,7 +426,12 @@ export default function SignUpScreen({ navigation }) {
                     </View>
                   </View>
 
-                  <View style={styles.phoneField}>
+                  <View
+                    style={[
+                      styles.phoneField,
+                      isNarrow ? { paddingLeft: 0 } : null,
+                    ]}
+                  >
                     <Text style={styles.label}>Phone</Text>
                     <TextInput
                       placeholder="Phone Number"

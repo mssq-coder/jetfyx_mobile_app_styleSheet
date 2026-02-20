@@ -13,6 +13,7 @@ import {
   getFavouriteWatchlistSymbols,
   removeSymbolFromFavouriteWatchlist,
 } from "../../api/auth";
+import useIsNarrowScreen from "../../hooks/useIsNarrowScreen";
 import {
   showErrorToast,
   showInfoToast,
@@ -59,6 +60,7 @@ export default function AllSymbolsSectionList({
   refreshing = false,
   onRefresh,
 }) {
+  const isNarrow = useIsNarrowScreen();
   // Start collapsed: initially show only the category headers
   const [openGroups, setOpenGroups] = useState(() => new Set());
 
@@ -441,6 +443,7 @@ export default function AllSymbolsSectionList({
                   flexDirection: "row",
                   justifyContent: "flex-end",
                   gap: 10,
+                  flexWrap: isNarrow ? "wrap" : "nowrap",
                 }}
               >
                 <View style={{ alignItems: "flex-end" }}>
@@ -458,7 +461,7 @@ export default function AllSymbolsSectionList({
                   </Text>
                   <View
                     style={{
-                      minWidth: 88,
+                      minWidth: isNarrow ? 72 : 88,
                       paddingVertical: 8,
                       paddingHorizontal: 12,
                       borderRadius: 12,
@@ -469,6 +472,9 @@ export default function AllSymbolsSectionList({
                     }}
                   >
                     <Text
+                      numberOfLines={1}
+                      adjustsFontSizeToFit
+                      minimumFontScale={0.7}
                       style={{
                         fontSize: 16,
                         color: theme.negative,
@@ -498,7 +504,7 @@ export default function AllSymbolsSectionList({
                   </Text>
                   <View
                     style={{
-                      minWidth: 88,
+                      minWidth: isNarrow ? 72 : 88,
                       paddingVertical: 8,
                       paddingHorizontal: 12,
                       borderRadius: 12,
@@ -509,6 +515,9 @@ export default function AllSymbolsSectionList({
                     }}
                   >
                     <Text
+                      numberOfLines={1}
+                      adjustsFontSizeToFit
+                      minimumFontScale={0.7}
                       style={{
                         fontSize: 16,
                         color: theme.positive,

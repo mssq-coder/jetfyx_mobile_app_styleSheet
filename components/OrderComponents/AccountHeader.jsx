@@ -1,15 +1,16 @@
-import { Pressable, Text, View, Animated } from "react-native";
 import { useEffect, useMemo, useRef } from "react";
+import { Animated, Easing, Pressable, Text, View } from "react-native";
 import AppIcon from "../../components/AppIcon";
-import { Easing } from "react-native";
+import AccountSummary from "../Accounts/AccountSummary";
 
-const AccountHeader = ({ 
-  theme, 
-  account, 
-  summaryLoading, 
-  selectedAccount, 
-  setSummaryOpen, 
-  summaryOpen 
+const AccountHeader = ({
+  theme,
+  account,
+  summaryLoading,
+  selectedAccount,
+  setSummaryOpen,
+  summaryOpen,
+  summaryContentReady,
 }) => {
   const arrowRotate = useRef(new Animated.Value(0)).current;
 
@@ -28,7 +29,7 @@ const AccountHeader = ({
         inputRange: [0, 1],
         outputRange: ["0deg", "180deg"],
       }),
-    [arrowRotate]
+    [arrowRotate],
   );
 
   return (
@@ -38,11 +39,12 @@ const AccountHeader = ({
         marginTop: 12,
         borderRadius: 16,
         padding: 16,
-        backgroundColor: theme.card,
       }}
-      onPress={() => setSummaryOpen(true)}
+      onPress={() => setSummaryOpen((prev) => !prev)}
       accessibilityRole="button"
-      accessibilityLabel="Open account summary"
+      accessibilityLabel={
+        summaryOpen ? "Close account summary" : "Open account summary"
+      }
     >
       <View
         style={{
@@ -117,11 +119,7 @@ const AccountHeader = ({
                   color: theme.primary,
                 }}
               >
-                {String(
-                  selectedAccount?.accountTypeName ??
-                    account.type ??
-                    ""
-                )}
+                {String(selectedAccount?.accountTypeName ?? account.type ?? "")}
               </Text>
             </View>
             <Text style={{ fontSize: 12, color: theme.secondary }}>
@@ -131,14 +129,14 @@ const AccountHeader = ({
         </View>
 
         <Pressable
-          onPressIn={() => setSummaryOpen(true)}
+          onPressIn={() => setSummaryOpen((prev) => !prev)}
           accessibilityRole="button"
-          accessibilityLabel="Open account summary"
+          accessibilityLabel={
+            summaryOpen ? "Close account summary" : "Open account summary"
+          }
           hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
         >
-          <Animated.View
-            style={{ transform: [{ rotate: arrowRotation }] }}
-          >
+          <Animated.View style={{ transform: [{ rotate: arrowRotation }] }}>
             <AppIcon
               name="keyboard-arrow-down"
               size={40}
@@ -147,6 +145,42 @@ const AccountHeader = ({
           </Animated.View>
         </Pressable>
       </View>
+
+      <Animated.View
+        pointerEvents={summaryOpen ? "auto" : "none"}
+        style={{
+          overflow: "hidden",
+          marginTop: summaryOpen ? 12 : 0,
+          opacity: arrowRotate,
+          transform: [
+            {
+              translateY: arrowRotate.interpolate({
+                inputRange: [0, 1],
+                outputRange: [-6, 0],
+              }),
+            },
+          ],
+        }}
+      >
+        {summaryOpen ? (
+          summaryContentReady ? (
+            <AccountSummary account={account} />
+          ) : (
+            <View
+              style={{
+                width: "100%",
+                borderRadius: 16,
+                padding: 16,
+                backgroundColor: theme.card,
+              }}
+            >
+              <Text style={{ color: theme.secondary, fontSize: 12 }}>
+                Loading…
+              </Text>
+            </View>
+          )
+        ) : null}
+      </Animated.View>
     </Pressable>
   );
 };

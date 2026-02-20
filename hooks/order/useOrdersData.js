@@ -117,6 +117,10 @@ export const useOrdersData = ({ tab }) => {
         summary?.freeMargin != null
           ? Number(summary.freeMargin)
           : Number(selectedAccount?.freeMargin ?? 0),
+      marginLevel:
+        summary?.marginLevel != null
+          ? Number(summary.marginLevel)
+          : Number(selectedAccount?.marginLevel ?? 0),    
       leverage: selectedAccount?.leverage ?? 100,
     }),
     [accountId, selectedAccount, summary],

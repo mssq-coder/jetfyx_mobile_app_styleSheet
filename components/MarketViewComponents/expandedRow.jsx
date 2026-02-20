@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Platform,
@@ -6,6 +6,7 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  useWindowDimensions,
 } from "react-native";
 import { useTheme } from "../../contexts/ThemeContext";
 import AppIcon from "../AppIcon";
@@ -30,6 +31,12 @@ const ExpandedRow = ({
 }) => {
   const { theme } = useTheme();
   const [isLotFocused, setIsLotFocused] = useState(false);
+  const { width: windowWidth } = useWindowDimensions();
+
+  const isNarrow = useMemo(() => {
+    // Foldables / very small widths can dip low; keep this conservative.
+    return windowWidth > 0 && windowWidth < 360;
+  }, [windowWidth]);
 
   const getSpreadText = (buy, sell, digitsParam) => {
     if (buy == null || sell == null) return "--";
@@ -51,7 +58,16 @@ const ExpandedRow = ({
           paddingHorizontal: 8,
         }}
       >
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 6,
+            flex: 1,
+            paddingRight: 6,
+            minWidth: 0,
+          }}
+        >
           <View
             style={{
               width: 28,
@@ -74,10 +90,12 @@ const ExpandedRow = ({
           </View>
 
           <Text
+            numberOfLines={1}
             style={{
               color: theme.text,
               fontSize: 16,
               fontWeight: "700",
+              flexShrink: 1,
             }}
           >
             {symbol || "--"}
@@ -120,182 +138,360 @@ const ExpandedRow = ({
       </View>
 
       {/* Compact Action Buttons Row */}
-      <View
-        style={{
-          flexDirection: "row",
-          alignItems: "center",
-          marginBottom: 8,
-          gap: 8,
-          paddingHorizontal: 4,
-        }}
-      >
-        {/* SELL Button */}
-        <TouchableOpacity
-          onPress={onSell}
-          disabled={!onSell || isPlacing}
-          activeOpacity={0.85}
-          style={{
-            flex: 1,
-            borderRadius: 12,
-            backgroundColor: theme.negative,
-            paddingVertical: 10,
-            paddingHorizontal: 8,
-            shadowColor: theme.negative,
-            shadowOffset: { width: 0, height: 3 },
-            shadowOpacity: 0.2,
-            shadowRadius: 4,
-            elevation: 3,
-            opacity: !onSell || isPlacing ? 0.7 : 1,
-          }}
-        >
-          <View style={{ alignItems: "center" }}>
-            <Text
-              style={{
-                color: "#fff",
-                fontSize: 9,
-                fontWeight: "700",
-                marginBottom: 4,
-                letterSpacing: 0.3,
-              }}
-            >
-              {isPlacing ? "..." : "SELL"}
-            </Text>
-
-            {isPlacing ? (
-              <ActivityIndicator
-                size="small"
-                color="#fff"
-                style={{ height: 20 }}
-              />
-            ) : (
-              <Text
-                numberOfLines={1}
-                adjustsFontSizeToFit
-                minimumFontScale={0.7}
-                style={{
-                  color: "#fff",
-                  fontSize: 14,
-                  fontWeight: "800",
-                  letterSpacing: 0.2,
-                }}
-              >
-                {sellPrice}
-              </Text>
-            )}
-          </View>
-        </TouchableOpacity>
-
-        {/* Compact Lot Size Control */}
-        <View
-          style={{
-            width: 100,
-            borderRadius: 10,
-            backgroundColor: theme.card,
-            padding: 8,
-            borderWidth: 1,
-            borderColor: isLotFocused ? theme.primary : theme.border,
-          }}
-        >
-          
-
+      {isNarrow ? (
+        <View style={{ marginBottom: 8, paddingHorizontal: 4 }}>
           <View
             style={{
               flexDirection: "row",
               alignItems: "center",
-              justifyContent: "center",
+              gap: 8,
             }}
           >
-
-            <View
+            {/* SELL Button */}
+            <TouchableOpacity
+              onPress={onSell}
+              disabled={!onSell || isPlacing}
+              activeOpacity={0.85}
               style={{
-                backgroundColor: theme.background,
-                paddingHorizontal: 6,
-                paddingVertical: 4,
-                borderRadius: 6,
-                borderWidth: 1,
-                borderColor: isLotFocused ? theme.primary : theme.border,
-                minWidth: 80,
-                alignItems: "center",
+                flex: 1,
+                borderRadius: 12,
+                backgroundColor: theme.negative,
+                paddingVertical: 10,
+                paddingHorizontal: 8,
+                shadowColor: theme.negative,
+                shadowOffset: { width: 0, height: 3 },
+                shadowOpacity: 0.2,
+                shadowRadius: 4,
+                elevation: 3,
+                opacity: !onSell || isPlacing ? 0.7 : 1,
               }}
             >
-              <TextInput
-                value={String(lotSize)}
-                onChangeText={(text) => {
-                  const cleaned = text.replace(/[^0-9.]/g, "");
-                  if (onChangeLot) onChangeLot(cleaned);
-                }}
-                onFocus={() => setIsLotFocused(true)}
-                onBlur={() => setIsLotFocused(false)}
-                keyboardType={Platform.OS === "ios" ? "decimal-pad" : "numeric"}
+              <View style={{ alignItems: "center" }}>
+                <Text
+                  style={{
+                    color: "#fff",
+                    fontSize: 9,
+                    fontWeight: "700",
+                    marginBottom: 4,
+                    letterSpacing: 0.3,
+                  }}
+                >
+                  {isPlacing ? "..." : "SELL"}
+                </Text>
+
+                {isPlacing ? (
+                  <ActivityIndicator
+                    size="small"
+                    color="#fff"
+                    style={{ height: 20 }}
+                  />
+                ) : (
+                  <Text
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.7}
+                    style={{
+                      color: "#fff",
+                      fontSize: 14,
+                      fontWeight: "800",
+                      letterSpacing: 0.2,
+                    }}
+                  >
+                    {sellPrice}
+                  </Text>
+                )}
+              </View>
+            </TouchableOpacity>
+
+            {/* BUY Button */}
+            <TouchableOpacity
+              onPress={onBuy}
+              disabled={!onBuy || isPlacing}
+              activeOpacity={0.85}
+              style={{
+                flex: 1,
+                borderRadius: 12,
+                backgroundColor: theme.positive,
+                paddingVertical: 10,
+                paddingHorizontal: 8,
+                shadowColor: theme.positive,
+                shadowOffset: { width: 0, height: 3 },
+                shadowOpacity: 0.2,
+                shadowRadius: 4,
+                elevation: 3,
+                opacity: !onBuy || isPlacing ? 0.7 : 1,
+              }}
+            >
+              <View style={{ alignItems: "center" }}>
+                <Text
+                  style={{
+                    color: "#fff",
+                    fontSize: 9,
+                    fontWeight: "700",
+                    marginBottom: 4,
+                    letterSpacing: 0.3,
+                  }}
+                >
+                  {isPlacing ? "..." : "BUY"}
+                </Text>
+
+                {isPlacing ? (
+                  <ActivityIndicator
+                    size="small"
+                    color="#fff"
+                    style={{ height: 20 }}
+                  />
+                ) : (
+                  <Text
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.7}
+                    style={{
+                      color: "#fff",
+                      fontSize: 14,
+                      fontWeight: "800",
+                      letterSpacing: 0.2,
+                    }}
+                  >
+                    {buyPrice}
+                  </Text>
+                )}
+              </View>
+            </TouchableOpacity>
+          </View>
+
+          {/* Lot Size Control (moves below to avoid overlap) */}
+          <View
+            style={{
+              marginTop: 8,
+              borderRadius: 10,
+              backgroundColor: theme.card,
+              padding: 8,
+              borderWidth: 1,
+              borderColor: isLotFocused ? theme.primary : theme.border,
+              alignSelf: "stretch",
+            }}
+          >
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <View
                 style={{
-                  fontWeight: "700",
-                  color: theme.text,
-                  fontSize: 14,
-                  textAlign: "center",
-                  padding: 0,
-                  minWidth: 60,
+                  backgroundColor: theme.background,
+                  paddingHorizontal: 6,
+                  paddingVertical: 4,
+                  borderRadius: 6,
+                  borderWidth: 1,
+                  borderColor: isLotFocused ? theme.primary : theme.border,
+                  minWidth: 120,
+                  alignItems: "center",
                 }}
-              />
+              >
+                <TextInput
+                  value={String(lotSize)}
+                  onChangeText={(text) => {
+                    const cleaned = text.replace(/[^0-9.]/g, "");
+                    if (onChangeLot) onChangeLot(cleaned);
+                  }}
+                  onFocus={() => setIsLotFocused(true)}
+                  onBlur={() => setIsLotFocused(false)}
+                  keyboardType={
+                    Platform.OS === "ios" ? "decimal-pad" : "numeric"
+                  }
+                  style={{
+                    fontWeight: "700",
+                    color: theme.text,
+                    fontSize: 14,
+                    textAlign: "center",
+                    padding: 0,
+                    minWidth: 60,
+                  }}
+                />
+              </View>
             </View>
           </View>
         </View>
-
-        {/* BUY Button */}
-        <TouchableOpacity
-          onPress={onBuy}
-          disabled={!onBuy || isPlacing}
-          activeOpacity={0.85}
+      ) : (
+        <View
           style={{
-            flex: 1,
-            borderRadius: 12,
-            backgroundColor: theme.positive,
-            paddingVertical: 10,
-            paddingHorizontal: 8,
-            shadowColor: theme.positive,
-            shadowOffset: { width: 0, height: 3 },
-            shadowOpacity: 0.2,
-            shadowRadius: 4,
-            elevation: 3,
-            opacity: !onBuy || isPlacing ? 0.7 : 1,
+            flexDirection: "row",
+            alignItems: "center",
+            marginBottom: 8,
+            gap: 8,
+            paddingHorizontal: 4,
           }}
         >
-          <View style={{ alignItems: "center" }}>
-            <Text
-              style={{
-                color: "#fff",
-                fontSize: 9,
-                fontWeight: "700",
-                marginBottom: 4,
-                letterSpacing: 0.3,
-              }}
-            >
-              {isPlacing ? "..." : "BUY"}
-            </Text>
-
-            {isPlacing ? (
-              <ActivityIndicator
-                size="small"
-                color="#fff"
-                style={{ height: 20 }}
-              />
-            ) : (
+          {/* SELL Button */}
+          <TouchableOpacity
+            onPress={onSell}
+            disabled={!onSell || isPlacing}
+            activeOpacity={0.85}
+            style={{
+              flex: 1,
+              borderRadius: 12,
+              backgroundColor: theme.negative,
+              paddingVertical: 10,
+              paddingHorizontal: 8,
+              shadowColor: theme.negative,
+              shadowOffset: { width: 0, height: 3 },
+              shadowOpacity: 0.2,
+              shadowRadius: 4,
+              elevation: 3,
+              opacity: !onSell || isPlacing ? 0.7 : 1,
+            }}
+          >
+            <View style={{ alignItems: "center" }}>
               <Text
-                numberOfLines={1}
-                adjustsFontSizeToFit
-                minimumFontScale={0.7}
                 style={{
                   color: "#fff",
-                  fontSize: 14,
-                  fontWeight: "800",
-                  letterSpacing: 0.2,
+                  fontSize: 9,
+                  fontWeight: "700",
+                  marginBottom: 4,
+                  letterSpacing: 0.3,
                 }}
               >
-                {buyPrice}
+                {isPlacing ? "..." : "SELL"}
               </Text>
-            )}
+
+              {isPlacing ? (
+                <ActivityIndicator
+                  size="small"
+                  color="#fff"
+                  style={{ height: 20 }}
+                />
+              ) : (
+                <Text
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.7}
+                  style={{
+                    color: "#fff",
+                    fontSize: 14,
+                    fontWeight: "800",
+                    letterSpacing: 0.2,
+                  }}
+                >
+                  {sellPrice}
+                </Text>
+              )}
+            </View>
+          </TouchableOpacity>
+
+          {/* Compact Lot Size Control */}
+          <View
+            style={{
+              width: 100,
+              borderRadius: 10,
+              backgroundColor: theme.card,
+              padding: 8,
+              borderWidth: 1,
+              borderColor: isLotFocused ? theme.primary : theme.border,
+            }}
+          >
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <View
+                style={{
+                  backgroundColor: theme.background,
+                  paddingHorizontal: 6,
+                  paddingVertical: 4,
+                  borderRadius: 6,
+                  borderWidth: 1,
+                  borderColor: isLotFocused ? theme.primary : theme.border,
+                  minWidth: 80,
+                  alignItems: "center",
+                }}
+              >
+                <TextInput
+                  value={String(lotSize)}
+                  onChangeText={(text) => {
+                    const cleaned = text.replace(/[^0-9.]/g, "");
+                    if (onChangeLot) onChangeLot(cleaned);
+                  }}
+                  onFocus={() => setIsLotFocused(true)}
+                  onBlur={() => setIsLotFocused(false)}
+                  keyboardType={
+                    Platform.OS === "ios" ? "decimal-pad" : "numeric"
+                  }
+                  style={{
+                    fontWeight: "700",
+                    color: theme.text,
+                    fontSize: 14,
+                    textAlign: "center",
+                    padding: 0,
+                    minWidth: 60,
+                  }}
+                />
+              </View>
+            </View>
           </View>
-        </TouchableOpacity>
-      </View>
+
+          {/* BUY Button */}
+          <TouchableOpacity
+            onPress={onBuy}
+            disabled={!onBuy || isPlacing}
+            activeOpacity={0.85}
+            style={{
+              flex: 1,
+              borderRadius: 12,
+              backgroundColor: theme.positive,
+              paddingVertical: 10,
+              paddingHorizontal: 8,
+              shadowColor: theme.positive,
+              shadowOffset: { width: 0, height: 3 },
+              shadowOpacity: 0.2,
+              shadowRadius: 4,
+              elevation: 3,
+              opacity: !onBuy || isPlacing ? 0.7 : 1,
+            }}
+          >
+            <View style={{ alignItems: "center" }}>
+              <Text
+                style={{
+                  color: "#fff",
+                  fontSize: 9,
+                  fontWeight: "700",
+                  marginBottom: 4,
+                  letterSpacing: 0.3,
+                }}
+              >
+                {isPlacing ? "..." : "BUY"}
+              </Text>
+
+              {isPlacing ? (
+                <ActivityIndicator
+                  size="small"
+                  color="#fff"
+                  style={{ height: 20 }}
+                />
+              ) : (
+                <Text
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.7}
+                  style={{
+                    color: "#fff",
+                    fontSize: 14,
+                    fontWeight: "800",
+                    letterSpacing: 0.2,
+                  }}
+                >
+                  {buyPrice}
+                </Text>
+              )}
+            </View>
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* Compact Market Data */}
       <View
@@ -324,6 +520,9 @@ const ExpandedRow = ({
             LOW
           </Text>
           <Text
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.8}
             style={{
               fontSize: 12,
               color: theme.negative,
@@ -355,6 +554,9 @@ const ExpandedRow = ({
             SPREAD
           </Text>
           <Text
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.8}
             style={{
               fontSize: 12,
               color: theme.text,
@@ -386,6 +588,9 @@ const ExpandedRow = ({
             HIGH
           </Text>
           <Text
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.8}
             style={{
               fontSize: 12,
               color: theme.positive,

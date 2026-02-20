@@ -8,6 +8,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import useIsNarrowScreen from "../hooks/useIsNarrowScreen";
 import { useTheme } from "../hooks/useTheme";
 import { useAuthStore } from "../store/authStore";
 import AccountSelectorModal from "./Accounts/AccountSelectorModal";
@@ -24,7 +25,8 @@ const Header = ({
   const { themeName, theme } = useTheme();
   const isDark = themeName === "dark";
   const navigation = useNavigation();
-  
+  const isNarrow = useIsNarrowScreen();
+
   // Animation values
   const scaleAnim = useRef(new Animated.Value(1)).current;
 
@@ -82,45 +84,46 @@ const Header = ({
   const getAccountTypeColor = (type) => {
     if (!type) return theme?.primary;
     const typeLower = type.toLowerCase();
-    if (typeLower.includes('saving') || typeLower.includes('deposit')) return theme?.success || '#10b981';
-    if (typeLower.includes('checking') || typeLower.includes('current')) return theme?.info || '#3b82f6';
-    if (typeLower.includes('credit') || typeLower.includes('loan')) return theme?.warning || '#f59e0b';
+    if (typeLower.includes("saving") || typeLower.includes("deposit"))
+      return theme?.success || "#10b981";
+    if (typeLower.includes("checking") || typeLower.includes("current"))
+      return theme?.info || "#3b82f6";
+    if (typeLower.includes("credit") || typeLower.includes("loan"))
+      return theme?.warning || "#f59e0b";
     return theme?.primary;
   };
 
-  const accountTypeColor = displayAccount ? getAccountTypeColor(displayAccount.accountTypeName) : theme?.primary;
+  const accountTypeColor = displayAccount
+    ? getAccountTypeColor(displayAccount.accountTypeName)
+    : theme?.primary;
 
   return (
     <SafeAreaView
       style={[
         styles.container,
         {
-          backgroundColor: theme?.background ?? (isDark ? "#0f172a" : "#ffffff"),
+          backgroundColor:
+            theme?.background ?? (isDark ? "#0f172a" : "#ffffff"),
         },
       ]}
-      edges={['top']}
+      edges={["top"]}
     >
       <View style={styles.content}>
         {/* Left Section - Logo */}
-        <View style={styles.leftSection}>
-          <LogoComp size={36} imageIndex={imageIndex} />
-        </View>
-
-        {/* Right Section */}
-        <View style={styles.rightSection}>
+        <View style={[styles.leftSection, isNarrow ? { flex: 0 } : null]}>
           {/* Menu Button */}
-          <Animated.View 
-            style={{ 
-              transform: [{ scale: scaleAnim }] 
+          <Animated.View
+            style={{
+              transform: [{ scale: scaleAnim }],
             }}
           >
             <TouchableOpacity
               onPress={openDrawer}
               style={[
                 styles.menuButton,
-                { 
+                {
                   backgroundColor: theme?.card ?? "#ffffff",
-                  borderColor: theme?.border + '30' ?? "#e2e8f0",
+                  borderColor: theme?.border + "30" ?? "#e2e8f0",
                 },
               ]}
               activeOpacity={0.7}
@@ -132,39 +135,62 @@ const Header = ({
               />
             </TouchableOpacity>
           </Animated.View>
+        </View>
+
+        {/* Right Section */}
+        <View
+          style={[
+            styles.rightSection,
+            isNarrow ? { flex: 1, justifyContent: "flex-end" } : null,
+          ]}
+        >
+          {/* Logo */}
+          <LogoComp size={36} imageIndex={imageIndex} />
 
           {/* Account Selector */}
           <TouchableOpacity
             onPress={handleAccountPress}
             style={[
               styles.accountButton,
-              { 
+              isNarrow
+                ? {
+                    minWidth: 0,
+                    maxWidth: undefined,
+                    flex: 1,
+                    paddingHorizontal: 10,
+                  }
+                : null,
+              {
                 backgroundColor: theme?.card ?? "#ffffff",
-                borderColor: theme?.border + '30' ?? "#e2e8f0",
+                borderColor: theme?.border + "30" ?? "#e2e8f0",
               },
             ]}
             activeOpacity={0.8}
           >
-            <View style={[
-              styles.accountIcon,
-              { backgroundColor: accountTypeColor + '15' }
-            ]}>
+            <View
+              style={[
+                styles.accountIcon,
+                { backgroundColor: accountTypeColor + "15" },
+              ]}
+            >
               <AppIcon
                 name="account-balance"
                 size={16}
                 color={accountTypeColor}
               />
             </View>
-            
+
             <View style={styles.accountInfo}>
               <Text
                 style={[
                   styles.accountText,
-                  { 
+                  {
                     color: theme?.text ?? (isDark ? "#fff" : "#0f172a"),
                   },
                 ]}
                 numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.85}
               >
                 {displayAccount
                   ? displayAccount.accountNumber || "Account"
@@ -174,7 +200,7 @@ const Header = ({
                 <Text
                   style={[
                     styles.accountType,
-                    { 
+                    {
                       color: accountTypeColor,
                     },
                   ]}
@@ -184,7 +210,7 @@ const Header = ({
                 </Text>
               )}
             </View>
-            
+
             <AppIcon
               name="expand-more"
               color={theme?.secondary ?? (isDark ? "#94a3b8" : "#64748b")}
@@ -229,13 +255,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0,0,0,0.05)',
+    borderBottomColor: "rgba(0,0,0,0.05)",
   },
   content: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    width: '100%',
+    width: "100%",
   },
   leftSection: {
     flex: 1,

@@ -4,7 +4,7 @@ import { useTheme } from "../../hooks/useTheme";
 // Displays key account metrics in a tidy grid
 const AccountSummary = ({ account }) => {
   const { themeName, theme } = useTheme();
-  const isDark = themeName === "dark";
+  const isDark = Boolean(theme?.isDark) || themeName === "dark";
 
   if (!account) {
     return (
@@ -34,14 +34,9 @@ const AccountSummary = ({ account }) => {
     { label: "Balance", value: `$${account.balance.toFixed(2)}` },
     { label: "Equity", value: `$${account.equity.toFixed(2)}` },
     { label: "Free Margin", value: `$${account.freeMargin.toFixed(2)}` },
-    { label: "Leverage", value: account.leverage + "x" },
+    // { label: "Leverage", value: account.leverage + "x" },
+    { label: "Margin Level", value: account.marginLevel.toFixed(2) + "%" },
   ];
-
-  const fieldBackground = isDark
-    ? (theme?.surface ?? "#0f172a")
-    : (theme?.card ?? "#f8fafc");
-
-  const fieldBorder = isDark ? "#1f2933" : "#e5e7eb";
 
   return (
     <View
@@ -55,43 +50,53 @@ const AccountSummary = ({ account }) => {
       ]}
     >
       <Text
-        style={[styles.titleText, { color: isDark ? "#ffffff" : "#0f172a" }]}
+        style={[
+          styles.titleText,
+          { color: theme?.text ?? (isDark ? "#ffffff" : "#0f172a") },
+        ]}
       >
         Account Summary
       </Text>
 
       <View style={styles.rowsContainer}>
-        {rows.map((r) => (
-          <View key={r.label} style={styles.item}>
-            <View
-              style={[
-                styles.fieldCard,
-                {
-                  backgroundColor: fieldBackground,
-                  borderColor: fieldBorder,
-                },
-              ]}
-            >
-              <Text
+        {rows.map((r, idx) => {
+          const isLeft = idx % 2 === 0;
+          return (
+            <View key={r.label} style={styles.item}>
+              <View
                 style={[
-                  styles.labelText,
-                  { color: isDark ? "#9ca3af" : "#6b7280" },
+                  styles.fieldRow,
+                  {
+                    borderColor:
+                      theme?.border ?? (isDark ? "#334155" : "#d1d5db"),
+                    borderRightWidth: isLeft ? StyleSheet.hairlineWidth : 0,
+                  },
                 ]}
               >
-                {r.label}
-              </Text>
+                <Text
+                  style={[
+                    styles.labelText,
+                    {
+                      color:
+                        theme?.secondary ?? (isDark ? "#94a3b8" : "#6b7280"),
+                    },
+                  ]}
+                >
+                  {r.label}
+                </Text>
 
-              <Text
-                style={[
-                  styles.valueText,
-                  { color: isDark ? "#e5e7eb" : "#111827" },
-                ]}
-              >
-                {r.value}
-              </Text>
+                <Text
+                  style={[
+                    styles.valueText,
+                    { color: theme?.text ?? (isDark ? "#e5e7eb" : "#111827") },
+                  ]}
+                >
+                  {r.value}
+                </Text>
+              </View>
             </View>
-          </View>
-        ))}
+          );
+        })}
       </View>
     </View>
   );
@@ -126,14 +131,12 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
 
-  /** ✅ Individual field card */
-  fieldCard: {
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingVertical: 12,
-    paddingHorizontal: 12,
-    minHeight: 64,
+  fieldRow: {
+    paddingVertical: 10,
+    paddingHorizontal: 6,
+    minHeight: 56,
     justifyContent: "center",
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
 
   labelText: {
