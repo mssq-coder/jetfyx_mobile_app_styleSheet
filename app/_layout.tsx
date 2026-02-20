@@ -5,7 +5,7 @@ import {
   ThemeProvider,
 } from "@react-navigation/native";
 import { useFonts } from "expo-font";
-import { useRouter } from "expo-router";
+import { useRouter, useSegments } from "expo-router";
 import { Drawer } from "expo-router/drawer";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect, useState } from "react";
@@ -87,8 +87,24 @@ export default function RootLayout() {
 }
 
 function RootLayoutNav() {
+  const router = useRouter();
+  const segments = useSegments();
+  const token = useAuthStore((s) => s.token);
+  const hasHydrated = useAuthStore((s) => s.hasHydrated);
   const colorScheme = useColorScheme();
   const { theme } = useAppTheme();
+
+  useEffect(() => {
+    if (!hasHydrated) return;
+
+    const inAuthGroup = segments?.[0] === "(auth)";
+
+    if (!token && !inAuthGroup) {
+      router.replace("/(auth)/login");
+    } else if (token && inAuthGroup) {
+      router.replace("/(tabs)");
+    }
+  }, [hasHydrated, token, segments, router]);
 
   return (
     <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
