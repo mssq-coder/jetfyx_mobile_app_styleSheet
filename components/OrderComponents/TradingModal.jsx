@@ -9,6 +9,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { validateSlTpValues } from "../../utils/orderValidation";
 import AppIcon from "../AppIcon";
 
 export default function TradingModal(props) {
@@ -18,6 +19,7 @@ export default function TradingModal(props) {
     modalSide,
     theme,
     symbol,
+    slTpLevelPoints,
     modalSidePriceStr,
     tradeTab,
     handleTradeTabPress,
@@ -56,6 +58,61 @@ export default function TradingModal(props) {
   } = props;
 
   const modalSideColor = modalSide === "BUY" ? theme.positive : theme.negative;
+
+  const toNum = (v) => {
+    if (v == null) return null;
+    if (typeof v === "number") return Number.isFinite(v) ? v : null;
+
+    const str = String(v).trim();
+    if (!str) return null;
+
+    // Be tolerant of API values like "50", "50.0", "50 points", etc.
+    const match = str.match(/-?\d+(?:\.\d+)?/);
+    if (!match) return null;
+    const n = Number(match[0]);
+    return Number.isFinite(n) ? n : null;
+  };
+
+  const digitsInt = Number.isFinite(Number(digits))
+    ? Math.max(0, parseInt(digits, 10))
+    : 2;
+  const tickSize = digitsInt > 0 ? 10 ** -digitsInt : 1;
+  const slTpPoints = Math.max(0, toNum(slTpLevelPoints) ?? 0);
+  const slTpStep = slTpPoints > 0 ? slTpPoints * tickSize : tickSize;
+
+  const formatPriceLocal = (n) => {
+    if (!Number.isFinite(n)) return "";
+    return digitsInt > 0 ? n.toFixed(digitsInt) : String(Math.round(n));
+  };
+
+  const adjustFieldLocal = (setter, value, direction, baseOverride, step) => {
+    const current = toNum(value);
+    const baseCandidate =
+      current != null ? current : (toNum(baseOverride) ?? 0);
+    const stepNum = toNum(step) ?? tickSize;
+    const next = baseCandidate + direction * stepNum;
+    setter(formatPriceLocal(next));
+  };
+
+  const refPrice = toNum(getReferencePrice?.()) ?? 0;
+  const pendingBase =
+    toNum(pendingEntryPrice) ?? toNum(currentMarketMid) ?? refPrice;
+  const slTpValidationBase = tradeTab === "Pending" ? pendingBase : refPrice;
+
+  const { slError, tpError } = validateSlTpValues({
+    side: modalSide,
+    marketRef: slTpValidationBase,
+    stopLoss: slEnabled ? sl : null,
+    takeProfit: tpEnabled ? tp : null,
+  });
+
+  const hasSlTpError =
+    (slEnabled && Boolean(slError)) || (tpEnabled && Boolean(tpError));
+
+  const handleExecutePress = () => {
+    if (hasSlTpError) return;
+    executeOrder?.();
+  };
 
   return (
     <Modal
@@ -451,7 +508,7 @@ export default function TradingModal(props) {
                       Lot Size
                     </Text>
                     <Text style={{ fontSize: 12, color: theme.secondary }}>
-                      Min: {lotMin} | Max: {lotMax || "∞"} | Step: {lotStep}
+                      Min: {lotMin} | Max: {lotMax || "∞"}
                     </Text>
                   </View>
                   <View style={{ flexDirection: "row", alignItems: "center" }}>
@@ -624,22 +681,27 @@ export default function TradingModal(props) {
                             fontSize: 16,
                             color: theme.text,
                             borderWidth: 2,
-                            borderColor: theme.border,
+                            borderColor:
+                              tpEnabled && tpError
+                                ? theme.negative
+                                : theme.border,
                           }}
                           value={tp}
                           onChangeText={setTp}
                           onFocus={handleTpFocus}
+                          onPressIn={handleTpFocus}
                           keyboardType="numeric"
                           placeholder="0.00"
                           placeholderTextColor={theme.secondary}
                         />
                         <TouchableOpacity
                           onPress={() =>
-                            adjustFieldWithBase(
+                            adjustFieldLocal(
                               setTp,
                               tp,
                               1,
                               getReferencePrice(),
+                              slTpStep,
                             )
                           }
                           style={{
@@ -656,11 +718,12 @@ export default function TradingModal(props) {
                         </TouchableOpacity>
                         <TouchableOpacity
                           onPress={() =>
-                            adjustFieldWithBase(
+                            adjustFieldLocal(
                               setTp,
                               tp,
                               -1,
                               getReferencePrice(),
+                              slTpStep,
                             )
                           }
                           style={{
@@ -679,6 +742,18 @@ export default function TradingModal(props) {
                         </TouchableOpacity>
                       </View>
                     )}
+                    {tpEnabled && tpError ? (
+                      <Text
+                        style={{
+                          marginTop: 6,
+                          fontSize: 11,
+                          fontWeight: "600",
+                          color: theme.negative,
+                        }}
+                      >
+                        {tpError}
+                      </Text>
+                    ) : null}
                   </View>
 
                   {/* Stop Loss */}
@@ -744,22 +819,27 @@ export default function TradingModal(props) {
                             fontSize: 16,
                             color: theme.text,
                             borderWidth: 2,
-                            borderColor: theme.border,
+                            borderColor:
+                              slEnabled && slError
+                                ? theme.negative
+                                : theme.border,
                           }}
                           value={sl}
                           onChangeText={setSl}
                           onFocus={handleSlFocus}
+                          onPressIn={handleSlFocus}
                           keyboardType="numeric"
                           placeholder="0.00"
                           placeholderTextColor={theme.secondary}
                         />
                         <TouchableOpacity
                           onPress={() =>
-                            adjustFieldWithBase(
+                            adjustFieldLocal(
                               setSl,
                               sl,
                               1,
                               getReferencePrice(),
+                              slTpStep,
                             )
                           }
                           style={{
@@ -776,11 +856,12 @@ export default function TradingModal(props) {
                         </TouchableOpacity>
                         <TouchableOpacity
                           onPress={() =>
-                            adjustFieldWithBase(
+                            adjustFieldLocal(
                               setSl,
                               sl,
                               -1,
                               getReferencePrice(),
+                              slTpStep,
                             )
                           }
                           style={{
@@ -799,6 +880,18 @@ export default function TradingModal(props) {
                         </TouchableOpacity>
                       </View>
                     )}
+                    {slEnabled && slError ? (
+                      <Text
+                        style={{
+                          marginTop: 6,
+                          fontSize: 11,
+                          fontWeight: "600",
+                          color: theme.negative,
+                        }}
+                      >
+                        {slError}
+                      </Text>
+                    ) : null}
                   </View>
                 </View>
 
@@ -985,7 +1078,9 @@ export default function TradingModal(props) {
 
                 {/* Execute Button */}
                 <TouchableOpacity
-                  onPress={executeOrder}
+                  onPress={handleExecutePress}
+                  disabled={hasSlTpError}
+                  accessibilityState={{ disabled: hasSlTpError }}
                   style={{
                     backgroundColor: modalSideColor,
                     borderRadius: 16,
@@ -997,6 +1092,7 @@ export default function TradingModal(props) {
                     shadowOpacity: 0.3,
                     shadowRadius: 8,
                     elevation: 6,
+                    opacity: hasSlTpError ? 0.6 : 1,
                   }}
                 >
                   <Text

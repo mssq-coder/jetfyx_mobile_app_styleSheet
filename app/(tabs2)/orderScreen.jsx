@@ -3,15 +3,15 @@ import { useRouter } from "expo-router";
 import * as SecureStore from "expo-secure-store";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-    Animated,
-    Dimensions,
-    Modal,
-    RefreshControl,
-    ScrollView,
-    StatusBar,
-    Text,
-    TouchableOpacity,
-    View,
+  Animated,
+  Dimensions,
+  Modal,
+  RefreshControl,
+  ScrollView,
+  StatusBar,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { getAllCurrencyListFromDB } from "../../api/allServices";
@@ -26,9 +26,9 @@ import { useMarginCalculation } from "../../hooks/useMarginCalculation";
 import usePullToRefresh from "../../hooks/usePullToRefresh";
 import { useAuthStore } from "../../store/authStore";
 import {
-    showErrorToast,
-    showInfoToast,
-    showSuccessToast,
+  showErrorToast,
+  showInfoToast,
+  showSuccessToast,
 } from "../../utils/toast";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
@@ -132,6 +132,13 @@ export default function Orders() {
             digits: Number.isFinite(Number(item.digits))
               ? parseInt(item.digits, 10)
               : 2,
+            limitAndStopLevelPoints:
+              item.limitAndStopLevelPoints ??
+              item.limitStopLevelPoints ??
+              item.stopLevelPoints ??
+              item.stopLevel ??
+              item.limitLevel ??
+              null,
             minLotSize: item.minLotSize ?? null,
             maxLotSize: item.maxLotSize ?? null,
             lotStepSize: item.lotStepSize ?? null,
@@ -338,6 +345,13 @@ export default function Orders() {
             digits: Number.isFinite(Number(item.digits))
               ? parseInt(item.digits, 10)
               : 2,
+            limitAndStopLevelPoints:
+              item.limitAndStopLevelPoints ??
+              item.limitStopLevelPoints ??
+              item.stopLevelPoints ??
+              item.stopLevel ??
+              item.limitLevel ??
+              null,
             minLotSize: item.minLotSize ?? null,
             maxLotSize: item.maxLotSize ?? null,
             lotStepSize: item.lotStepSize ?? null,
@@ -918,13 +932,13 @@ export default function Orders() {
               >
                 {changePct == null
                   ? "--"
-                  : `${changePct >= 0 ? "+" : ""}${changePct.toFixed(2)}%`}
+                  : `${changePct >= 0 ? "+" : ""}${changePct.toFixed(5)}%`}
               </Text>
             </Animated.View>
           </View>
 
           {/* Price Row */}
-          <View
+          {/* <View
             style={{
               flexDirection: "row",
               justifyContent: "space-between",
@@ -942,7 +956,7 @@ export default function Orders() {
                   opacity: 0.7,
                 }}
               >
-                SELL
+                SELLs
               </Text>
               <Text
                 style={{
@@ -1016,7 +1030,7 @@ export default function Orders() {
                 {(Number(askStr) - Number(bidStr) || 0).toFixed(digits)}
               </Text>
             </View>
-          </View>
+          </View> */}
 
           {/* High/Low Indicators */}
           <View
@@ -1429,6 +1443,7 @@ export default function Orders() {
           modalSide={modalSide}
           theme={theme}
           symbol={symbol}
+          slTpLevelPoints={instrument?.limitAndStopLevelPoints}
           modalSidePriceStr={modalSidePriceStr}
           tradeTab={tradeTab}
           handleTradeTabPress={handleTradeTabPress}
